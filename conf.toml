@@ -1,0 +1,7 @@
+[cessChain]
+rpcAddr = "wss://cess.today/rpc2-hacknet/ws/"
+
+[minerData]
+serviceIpAddress            = "127.0.0.1"
+servicePort                 = "8081"
+identifyAccountPhraseOrSeed = ""
