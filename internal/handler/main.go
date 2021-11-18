@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"io/ioutil"
 	"scheduler-mining/configs"
 
 	"github.com/gin-contrib/cors"
@@ -9,8 +8,6 @@ import (
 )
 
 func Handler_main() {
-	gin.SetMode(gin.ReleaseMode)
-	gin.DefaultWriter = ioutil.Discard
 	r := gin.Default()
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true                                                                                                 //允许所有域名
@@ -19,6 +16,8 @@ func Handler_main() {
 	r.Use(cors.New(config))
 
 	//TODO:
+	r.POST("/file/upload", UploadHandler)
+	r.GET("/file/download/:hash", DownloadHandler)
 
 	r.Run(":" + configs.Confile.MinerData.ServicePort)
 }

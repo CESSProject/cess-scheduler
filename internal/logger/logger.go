@@ -34,7 +34,7 @@ func initInfoLogger() {
 	hook := lumberjack.Logger{
 		Filename:   infologpath,
 		MaxSize:    10,
-		MaxAge:     180,
+		MaxAge:     360,
 		MaxBackups: 0,
 		LocalTime:  true,
 		Compress:   true,
@@ -68,7 +68,7 @@ func initErrLogger() {
 	hook := lumberjack.Logger{
 		Filename:   errlogpath,
 		MaxSize:    10,
-		MaxAge:     90,
+		MaxAge:     360,
 		MaxBackups: 0,
 		LocalTime:  true,
 		Compress:   true,

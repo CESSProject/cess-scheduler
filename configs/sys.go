@@ -20,4 +20,5 @@ const (
 
 var (
 	LogfilePathPrefix = "./log/"
+	CacheFilePath     = "./cess_filecache"
 )

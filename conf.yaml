@@ -1,0 +1,23 @@
+minerData:
+  serviceIpAddr: "127.0.0.1"
+  servicePort: "8081"
+  idAccountPhraseOrSeed: ""
+
+etcd:
+  endpoints: 47.98.243.71:2379
+  name: cd0
+  initialAdvertisePeerUrls: http://47.98.243.71:2380
+  listenPeerUrls: http://0.0.0.0:2380
+  listenClientUrls: http://0.0.0.0:2379
+  advertiseClientUrls: http://47.98.243.71:2379
+  initialClusterToken: etcd-cluster-1
+  initialClusterState: new
+  username: root
+  password: 123456
+  cd0url: 47.98.243.71:2379
+  rootTotal: 2
+  normalTotal: 1
+  PollingTime: 120
+
+cessChain:
+  rpcAddr: "wss://cess.today/rpc2-hacknet/ws/"

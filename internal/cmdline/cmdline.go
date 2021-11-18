@@ -3,10 +3,11 @@ package cmdline
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"scheduler-mining/configs"
 
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 )
 
 // command line parameters
@@ -31,24 +32,22 @@ func CmdlineInit() {
 		os.Exit(configs.Exit_Normal)
 	}
 	if confFilePath == "" {
-		fmt.Printf("\x1b[%dmUse '-h' to view help information.\x1b[0m\n", 32)
+		fmt.Printf("\x1b[%dm[info]\x1b[0m Use '-h' to view help information\n", 43)
 		os.Exit(configs.Exit_CmdLineParaErr)
 	}
 	_, err = os.Stat(confFilePath)
 	if err != nil {
-		fmt.Printf("\x1b[%dmErr:The '%v' file does not exist.\x1b[0m\n", 31, confFilePath)
+		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file does not exist\n", 31, confFilePath)
 		os.Exit(configs.Exit_ConfFileNotExist)
 	}
-	viper.SetConfigFile(confFilePath)
-	viper.SetConfigType("toml")
-	err = viper.ReadInConfig()
+	yamlFile, err := ioutil.ReadFile(confFilePath)
 	if err != nil {
-		fmt.Printf("\x1b[%dmErr:The '%v' file type error.\x1b[0m\n", 31, confFilePath)
+		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file read error\n", 41, confFilePath)
 		os.Exit(configs.Exit_ConfFileTypeError)
 	}
-	err = viper.Unmarshal(configs.Confile)
+	err = yaml.Unmarshal(yamlFile, configs.Confile)
 	if err != nil {
-		fmt.Printf("\x1b[%dmErr:The '%v' file format error.\x1b[0m\n", 31, confFilePath)
+		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
 		os.Exit(configs.Exit_ConfFileFormatError)
 	}
 }

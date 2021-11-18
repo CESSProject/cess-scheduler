@@ -26,9 +26,12 @@ type Policy struct {
 }
 
 type AddExt struct {
-	FileName string `json:"file_name"`
-	Size     uint64 `json:"size"`
-	Md5      string `json:"md5"`
+	FileName   string `json:"file_name"`
+	Size       uint64 `json:"size"`
+	Hash       string `json:"hash"`
+	FileId     string `json:"fid"`
+	BackUpNum  uint8  `json:"backUpNum"`
+	Expiration uint64 `json:"expiration"`
 }
 
 type tokenObj struct {
@@ -49,7 +52,7 @@ const (
 
 func parseToken(tokenStr string) (*tokenObj, error) {
 	if tokenStr == "" {
-		return nil, errors.New("empty token")
+		return nil, errors.New("token is empty")
 	}
 	//Base64 encode(addr, sign, policy)
 	tokenSlice := strings.Split(tokenStr, ":")
@@ -76,25 +79,32 @@ func parseToken(tokenStr string) (*tokenObj, error) {
 }
 
 // Verify Token
-func VerifyToken(token string) (*Policy, bool, error) {
+func VerifyToken(token string) (*Policy, AddExt, error) {
+	var extData AddExt
 	// Parse
 	to, err := parseToken(token)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "parse token failed")
+		return nil, extData, errors.Wrap(err, "parse token failed")
 	}
 	//Expiration
 	if time.Now().After(time.Unix(to.raw.Expired, 0)) {
-		return nil, false, errors.Wrap(err, "token expired...")
+		return nil, extData, errors.Wrap(err, "token expired...")
 	}
-	return to.raw, true, nil
+
+	err = json.Unmarshal(to.raw.Ext, &extData)
+	if err != nil {
+		return nil, extData, errors.Wrap(err, "parse token ext failed")
+	}
+	return to.raw, extData, nil
 }
 
 // callback
-func CallBack(tp *Policy, size, filename, hash string) {
+func CallBack(tp *Policy, size, filename, hash string, simhash string) {
 	if tp.CallbackUrl != "" {
 		tp.CallbackBody = strings.ReplaceAll(tp.CallbackBody, "$(size)", size)
 		tp.CallbackBody = strings.ReplaceAll(tp.CallbackBody, "$(file_name)", filename)
 		tp.CallbackBody = strings.ReplaceAll(tp.CallbackBody, "$(hash)", hash)
+		tp.CallbackBody = strings.ReplaceAll(tp.CallbackBody, "$(simhash)", simhash)
 
 		err := doCallback(tp.CallbackUrl, tp.CallbackBody)
 		if err != nil {
