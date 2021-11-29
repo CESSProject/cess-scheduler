@@ -18,7 +18,47 @@ const (
 	Exit_CmdLineParaErr           = -10
 )
 
+// cess chain module
+const (
+	ChainModule_Sminer      = "Sminer"
+	ChainModule_SegmentBook = "SegmentBook"
+)
+
+// cess chain module method
+const (
+	ChainModule_Sminer_AllMinerItems      = "AllMiner"
+	ChainModule_Sminer_MinerItems         = "MinerItems"
+	ChainModule_Sminer_SegInfo            = "SegInfo"
+	ChainModule_SegmentBook_ParamSet      = "ParamSet"
+	ChainModule_SegmentBook_ConProofInfoA = "ConProofInfoA"
+	ChainModule_SegmentBook_UnVerifiedA   = "UnVerifiedA"
+	ChainModule_SegmentBook_UnVerifiedB   = "UnVerifiedB"
+	ChainModule_SegmentBook_UnVerifiedC   = "UnVerifiedC"
+	ChainModule_SegmentBook_UnVerifiedD   = "UnVerifiedD"
+)
+
+// cess chain Transaction name
+const (
+	ChainTx_SegmentBook_VerifyInVpa  = "SegmentBook.verify_in_vpa"
+	ChainTx_SegmentBook_VerifyInVpb  = "SegmentBook.verify_in_vpb"
+	ChainTx_SegmentBook_VerifyInVpc  = "SegmentBook.verify_in_vpc"
+	ChainTx_SegmentBook_VerifyInVpd  = "SegmentBook.verify_in_vpd"
+	ChainTx_SegmentBook_IntentSubmit = "SegmentBook.intent_submit"
+	ChainTx_FileBank_Update          = "FileBank.update"
+)
+
+const (
+	MinerUpfileUrl   = "/upfile"
+	MinerDownfileUrl = "/downfile"
+)
+
+const (
+	SegMentSize_1M = 1048576
+)
+
 var (
 	LogfilePathPrefix = "./log/"
 	CacheFilePath     = "./cess_filecache"
+	MinSegMentSize    = 8323072
+	RduShards         = 2
 )

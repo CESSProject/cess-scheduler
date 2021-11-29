@@ -1,7 +1,10 @@
+cessChain:
+  rpcAddr: "ws://106.15.44.155:9949/" # ["ws://106.15.44.155:9947/","wss://cess.today/rpc2-hacknet/ws/"]
+
 minerData:
-  serviceIpAddr: "127.0.0.1"
+  serviceIpAddr: "172.16.2.191"
   servicePort: "8081"
-  idAccountPhraseOrSeed: ""
+  idAccountPhraseOrSeed: "success dirt biology roof episode clarify inflict unit average damage escape tackle"
 
 etcd:
   endpoints: 47.98.243.71:2379
@@ -19,5 +22,3 @@ etcd:
   normalTotal: 1
   PollingTime: 120
 
-cessChain:
-  rpcAddr: "wss://cess.today/rpc2-hacknet/ws/"

@@ -1,9 +1,16 @@
 package tools
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -61,6 +68,73 @@ func TestConnectionWithTcp(ip string) bool {
 	} else {
 		return false
 	}
-	_, err := net.DialTimeout("tcp", address, 2*time.Second)
+	_, err := net.DialTimeout("tcp", address, 3*time.Second)
 	return err == nil
+}
+
+// Integer to bytes
+func IntegerToBytes(n interface{}) ([]byte, error) {
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	t := reflect.TypeOf(n)
+	switch t.Kind() {
+	case reflect.Int16:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Uint16:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Int:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Uint:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Int32:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Uint32:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Int64:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	case reflect.Uint64:
+		binary.Write(bytesBuffer, binary.LittleEndian, n)
+		return bytesBuffer.Bytes(), nil
+	default:
+		return nil, errors.New("unsupported type")
+	}
+}
+
+// Bytes to Integer
+func BytesToInteger(n []byte) (int32, error) {
+	var x int32
+	bytesBuffer := bytes.NewBuffer(n)
+	err := binary.Read(bytesBuffer, binary.LittleEndian, &x)
+	return x, err
+}
+
+func Uint32ToIp(n uint32) string {
+	ip := fmt.Sprintf("%v", uint8(n>>24))
+	ip += "."
+	ip += fmt.Sprintf("%v", uint8(n>>16))
+	ip += "."
+	ip += fmt.Sprintf("%v", uint8(n>>8))
+	ip += "."
+	ip += fmt.Sprintf("%v", uint8(n))
+	return ip
+}
+
+func CalcFileHash(fpath string) (string, error) {
+	f, err := os.Open(fpath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

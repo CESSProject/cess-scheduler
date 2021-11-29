@@ -37,7 +37,7 @@ func VerifyFileOnce(sectorId SectorID, seed abi.InteractiveSealRandomness, ticke
 			UnsealedCID:           preGeneratedUnsealedCIDs[i],
 		})
 		RequireNoError(err)
-		if isValid == false {
+		if !isValid {
 			return isValid
 		}
 	}

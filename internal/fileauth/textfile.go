@@ -6,27 +6,36 @@ import (
 	"os"
 
 	"github.com/HaoyuHu/gosimhash"
+	"github.com/HaoyuHu/gosimhash/utils"
 	"github.com/pkg/errors"
 )
 
-func GetTextSimhash(filename string) (uint64, error) {
+const (
+	dictPath     = "./dict/jieba.dict.utf8"
+	hmmPath      = "./dict/hmm_model.utf8"
+	userDictPath = "./dict/user.dict.utf8"
+	idfPath      = "./dict/idf.utf8"
+	stopwordPath = "./dict/stop_words.utf8"
+)
+
+func getTextSimhash(filename string) (string, error) {
 	fi, err := os.Stat(filename)
 	if err != nil {
-		return 0, errors.Wrap(err, "stat err")
+		return "", errors.Wrap(err, "stat err")
 	}
 	if fi.IsDir() {
-		return 0, errors.New("Not a file")
+		return "", errors.New("Not a file")
 	}
 	file, err := os.Open(filename)
 	if err != nil {
-		return 0, errors.Wrap(err, "open err")
+		return "", errors.Wrap(err, "open err")
 	}
 	defer file.Close()
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		return 0, errors.Wrap(err, "ReadAll err")
+		return "", errors.Wrap(err, "ReadAll err")
 	}
-	hasher := gosimhash.NewSimpleSimhasher()
+	hasher := gosimhash.NewSimhasher(utils.NewJenkinsHasher(), dictPath, hmmPath, userDictPath, idfPath, stopwordPath)
 	defer hasher.Free()
 
 	sentence := string(content)
@@ -37,7 +46,7 @@ func GetTextSimhash(filename string) (uint64, error) {
 	}
 	simhash := hasher.MakeSimhash(&sentence, topN)
 	if simhash == 0 {
-		return 0, errors.New("Unsupported file format")
+		return "", errors.New("Unsupported file format")
 	}
-	return simhash, nil
+	return fmt.Sprintf("%v", simhash), nil
 }

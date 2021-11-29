@@ -33,4 +33,9 @@ type RotationModule struct {
 	PollingTime              int64  `yaml:"PollingTime"`
 }
 
+var (
+	Cd0url              string
+	InitialClusterState string
+)
+
 var Confile = new(MinerOnChain)
