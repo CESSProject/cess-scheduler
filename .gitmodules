@@ -1,0 +1,3 @@
+[submodule "internal/cess-ffi"]
+	path = internal/cess-ffi
+	url = https://github.com/CESSProject/cess-ffi.git
