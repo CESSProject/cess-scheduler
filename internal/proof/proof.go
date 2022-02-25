@@ -1,6 +1,8 @@
 package proof
 
 import (
+	"fmt"
+	"scheduler-mining/internal/logger"
 	"scheduler-mining/tools"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -10,6 +12,12 @@ import (
 )
 
 func verifyVpaProof(id, segid uint64, rand uint32, segtype uint8, sealedcid string, proof []byte) (bool, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
 	seed, err := tools.IntegerToBytes(rand)
 	if err != nil {
@@ -19,12 +27,18 @@ func verifyVpaProof(id, segid uint64, rand uint32, segtype uint8, sealedcid stri
 	if err != nil {
 		return false, errors.Wrap(err, "cid.Parse err")
 	}
+	fmt.Println(sectorId, " - ", seed, " - ", abi.RegisteredSealProof(segtype), " - ", scid, " - ", proof)
 	isValid := VerifyFileOnceForIdle(sectorId, seed, seed, abi.RegisteredSealProof(segtype), scid, proof)
 	return isValid, nil
 }
 
 func verifyVpbProof(id, segid uint64, rand uint32, segtype uint8, sealedcid string, pf []prf.PoStProof) (bool, error) {
-
+	defer func() {
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
 	seed, err := tools.IntegerToBytes(rand)
 	if err != nil {
@@ -40,6 +54,12 @@ func verifyVpbProof(id, segid uint64, rand uint32, segtype uint8, sealedcid stri
 }
 
 func verifyVpcProof(id, segid uint64, rand uint32, segtype uint8, sealcid, uncid []string, proof [][]byte) (bool, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
 	seed, err := tools.IntegerToBytes(rand)
 	if err != nil {
@@ -67,6 +87,12 @@ func verifyVpcProof(id, segid uint64, rand uint32, segtype uint8, sealcid, uncid
 }
 
 func verifyVpdProof(id, segid uint64, rand uint32, segtype uint8, sealcid []string, pf []prf.PoStProof) (bool, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
 	seed, err := tools.IntegerToBytes(rand)
 	if err != nil {

@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	InfoLogger *zap.Logger
-	ErrLogger  *zap.Logger
+	InfoLogger    *zap.Logger
+	ErrLogger     *zap.Logger
+	WatcherLogger *zap.Logger
 )
 
 func LoggerInit() {
@@ -26,6 +27,40 @@ func LoggerInit() {
 	}
 	initInfoLogger()
 	initErrLogger()
+	initWatchLogger()
+}
+
+func initWatchLogger() {
+	infologpath := configs.LogfilePathPrefix + "watcher.log"
+	hook := lumberjack.Logger{
+		Filename:   infologpath,
+		MaxSize:    10,
+		MaxAge:     180,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	WatcherLogger = zap.New(core, caller, development)
+	WatcherLogger.Sugar().Infof("The service has started and created a log file in the %v", infologpath)
 }
 
 // info log

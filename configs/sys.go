@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "CESS-Scheduler-Mining_0.5.0_Alpha"
+const Version = "CESS-Scheduler-Mining_0.1.0_Alpha"
 
 // system exit code
 const (
@@ -61,4 +61,20 @@ var (
 	CacheFilePath     = "./cess_filecache"
 	MinSegMentSize    = 8323072
 	RduShards         = 2
+	CurrentPath       = ""
+	FilePostProof     = 6
+)
+
+const (
+	ChainModule_EtcdSminer           = "Sminer"
+	ChainTransaction_Sminer_Register = "Sminer.setetcd"
+	ChainModule_Sminer_EtcdRegister  = "EtcdRegister"
+
+	ClusterToken_Sminer_Register   = "Sminer.setetcdtoken"
+	ClusterToken_Sminer            = "Sminer"
+	ClusterToken_Sminer_MinerItems = "EtcdToken"
+
+	ServicePort_Sminer_Register   = "Sminer.setserviceport"
+	ServicePort_Sminer            = "Sminer"
+	ServicePort_Sminer_MinerItems = "ServicePort"
 )

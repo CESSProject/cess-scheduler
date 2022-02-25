@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -137,4 +139,29 @@ func CalcFileHash(fpath string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func CleanLocalRecord(filename string) {
+	path, _ := os.Getwd()
+	filepath.Walk(path, func(path string, fi os.FileInfo, err error) error {
+		if nil == fi {
+			return err
+		}
+		if !fi.IsDir() {
+			return nil
+		}
+		fname := fi.Name()
+		if strings.Contains(fname, filename) {
+			err := os.RemoveAll(path)
+			if err != nil {
+				fmt.Println("Delete dir error:", err)
+			}
+		}
+		return nil
+	})
+}
+
+func RandomInRange(min, max int) int {
+	rand.Seed(time.Now().Unix())
+	return rand.Intn(max-min) + min
 }

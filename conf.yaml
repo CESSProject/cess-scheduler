@@ -1,23 +1,21 @@
 cessChain:
-  rpcAddr: "ws://106.15.44.155:9949/" # ["ws://106.15.44.155:9947/","wss://cess.today/rpc2-hacknet/ws/"]
+  rpcAddr: ""
 
 minerData:
-  serviceIpAddr: "172.16.2.191"
-  servicePort: "8081"
-  idAccountPhraseOrSeed: "success dirt biology roof episode clarify inflict unit average damage escape tackle"
+  servicePort: ""
+  serviceIpAddr: ""
+  idAccountPhraseOrSeed: ""
 
-etcd:
-  endpoints: 47.98.243.71:2379
-  name: cd0
-  initialAdvertisePeerUrls: http://47.98.243.71:2380
+rotationmodule:
+  endpoints: xx.xx.xx.xx:2379
+  name: ""
+  initialAdvertisePeerUrls: http://xx.xx.xx.xx:2380
   listenPeerUrls: http://0.0.0.0:2380
   listenClientUrls: http://0.0.0.0:2379
-  advertiseClientUrls: http://47.98.243.71:2379
-  initialClusterToken: etcd-cluster-1
-  initialClusterState: new
-  username: root
-  password: 123456
-  cd0url: 47.98.243.71:2379
+  advertiseClientUrls: http://xx.xx.xx.xx:2379
+  initialClusterToken: ""
+  user: ""
+  password: ""
   rootTotal: 2
   normalTotal: 1
   PollingTime: 120

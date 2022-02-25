@@ -1,9 +1,9 @@
 package configs
 
 type MinerOnChain struct {
-	CessChain CessChain      `yaml:"cessChain"`
-	MinerData MinerData      `yaml:"minerData"`
-	Etcd      RotationModule `yaml:"etcd"`
+	CessChain      CessChain      `yaml:"cessChain"`
+	MinerData      MinerData      `yaml:"minerData"`
+	RotationModule RotationModule `yaml:"rotationmodule"`
 }
 
 type CessChain struct {
@@ -25,7 +25,7 @@ type RotationModule struct {
 	AdvertiseClientUrls      string `yaml:"advertiseClientUrls"`
 	InitialClusterToken      string `yaml:"initialClusterToken"`
 	InitialClusterState      string `yaml:"initialClusterState"`
-	Username                 string `yaml:"username"`
+	Username                 string `yaml:"user"`
 	Password                 string `yaml:"password"`
 	Cd0url                   string `yaml:"cd0url"`
 	RootTotal                int    `yaml:"rootTotal"`

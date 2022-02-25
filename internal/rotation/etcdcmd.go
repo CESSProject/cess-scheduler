@@ -3,12 +3,10 @@ package rotation
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"scheduler-mining/configs"
 	ce "scheduler-mining/internal/chain"
 	"scheduler-mining/internal/logger"
-	"scheduler-mining/tools"
 	"strings"
 	"time"
 
@@ -19,16 +17,10 @@ import (
 func EtcdClusterRegister() {
 	time.Sleep(time.Second * 3)
 
-	resp, err := ce.Ci.GetDataOnChain()
-	if err != nil || len(resp.Ip) == 0 {
-		logger.ErrLogger.Sugar().Errorf("GetDataOnChain Error:%v", err.Error())
-		checkErr(err)
-		os.Exit(0)
-	}
-	configs.Cd0url = string(resp.Ip)
-	fmt.Println("Genesis Address Is:", string(resp.Ip))
 	logger.InfoLogger.Sugar().Infof("Start Etcd Register")
 	commandetcd, role := EtcdStartCommand()
+	CleanContainer()
+	fmt.Println(commandetcd)
 	logger.InfoLogger.Sugar().Infof("This Identity:%v,Allow Participate in Cluster:%v,Perr Info:%v", role.Role, role.AllowJoin, role.Participants)
 	switch role.PeerInfo.Role {
 	case "genesis":
@@ -48,7 +40,6 @@ func EtcdClusterRegister() {
 		} else {
 			fmt.Println("OpenBalance With No Auth successful")
 		}
-
 		_, err = BalanceCon.Client.UserAdd(context.Background(), configs.Confile.RotationModule.Username, configs.Confile.RotationModule.Password)
 		if err != nil {
 			logger.ErrLogger.Sugar().Errorf("Genesis Node Add User Error: %v", err)
@@ -101,19 +92,37 @@ func EtcdClusterRegister() {
 		BalanceCon.Client.Put(context.Background(), "/"+ipkey[0], "root")
 		BalanceCon.Client.Put(context.Background(), "H"+ipkey[0], "root")
 		BalanceCon.Client.Put(context.Background(), "lock", "true")
+
+		//add load balance in nginx when peer create
+		LoadBalance(configs.Confile.MinerData.ServiceIpAddr+":"+configs.Confile.MinerData.ServicePort, "")
+
 		go GetAliveKey()
-		go stateMachine()
+		//go stateMachine()
 	case "root":
+		fmt.Println("this is root node")
 		if role.PeerInfo.AllowJoin {
 			exec_shell_immediately(commandetcd)
-			OpenAuthBalance()
+			err := OpenAuthBalance()
+			if err != nil {
+				logger.ErrLogger.Sugar().Errorf("Open Etcd Balance With Auth Error: %v", err)
+				checkErr(err)
+			}
 			ipkey := strings.Split(configs.Confile.RotationModule.Endpoint, ":")
 			BalanceCon.Client.Put(context.Background(), "/"+ipkey[0], "root")
 			BalanceCon.Client.Put(context.Background(), "H"+ipkey[0], "root")
+		} else {
+			if role.Err != "" {
+				logger.InfoLogger.Sugar().Infof(role.Err)
+				checkErr(errors.New(role.Err))
+			}
 		}
+		//add load balance in nginx when peer create
+		LoadBalance(configs.Confile.MinerData.ServiceIpAddr+":"+configs.Confile.MinerData.ServicePort, "")
 		go GetAliveKey()
 		go stateMachine()
 	case "normal":
+		fmt.Println("this is normal node")
+		go LoopJoinCluster()
 		if role.PeerInfo.AllowJoin {
 			exec_shell_immediately(commandetcd)
 			err := OpenAuthBalance()
@@ -121,12 +130,24 @@ func EtcdClusterRegister() {
 				logger.ErrLogger.Sugar().Errorf("normal role open auth balance err:%s", err.Error())
 			}
 			fmt.Println("normal role open auth balance")
+		} else {
+			if role.Err != "" {
+				logger.InfoLogger.Sugar().Infof(role.Err)
+			}
 		}
-		go LoopJoinCluster()
+
 	}
 }
 
 func EtcdStartCommand() (commandetcd string, role PeerInfoResult) {
+	resp, err := ce.Ci.GetDataOnChain()
+	if err != nil || len(resp.Ip) == 0 {
+		logger.ErrLogger.Sugar().Errorf("GetDataOnChain Error:%v", err.Error())
+		checkErr(err)
+		os.Exit(0)
+	}
+	configs.Cd0url = string(resp.Ip)
+	fmt.Println("Genesis Address Is:", string(resp.Ip))
 	role = RequestStatus(
 		configs.Cd0url,
 		configs.Confile.RotationModule.Username,
@@ -149,29 +170,40 @@ func EtcdStartCommand() (commandetcd string, role PeerInfoResult) {
 		}
 		configs.InitialClusterState = "existing"
 	}
-	resp, err := ce.Tk.GetDataOnChain()
+	respt, err := ce.Tk.GetDataOnChain()
 	if err != nil {
 		logger.ErrLogger.Sugar().Errorf("Get etcd token on chain fail error:%v", err.Error())
 		checkErr(err)
 	}
 	InitialClusterToken := ""
 	if len(resp.Ip) != 0 {
-		InitialClusterToken = string(resp.Ip)
+		InitialClusterToken = string(respt.Ip)
 	} else {
 		logger.ErrLogger.Sugar().Errorf("Can't get the token of etcd cluster pelase try again or check your network")
 		checkErr(errors.New("Can't get the token of etcd cluster pelase try again or check your network"))
 	}
 
-	commandetcd = "nohup etcd --name " + configs.Confile.RotationModule.Name +
-		" --listen-client-urls " + configs.Confile.RotationModule.ListenClientUrls +
-		" --advertise-client-urls " + configs.Confile.RotationModule.AdvertiseClientUrls +
-		" --listen-peer-urls " + configs.Confile.RotationModule.ListenPeerUrls +
-		" --initial-advertise-peer-urls " + configs.Confile.RotationModule.InitialAdvertisePeerUrls +
-		" --initial-cluster-state " + configs.InitialClusterState +
-		" --initial-cluster " + exsistpeer +
-		" --initial-cluster-token " + InitialClusterToken
-	othercom := " >./log_etcd.log 2>&1 &"
-	commandetcd += othercom
+	//commandetcd = "nohup etcd --name " + configs.Confile.RotationModule.Name +
+	//	" --listen-client-urls " + configs.Confile.RotationModule.ListenClientUrls +
+	//	" --advertise-client-urls " + configs.Confile.RotationModule.AdvertiseClientUrls +
+	//	" --listen-peer-urls " + configs.Confile.RotationModule.ListenPeerUrls +
+	//	" --initial-advertise-peer-urls " + configs.Confile.RotationModule.InitialAdvertisePeerUrls +
+	//	" --initial-cluster-state " + configs.InitialClusterState +
+	//	" --initial-cluster " + exsistpeer +
+	//	" --initial-cluster-token " + InitialClusterToken
+	//othercom := " >./log_etcd.log 2>&1 &"
+	//commandetcd += othercom
+
+	commandetcd = " docker run -itd -p 2380:2380 -p 2379:2379 --name cess_etcd --network host localhost/cess_etcd /usr/local/bin/etcd" +
+		" -name " + configs.Confile.RotationModule.Name +
+		" -advertise-client-urls " + configs.Confile.RotationModule.AdvertiseClientUrls +
+		" -listen-client-urls " + configs.Confile.RotationModule.ListenClientUrls +
+		" -initial-advertise-peer-urls " + configs.Confile.RotationModule.InitialAdvertisePeerUrls +
+		" -listen-peer-urls " + configs.Confile.RotationModule.ListenPeerUrls +
+		" -initial-cluster-token " + InitialClusterToken +
+		" -initial-cluster " + exsistpeer +
+		" -initial-cluster-state " + configs.InitialClusterState
+
 	return
 }
 
@@ -212,8 +244,9 @@ loop:
 	for wresp := range res {
 		for _, ev := range wresp.Events {
 			if ev.Type == 1 {
-				DeleteMember(string(ev.Kv.Key))
 				ClusterNum.Sub(1)
+				logger.WatcherLogger.Sugar().Infof("%s is exit from cluster,normal peers number is:%d", ev.Kv.Key, ClusterNum.Load())
+				DeleteMember(string(ev.Kv.Key))
 				WatcherMap.Delete(key)
 				cancel()
 				break loop
@@ -226,9 +259,12 @@ func DeleteMember(key string) {
 	var memberId uint64
 	resp, err := BalanceCon.Client.MemberList(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		logger.ErrLogger.Sugar().Errorf("MemberList error when need deletemember")
 	}
 	for _, Member := range resp.Members {
+		if len(Member.PeerURLs) == 0 {
+			continue
+		}
 		if strings.Contains(Member.PeerURLs[0], key) {
 			memberId = Member.ID
 		}
@@ -236,7 +272,7 @@ func DeleteMember(key string) {
 	logger.WatcherLogger.Sugar().Infof("Time over DeleteMember ,memberId is:%v", memberId)
 	_, err = BalanceCon.Client.MemberRemove(context.Background(), memberId)
 	if err != nil {
-		log.Fatal(err)
+		logger.ErrLogger.Sugar().Errorf("MemberRemove error when need deletemember:%s", err.Error())
 	}
 }
 
@@ -266,25 +302,36 @@ func RentKey(key string) {
 }
 
 func LoopJoinCluster() {
+	fmt.Println("start looping")
 	for range time.Tick(time.Second * 5) {
+		fmt.Println("-----loop1-----")
 		if !CommandPid() {
 			logger.InfoLogger.Sugar().Infof("Normal Loop Join Cluster...")
 			commandetcd, role := EtcdStartCommand()
+			fmt.Println("-----loop2-----", role)
 			if role.Err != "" {
 				logger.InfoLogger.Sugar().Infof(configs.Confile.RotationModule.Username+"("+role.Role+") join cluster info:", role.Err)
 				continue
 			}
 			if role.AllowJoin {
-				tools.CleanLocalRecord(".etcd")
+				CleanContainer()
+				//tools.CleanLocalRecord(".etcd")
 				logger.InfoLogger.Sugar().Infof(configs.Confile.RotationModule.Username + "(" + role.Role + ")" + " info:Join in this cluster be allowed for now")
 				exec_shell_immediately(commandetcd)
 				fmt.Println(commandetcd)
 				logger.InfoLogger.Sugar().Infof(configs.Confile.RotationModule.Username + " join the cluster successful!")
+
 				err := OpenAuthBalance()
 				if err != nil {
 					logger.ErrLogger.Sugar().Errorf("LoopJoinCluster OpenAuthBalance ERR:", err)
+				} else {
+					fmt.Println("Open auth balance successful!")
 				}
 				continue
+			} else {
+				if role.Err != "" {
+					logger.InfoLogger.Sugar().Infof(role.Err)
+				}
 			}
 		}
 	}

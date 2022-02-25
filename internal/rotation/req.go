@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"scheduler-mining/configs"
@@ -101,13 +102,11 @@ func NewBalancer(endpoints string) (*Balancer, error) {
 		return nil, err
 	}
 
-	Balancer := &Balancer{
-		Client:   cli,
-		TTL:      60,
-		Interval: 10,
+	BalancerN := &Balancer{
+		Client: cli,
 	}
 
-	return Balancer, err
+	return BalancerN, err
 }
 
 func AuthBalancer(endpoints string) (*Balancer, error) {
@@ -121,13 +120,13 @@ func AuthBalancer(endpoints string) (*Balancer, error) {
 		return nil, err
 	}
 
-	Balancer := &Balancer{
+	BalancerA := &Balancer{
 		Client:   cli,
 		TTL:      60, //租约时间12秒
 		Interval: 10, //每10秒上报一次
 	}
 
-	return Balancer, err
+	return BalancerA, err
 }
 
 func ReplySuccess(ctx *gin.Context, r interface{}) {
@@ -145,7 +144,9 @@ func ReplyFail(ctx *gin.Context, r interface{}) {
 }
 
 func RequestStatus(cd0url, Username, Password, localUrl, name string) (res PeerInfoResult) {
+	fmt.Println(cd0url, Username, Password, localUrl, name, "===========")
 	if len(cd0url) == 0 || len(Username) == 0 || len(Password) == 0 || len(localUrl) == 0 || len(name) == 0 {
+		fmt.Println(cd0url, Username, Password, localUrl, name)
 		logger.ErrLogger.Sugar().Errorf("Bad Parameter!Please Check your conf.yaml")
 		checkErr(errors.New("Bad Parameter!Please Check your conf.yaml"))
 	}
@@ -212,6 +213,7 @@ func RequestJoinCluster(peerURLs []string, Username, Password, Role string) (res
 			return
 		}
 		err = json.Unmarshal(body, &res)
+		fmt.Println(body)
 		if err != nil {
 			checkErr(err)
 		}

@@ -31,5 +31,8 @@ require (
 	go.uber.org/zap v1.19.1
 	golang.org/x/image v0.0.0-20190802002840-cff245a6509b
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	google.golang.org/grpc v1.42.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.26.0

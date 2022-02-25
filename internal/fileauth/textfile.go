@@ -39,7 +39,7 @@ func getTextSimhash(filename string) (string, error) {
 	defer hasher.Free()
 
 	sentence := string(content)
-	fmt.Println(fi.Size())
+	//fmt.Println(fi.Size())
 	var topN int = int(fi.Size()) / 3
 	if topN > 1000 {
 		topN = 1000

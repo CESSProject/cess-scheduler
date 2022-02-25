@@ -7,6 +7,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"os"
+	"strings"
 
 	"github.com/corona10/goimagehash"
 	"github.com/pkg/errors"
@@ -24,8 +25,8 @@ func getImgSimHash(imgtype, imgpath string) (string, error) {
 		return "", errors.Wrap(err, "os.Open err")
 	}
 	defer imgfile.Close()
-	switch imgtype {
-	case ".jpg", "jpeg":
+	switch strings.ToLower(imgtype) {
+	case ".jpg", ".jpeg":
 		img, err = jpeg.Decode(imgfile)
 		if err != nil {
 			return "", errors.Wrap(err, "jpeg.Decode err")

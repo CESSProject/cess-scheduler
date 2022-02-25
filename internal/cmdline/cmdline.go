@@ -50,6 +50,11 @@ func CmdlineInit() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
 		os.Exit(configs.Exit_ConfFileFormatError)
 	}
+	configs.CurrentPath, err = os.Getwd()
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Failed to get current directory \n", 41)
+		os.Exit(configs.Exit_ConfFileFormatError)
+	}
 }
 
 func usage() {

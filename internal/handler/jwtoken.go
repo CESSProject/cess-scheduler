@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"scheduler-mining/configs"
@@ -45,8 +44,12 @@ type tokenObj struct {
 }
 
 type callbackResult struct {
-	Success    bool   `json:"success"`
-	Msg        string `json:"msg"`
+	Success bool        `json:"success"`
+	Msg     string      `json:"msg"`
+	Ext     callbackext `json:"ext"`
+}
+
+type callbackext struct {
 	FileId     string `json:"fid"`
 	Visibility int    `json:"visibility"`
 }
@@ -121,15 +124,15 @@ func CallBack(tp *Policy, size, filename, hash, simhash, simhashtype string) {
 		tp.CallbackBody = strings.ReplaceAll(tp.CallbackBody, "$(simhashtype)", simhashtype)
 		err := doCallback(tp.CallbackUrl, tp.CallbackBody)
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("Callback error: %s", err.Error())
+			logger.ErrLogger.Sugar().Errorf("Callback error:[hash:%v] [%v] [err:%v]", hash, simhash, err)
 			return
 		}
 	}
-	fmt.Printf("Callback: [%v][%v]\n", simhash, simhashtype)
+	logger.InfoLogger.Sugar().Infof("Callback-1 suc [hash:%v] [%v]", hash, simhash)
 }
 
 // callback2
-func CallBack2(tp *Policy, size, filename, hash, simhash, simhashtype string) {
+func CallBack2(tp *Policy, size, filename, hash, simhash, simhashtype, fid string) {
 	var bd CallBackBody
 	if tp.CallbackUrl != "" {
 		err := json.Unmarshal([]byte(tp.CallbackBody), &bd)
@@ -145,13 +148,14 @@ func CallBack2(tp *Policy, size, filename, hash, simhash, simhashtype string) {
 			return
 		}
 		tp.CallbackBody = string(mbd)
-		err = doCallback2(tp.CallbackUrl, tp.CallbackBody, simhash)
+		err = doCallback2(tp.CallbackUrl, tp.CallbackBody, simhash, fid)
 		if err != nil {
 			logger.ErrLogger.Sugar().Errorf("Callback error: [simhash:%v] %s", simhash, err.Error())
 			return
 		}
 	}
-	fmt.Printf("Callback: [%v][%v]\n", simhash, simhashtype)
+	//fmt.Printf("Callback: [%v][%v]\n", simhash, simhashtype)
+	logger.InfoLogger.Sugar().Infof("Callback-2 suc [fid:%v] [%v]", fid, simhash)
 }
 
 func doCallback(callbackUrl, callbackBody string) error {
@@ -188,7 +192,7 @@ func doCallback(callbackUrl, callbackBody string) error {
 	return errors.Errorf("callback return false: %s", cr.Msg)
 }
 
-func doCallback2(callbackUrl, callbackBody, simhash string) error {
+func doCallback2(callbackUrl, callbackBody, simhash, fid string) error {
 	transport := http.Transport{
 		DisableKeepAlives: true,
 	}
@@ -214,22 +218,25 @@ func doCallback2(callbackUrl, callbackBody, simhash string) error {
 	if err != nil {
 		return errors.Wrap(err, "unmarshal callback result failed")
 	}
-
+	var simchain = make([]byte, 0)
+	if simhash != "-1" {
+		simchain = append(simchain, []byte(simhash)...)
+	}
 	if cr.Success {
+		//fmt.Println("CALLBACK DATA:", cr)
 		err = chain.UpdateFileInfoToChain(
-			chain.SubstrateAPI_Write(),
 			configs.Confile.MinerData.IdAccountPhraseOrSeed,
 			configs.ChainTx_FileBank_Update,
-			[]byte(cr.FileId),
-			[]byte(simhash),
-			uint8(cr.Visibility),
+			[]byte(fid),
+			simchain,
+			uint8(cr.Ext.Visibility),
 		)
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("%v", err)
+			logger.ErrLogger.Sugar().Errorf("[%v] failed: [fid:%v] [err:%v]", configs.ChainTx_FileBank_Update, fid, err)
+		} else {
+			logger.InfoLogger.Sugar().Infof("[%v] suc: [fid:%v] [%v] [%v]", configs.ChainTx_FileBank_Update, fid, simhash, cr.Ext.Visibility)
 		}
-		fmt.Println("Update File Info Suc On Chain.")
 		return nil
 	}
-
-	return errors.Errorf("callback return false: %s", cr.Msg)
+	return errors.Errorf("callback failed: %s", cr.Msg)
 }

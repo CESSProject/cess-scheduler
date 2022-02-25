@@ -38,16 +38,16 @@ func exec_shell_immediately(s string) {
 }
 
 func CommandPid() (ok bool) {
-	commandpid := "ps -ef | grep \"etcd\" | grep -v \"grep\" | wc -l"
-	result, err := exec_shell(commandpid)
+	commandpid := "curl 127.0.0.1:2379"
+	_, err := exec_shell(commandpid)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("command to get pid fail:", err)
-		return false
+		if strings.Contains(err.Error(), "exit status 7") {
+			return false
+		} else {
+			return true
+		}
 	}
-	if strings.Contains(result, "1") {
-		return true
-	}
-	return false
+	return true
 }
 
 func checkErr(err error) {
@@ -91,6 +91,9 @@ func DetectJoinInfo(ctx *gin.Context) {
 			result.Participants = make(map[string]string, len(list.Members))
 			memberidMap := make(map[string]uint64, len(list.Members))
 			for _, peer := range list.Members {
+				if len(peer.PeerURLs) == 0 {
+					continue
+				}
 				result.Participants[peer.Name] = peer.PeerURLs[0]
 				memberidMap[peer.PeerURLs[0]] = peer.ID
 			}
@@ -101,7 +104,7 @@ func DetectJoinInfo(ctx *gin.Context) {
 					curlip := "http://" + peerip + ":2380"
 					_, err := exec_shell("curl " + curlip)
 					if err != nil {
-						if err.Error() == "exit status 7" {
+						if strings.Contains(err.Error(), "exit status 7") {
 							for name, ip := range result.Participants {
 								if ip == curlip {
 									delete(result.Participants, name)
@@ -132,7 +135,6 @@ func DetectJoinInfo(ctx *gin.Context) {
 			} else {
 				result.AllowJoin = false
 				result.Err = "Cluster root has reached the upper limit"
-				fmt.Println("---------------", result)
 				ReplyFail(ctx, result)
 			}
 			ReplySuccess(ctx, result)
@@ -154,6 +156,9 @@ func DetectJoinInfo(ctx *gin.Context) {
 			}
 			result.Participants = make(map[string]string, len(list.Members))
 			for _, peer := range list.Members {
+				if len(peer.PeerURLs) == 0 {
+					continue
+				}
 				result.Participants[peer.Name] = peer.PeerURLs[0]
 				if peer.Name == query.Name {
 					result.AllowJoin = false
@@ -179,15 +184,15 @@ func DetectJoinInfo(ctx *gin.Context) {
 	return
 }
 
+func TestPolling(ctx *gin.Context) {
+	fmt.Println("TestPolling ......")
+	return
+}
+
 func CheckClusterSpaceEnough(ctx *gin.Context) {
 	var query RequestJoin
 	var result JoinResult
-	err := BalanceCon.Client.Sync(context.Background())
-	if err != nil {
-		result.Err = "synchronizes client's endpoints with the known endpoints from the etcd membership error"
-		ReplyFail(ctx, result)
-		return
-	}
+
 	if err := ctx.ShouldBindBodyWith(&query, binding.JSON); err != nil {
 		result.Err = "request para error!"
 		ReplyFail(ctx, result)
@@ -203,6 +208,9 @@ func CheckClusterSpaceEnough(ctx *gin.Context) {
 	}
 	for _, mem := range memberlist.Members {
 		for _, v := range mem.PeerURLs {
+			if len(mem.PeerURLs) == 0 {
+				continue
+			}
 			if v == query.PeerURLs[0] {
 				result.Join = false
 				result.Err = "This peer is understanding in cluster , please wait for 5 seconds."
@@ -217,11 +225,11 @@ func CheckClusterSpaceEnough(ctx *gin.Context) {
 	ctx1, cancel := context.WithTimeout(context.Background(), time.Second)
 	res, err := BalanceCon.Client.Get(ctx1, "H"+queryUrl)
 	cancel()
-	checkErr(err)
 	defer BalanceCon.Client.Put(context.Background(), "lock", "true")
 
 	//第一次进入
 	if len(res.Kvs) == 0 {
+		fmt.Println("[firstEnter]The number of normal peer in this cluster is:", ClusterNum.Load())
 		if configs.Confile.RotationModule.NormalTotal > ClusterNum.Load() {
 			lock, err := BalanceCon.Client.Get(context.Background(), "lock")
 			if err != nil {
@@ -233,36 +241,56 @@ func CheckClusterSpaceEnough(ctx *gin.Context) {
 			for _, locv := range lock.Kvs {
 				if string(locv.Value) == "false" {
 					result.Join = false
+					result.Err = "The system is locked, please try again later"
 					ReplySuccess(ctx, result)
 					return
 				} else {
 					_, err = BalanceCon.Client.Put(context.Background(), "lock", "false")
 					if err != nil {
+						result.Join = false
 						result.Err = "lock fail when join the cluster"
 						ReplyFail(ctx, result)
 						return
 					}
 				}
 			}
-			userinfo, err := BalanceCon.Client.UserGet(context.Background(), query.Username)
-			if err == nil {
-				if userinfo.Roles[0] == query.Username {
+			createAcc := true
+			//userinfo, err := BalanceCon.Client.UserGet(context.Background(), query.Username)
+			userinfo, err := BalanceCon.Client.UserList(context.Background())
+			for _, user := range userinfo.Users {
+				if user == query.Username {
+					fmt.Println("already exist this account:", query.Username)
+					createAcc = false
+					cli, err := clientv3.New(clientv3.Config{
+						Endpoints: strings.Split("127.0.0.1:2379", ","),
+						Username:  query.Username,
+						Password:  query.Password,
+					})
+					if err != nil {
+						logger.InfoLogger.Sugar().Infof("already exists this username:%v and wrong password:%v", query.Username, query.Password)
+						result.Join = false
+						result.Err = fmt.Sprintf("already exists this username:%v and wrong password:%v", query.Username, query.Password)
+						ReplyFail(ctx, result)
+					} else {
+						cli.Close()
+					}
+				}
+			}
+
+			if createAcc {
+				fmt.Printf("first register this account:%s , password:%s", query.Username, query.Password)
+				//第一次进集群需要给予其注册账号并赋普通权限,有账号之后才能注册后面内容
+				_, err = BalanceCon.Client.UserAdd(context.Background(), query.Username, query.Password)
+				logger.InfoLogger.Sugar().Infof("first add this normal Username:%v Password:%v", query.Username, query.Password)
+				_, err = BalanceCon.Client.UserGrantRole(context.Background(), query.Username, query.Role)
+				if err != nil {
 					result.Join = false
-					result.Err = "already exists this username,please exchange your username!"
+					result.Err = err.Error()
 					ReplyFail(ctx, result)
 					return
 				}
 			}
-			//第一次进集群需要给予其注册账号并赋普通权限,有账号之后才能注册后面内容
-			_, err = BalanceCon.Client.UserAdd(context.Background(), query.Username, query.Password)
-			logger.InfoLogger.Sugar().Infof("first add this normal Username:%v Password:%v", query.Username, query.Password)
-			_, err = BalanceCon.Client.UserGrantRole(context.Background(), query.Username, query.Role)
-			if err != nil {
-				result.Join = false
-				result.Err = err.Error()
-				ReplyFail(ctx, result)
-				return
-			}
+
 			//更新加入集群的历史记录
 			ctx1, cancel = context.WithTimeout(context.Background(), time.Second)
 			BalanceCon.Client.Put(ctx1, "H"+queryUrl, strconv.FormatInt(time.Now().Unix(), 10))
@@ -282,6 +310,7 @@ func CheckClusterSpaceEnough(ctx *gin.Context) {
 			return
 		} else {
 			result.Join = false
+			result.Err = fmt.Sprintf("[firstEnter]The number of nodes has reached the upper limit, please wait, please wait,normal peer in this cluster is:%d", ClusterNum.Load())
 			ReplySuccess(ctx, result)
 			return
 		}
@@ -289,6 +318,7 @@ func CheckClusterSpaceEnough(ctx *gin.Context) {
 		for _, v := range res.Kvs {
 			pasttime, _ := strconv.Atoi(string(v.Value))
 			if time.Now().Unix()-int64(pasttime) > configs.Confile.RotationModule.PollingTime {
+				fmt.Println("[againEnter]The number of normal peer in this cluster is:", ClusterNum.Load())
 				if configs.Confile.RotationModule.NormalTotal > ClusterNum.Load() {
 					//allow join this cluster
 					ctx1, cancel = context.WithTimeout(context.Background(), time.Second)
@@ -308,13 +338,26 @@ func CheckClusterSpaceEnough(ctx *gin.Context) {
 					result.Join = true
 					ReplySuccess(ctx, result)
 					return
+				} else {
+					result.Join = false
+					result.Err = fmt.Sprintf("[againEnterThe number of nodes has reached the upper limit, please wait,normal peer in this cluster is:%d", ClusterNum.Load())
+					ReplySuccess(ctx, result)
+					return
 				}
 			} else {
 				result.Join = false
 				result.Err = "Polling time is not up yet, please wait again!"
 				ReplySuccess(ctx, result)
+				return
 			}
 		}
 	}
+	result.Err = "Unknown Error Happen"
+	ReplyFail(ctx, result)
 	return
+}
+
+func CleanContainer() {
+	command := "docker stop cess_etcd &&docker rm cess_etcd"
+	exec_shell_immediately(command)
 }

@@ -32,18 +32,19 @@ func verifyVpa() {
 	for range time.Tick(time.Second) {
 		var data []chain.UnVerifiedVpaVpb
 		data, err = chain.GetUnverifiedVpaVpb(
-			chain.SubstrateAPI_Read(),
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedA,
 		)
 		if err != nil {
-			fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 			logger.ErrLogger.Sugar().Errorf("%v", err)
 			continue
 		}
-		fmt.Println("Number of unverified vpa: ", len(data))
+		//fmt.Println("Number of unverified vpa: ", len(data))
+
 		if len(data) == 0 {
 			time.Sleep(time.Minute)
+		} else {
+			logger.InfoLogger.Sugar().Infof("Number of unverified vpa: %v", len(data))
 		}
 		for i = 0; i < len(data); i++ {
 			proofs = ""
@@ -56,13 +57,12 @@ func verifyVpa() {
 			if err != nil {
 				logger.ErrLogger.Sugar().Errorf("%v", err)
 			}
-			// fmt.Println(proofs)
-			fmt.Println(p)
+			//fmt.Println(p)
 			for j = 0; j < len(data[i].Sealed_cid); j++ {
 				temp := fmt.Sprintf("%c", data[i].Sealed_cid[j])
 				sealcid += temp
 			}
-			fmt.Println(sealcid)
+			//fmt.Println(sealcid)
 			sizetypes := fmt.Sprintf("%v", data[i].Size_type)
 			switch sizetypes {
 			case "8":
@@ -71,19 +71,19 @@ func verifyVpa() {
 				segtype = 2
 			}
 			if segtype == 0 {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m segtype is invalid\n", 41)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m segtype is invalid\n", 41)
 				logger.ErrLogger.Sugar().Errorf("[C%v] segtype is invalid", data[i].Peer_id)
 				continue
 			}
+			fmt.Println("Verify vpa :", uint64(data[i].Peer_id), uint64(data[i].Segment_id), uint32(data[i].Rand), segtype, sealcid, p)
 			ok, err = verifyVpaProof(uint64(data[i].Peer_id), uint64(data[i].Segment_id), uint32(data[i].Rand), segtype, sealcid, p)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
 				continue
 			}
 
 			err = chain.VerifyInVpaOrVpb(
-				chain.SubstrateAPI_Write(),
 				configs.Confile.MinerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpa,
 				data[i].Peer_id,
@@ -91,11 +91,12 @@ func verifyVpa() {
 				ok,
 			)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m vpa submit failed: %v\n", 41, err)
-				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m vpa submit failed: %v\n", 41, err)
+				logger.ErrLogger.Sugar().Errorf("[C%v][%v][%v] vpa submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
 				continue
 			}
-			fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpa verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			//fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpa verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			logger.InfoLogger.Sugar().Infof("[C%v][%v][%v] vpa submit suc", data[i].Peer_id, data[i].Segment_id, ok)
 		}
 	}
 }
@@ -111,21 +112,23 @@ func verifyVpb() {
 		sealcid   string
 		proofs    string
 	)
-	for range time.Tick(time.Second) {
+	for range time.Tick(time.Minute) {
 		var data []chain.UnVerifiedVpaVpb
 		data, err = chain.GetUnverifiedVpaVpb(
-			chain.SubstrateAPI_Read(),
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedB,
 		)
 		if err != nil {
-			fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+			//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 			logger.ErrLogger.Sugar().Errorf("%v", err)
 			continue
 		}
-		fmt.Println("Number of unverified vpb: ", len(data))
+		//fmt.Println("Number of unverified vpb: ", len(data))
+
 		if len(data) == 0 {
 			time.Sleep(time.Minute)
+		} else {
+			logger.InfoLogger.Sugar().Infof("Number of unverified vpb: %v", len(data))
 		}
 		for i = 0; i < len(data); i++ {
 			proofs = ""
@@ -139,12 +142,12 @@ func verifyVpb() {
 				logger.ErrLogger.Sugar().Errorf("%v", err)
 			}
 			// fmt.Println(proofs)
-			fmt.Println(p)
+			//fmt.Println(p)
 			for j = 0; j < len(data[i].Sealed_cid); j++ {
 				temp := fmt.Sprintf("%c", data[i].Sealed_cid[j])
 				sealcid += temp
 			}
-			fmt.Println(sealcid)
+			//fmt.Println(sealcid)
 			sizetypes := fmt.Sprintf("%v", data[i].Size_type)
 			switch sizetypes {
 			case "8":
@@ -155,7 +158,7 @@ func verifyVpb() {
 				prooftype = 7
 			}
 			if segtype == 0 {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m segtype is invalid\n", 41)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m segtype is invalid\n", 41)
 				logger.ErrLogger.Sugar().Errorf("[C%v] segtype is invalid", data[i].Peer_id)
 				continue
 			}
@@ -165,13 +168,12 @@ func verifyVpb() {
 			}
 			ok, err = verifyVpbProof(uint64(data[i].Peer_id), uint64(data[i].Segment_id), uint32(data[i].Rand), segtype, sealcid, []proof.PoStProof{pf})
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
 				continue
 			}
 
 			err = chain.VerifyInVpaOrVpb(
-				chain.SubstrateAPI_Write(),
 				configs.Confile.MinerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpb,
 				data[i].Peer_id,
@@ -179,11 +181,12 @@ func verifyVpb() {
 				ok,
 			)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				logger.ErrLogger.Sugar().Errorf("[C%v][%v][%v] vpb submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
 				continue
 			}
-			fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpb verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			//fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpb verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			logger.InfoLogger.Sugar().Infof("[C%v][%v][%v] vpb submit suc", data[i].Peer_id, data[i].Segment_id, ok)
 		}
 	}
 }
@@ -200,18 +203,19 @@ func verifyVpc() {
 	for range time.Tick(time.Second) {
 		var data []chain.UnVerifiedVpc
 		data, err = chain.GetUnverifiedVpc(
-			chain.SubstrateAPI_Read(),
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedC,
 		)
 		if err != nil {
-			fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+			//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 			logger.ErrLogger.Sugar().Errorf("%v", err)
 			continue
 		}
-		fmt.Println("Number of unverified vpc: ", len(data))
+		//fmt.Println("Number of unverified vpc: ", len(data))
 		if len(data) == 0 {
 			time.Sleep(time.Minute)
+		} else {
+			logger.InfoLogger.Sugar().Infof("Number of unverified vpc: %v", len(data))
 		}
 		for i = 0; i < len(data); i++ {
 			var proof = make([][]byte, len(data[i].Proof))
@@ -239,31 +243,32 @@ func verifyVpc() {
 				}
 				uncid = append(uncid, cid)
 			}
-			fmt.Println("sealcid:", sealcid)
-			fmt.Println("uncid:", uncid)
-			fmt.Println("proof:", proof)
+			// fmt.Println("sealcid:", sealcid)
+			// fmt.Println("uncid:", uncid)
+			// fmt.Println("proof:", proof)
 
 			ok, err = verifyVpcProof(uint64(data[i].Peer_id), uint64(data[i].Segment_id), uint32(data[i].Rand), segtype, sealcid, uncid, proof)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
 				continue
 			}
 
-			err = chain.VerifyInVpaOrVpb(
-				chain.SubstrateAPI_Write(),
+			err = chain.VerifyInVpc(
 				configs.Confile.MinerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpc,
 				data[i].Peer_id,
 				data[i].Segment_id,
+				data[i].Unsealed_cid,
 				ok,
 			)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				logger.ErrLogger.Sugar().Errorf("[C%v][%v][%v] vpc submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
 				continue
 			}
-			fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpc verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			//fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpc verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			logger.InfoLogger.Sugar().Infof("[C%v][%v][%v] vpc submit suc", data[i].Peer_id, data[i].Segment_id, ok)
 		}
 	}
 }
@@ -280,24 +285,25 @@ func verifyVpd() {
 	for range time.Tick(time.Minute) {
 		var data []chain.UnVerifiedVpd
 		data, err = chain.GetUnverifiedVpd(
-			chain.SubstrateAPI_Read(),
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedD,
 		)
 		if err != nil {
-			fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+			//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 			logger.ErrLogger.Sugar().Errorf("%v", err)
 			continue
 		}
-		fmt.Println("Number of unverified vpd: ", len(data))
+		//fmt.Println("Number of unverified vpd: ", len(data))
 		if len(data) == 0 {
 			time.Sleep(time.Minute)
+		} else {
+			logger.InfoLogger.Sugar().Infof("Number of unverified vpd: %v", len(data))
 		}
 		for i = 0; i < len(data); i++ {
 			var postproof = make([]proof.PoStProof, len(data[i].Proof))
 			for j = 0; j < len(data[i].Proof); j++ {
 				postproof[j].ProofBytes = make([]byte, 0)
-				postproof[j].PoStProof = abi.RegisteredPoStProof(segtype)
+				postproof[j].PoStProof = abi.RegisteredPoStProof(configs.FilePostProof)
 				postproof[j].ProofBytes = append(postproof[j].ProofBytes, data[i].Proof[j]...)
 			}
 			var sealcid = make([]string, 0)
@@ -311,13 +317,12 @@ func verifyVpd() {
 			}
 			ok, err = verifyVpdProof(uint64(data[i].Peer_id), uint64(data[i].Segment_id), uint32(data[i].Rand), segtype, sealcid, postproof)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
 				continue
 			}
 
 			err = chain.VerifyInVpaOrVpb(
-				chain.SubstrateAPI_Write(),
 				configs.Confile.MinerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpd,
 				data[i].Peer_id,
@@ -325,11 +330,12 @@ func verifyVpd() {
 				ok,
 			)
 			if err != nil {
-				fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-				logger.ErrLogger.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
+				//fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+				logger.ErrLogger.Sugar().Errorf("[C%v][%v][%v] vpc submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
 				continue
 			}
-			fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpd verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			//fmt.Printf("\x1b[%dm[ok]\x1b[0m [C%v][%v] vpd verify suc\n", 42, data[i].Peer_id, data[i].Segment_id)
+			logger.InfoLogger.Sugar().Infof("[C%v][%v][%v] vpd submit suc", data[i].Peer_id, data[i].Segment_id, ok)
 		}
 	}
 }

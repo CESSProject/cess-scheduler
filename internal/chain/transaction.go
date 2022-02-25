@@ -1,26 +1,35 @@
 package chain
 
 import (
-	"fmt"
 	"scheduler-mining/internal/logger"
 	"time"
 
-	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
 
+type CessInfo struct {
+	RpcAddr                string
+	IdentifyAccountPhrase  string
+	IncomeAccountPublicKey string
+	TransactionName        string
+	ChainModule            string
+	ChainModuleMethod      string
+}
+
 // VerifyInVpaOrVpb
-func VerifyInVpaOrVpb(api *gsrpc.SubstrateAPI, identifyAccountPhrase, TransactionName string, peerid, segid types.U64, result bool) error {
+func VerifyInVpaOrVpb(identifyAccountPhrase, TransactionName string, peerid, segid types.U64, result bool) error {
 	var (
 		err         error
 		accountInfo types.AccountInfo
 	)
+	api := getSubstrateApi_safe()
 	defer func() {
+		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			logger.ErrLogger.Sugar().Errorf("[panic] [%v] [err:%v]", TransactionName, err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
@@ -86,29 +95,125 @@ func VerifyInVpaOrVpb(api *gsrpc.SubstrateAPI, identifyAccountPhrase, Transactio
 	}
 	defer sub.Unsubscribe()
 
-	timeout := time.After(15 * time.Second)
+	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("[%v] completed at block hash: %#x", TransactionName, status.AsInBlock)
+				logger.InfoLogger.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:
-			msg := fmt.Sprintf("Get finalized status for [%v] timeout", TransactionName)
-			return errors.New(msg)
+			return errors.Errorf("[%v] tx timeout", TransactionName)
+		default:
+			time.Sleep(time.Second)
+		}
+	}
+}
+
+// VerifyInVpc
+func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid types.U64, uncid []types.Bytes, result bool) error {
+	var (
+		err         error
+		accountInfo types.AccountInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic] [%v] [err:%v]", TransactionName, err)
+		}
+	}()
+	keyring, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
+	if err != nil {
+		return errors.Wrap(err, "KeyringPairFromSecret err")
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return errors.Wrap(err, "GetMetadataLatest err")
+	}
+
+	c, err := types.NewCall(meta, TransactionName, peerid, segid, uncid, types.NewBool(result))
+	if err != nil {
+		return errors.Wrap(err, "NewCall err")
+	}
+
+	ext := types.NewExtrinsic(c)
+	if err != nil {
+		return errors.Wrap(err, "NewExtrinsic err")
+	}
+
+	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
+	if err != nil {
+		return errors.Wrap(err, "GetBlockHash err")
+	}
+
+	rv, err := api.RPC.State.GetRuntimeVersionLatest()
+	if err != nil {
+		return errors.Wrap(err, "GetRuntimeVersionLatest err")
+	}
+
+	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
+	if err != nil {
+		return errors.Wrap(err, "CreateStorageKey err")
+	}
+
+	_, err = api.RPC.State.GetStorageLatest(key, &accountInfo)
+	if err != nil {
+		return errors.Wrap(err, "GetStorageLatest err")
+	}
+
+	o := types.SignatureOptions{
+		BlockHash:          genesisHash,
+		Era:                types.ExtrinsicEra{IsMortalEra: false},
+		GenesisHash:        genesisHash,
+		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
+		SpecVersion:        rv.SpecVersion,
+		Tip:                types.NewUCompactFromUInt(0),
+		TransactionVersion: rv.TransactionVersion,
+	}
+
+	// Sign the transaction
+	err = ext.Sign(keyring, o)
+	if err != nil {
+		return errors.Wrap(err, "Sign err")
+	}
+
+	// Do the transfer and track the actual status
+	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	if err != nil {
+		return errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+	}
+	defer sub.Unsubscribe()
+
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsInBlock {
+				logger.InfoLogger.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
+				return nil
+			}
+		case <-timeout:
+			return errors.Errorf("[%v] tx timeout", TransactionName)
+		default:
+			time.Sleep(time.Second)
 		}
 	}
 }
 
 //Submit unsealed cid
-func IntentSubmitToChain(api *gsrpc.SubstrateAPI, identifyAccountPhrase, TransactionName string, segsizetype, segtype uint8, peerd uint64, unsealedcid [][]byte, hash, shardhash []byte) error {
+func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizetype, segtype uint8, peerd uint64, unsealedcid [][]byte, hash, shardhash []byte) error {
 	var (
 		err         error
 		ok          bool
 		accountInfo types.AccountInfo
 	)
+	api := getSubstrateApi_safe()
 	defer func() {
+		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
 			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
@@ -185,28 +290,32 @@ func IntentSubmitToChain(api *gsrpc.SubstrateAPI, identifyAccountPhrase, Transac
 	}
 	defer sub.Unsubscribe()
 
-	timeout := time.After(15 * time.Second)
+	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("IntentSubmit completed at block hash: %#x", status.AsInBlock)
+				logger.InfoLogger.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:
-			return errors.New("Get finalized status for IntentSubmit timeout")
+			return errors.Errorf("[%v] tx timeout", TransactionName)
+		default:
+			time.Sleep(time.Second)
 		}
 	}
 }
 
 //Submit unsealed cid
-func UpdateFileInfoToChain(api *gsrpc.SubstrateAPI, identifyAccountPhrase, TransactionName string, fid, simhash []byte, ispublic uint8) error {
+func UpdateFileInfoToChain(identifyAccountPhrase, TransactionName string, fid, simhash []byte, ispublic uint8) error {
 	var (
 		err         error
 		ok          bool
 		accountInfo types.AccountInfo
 	)
+	api := getSubstrateApi_safe()
 	defer func() {
+		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
 			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
@@ -278,16 +387,114 @@ func UpdateFileInfoToChain(api *gsrpc.SubstrateAPI, identifyAccountPhrase, Trans
 	}
 	defer sub.Unsubscribe()
 
-	timeout := time.After(15 * time.Second)
+	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("IntentSubmit completed at block hash: %#x", status.AsInBlock)
+				logger.InfoLogger.Sugar().Infof("[%v] tx blockhash: %#x", TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:
-			return errors.New("Get finalized status for IntentSubmit timeout")
+			return errors.Errorf("[%v] tx timeout", TransactionName)
+		default:
+			time.Sleep(time.Second)
+		}
+	}
+}
+
+// etcd register
+func (ci *CessInfo) RegisterEtcdOnChain(ipAddr string) error {
+	var (
+		err         error
+		accountInfo types.AccountInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
+	keyring, err := signature.KeyringPairFromSecret(ci.IdentifyAccountPhrase, 0)
+	if err != nil {
+		return errors.Wrap(err, "KeyringPairFromSecret err")
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return errors.Wrap(err, "GetMetadataLatest err")
+	}
+
+	c, err := types.NewCall(meta, ci.TransactionName, types.NewBytes([]byte(ipAddr)))
+	if err != nil {
+		return errors.Wrap(err, "NewCall err")
+	}
+
+	ext := types.NewExtrinsic(c)
+	if err != nil {
+		return errors.Wrap(err, "NewExtrinsic err")
+	}
+
+	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
+	if err != nil {
+		return errors.Wrap(err, "GetBlockHash err")
+	}
+
+	rv, err := api.RPC.State.GetRuntimeVersionLatest()
+	if err != nil {
+		return errors.Wrap(err, "GetRuntimeVersionLatest err")
+	}
+
+	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
+	if err != nil {
+		return errors.Wrap(err, "CreateStorageKey err")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
+	if err != nil {
+		return errors.Wrap(err, "GetStorageLatest err")
+	}
+	if !ok {
+		return errors.New("GetStorageLatest return value is empty")
+	}
+
+	o := types.SignatureOptions{
+		BlockHash:          genesisHash,
+		Era:                types.ExtrinsicEra{IsMortalEra: false},
+		GenesisHash:        genesisHash,
+		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
+		SpecVersion:        rv.SpecVersion,
+		Tip:                types.NewUCompactFromUInt(0),
+		TransactionVersion: rv.TransactionVersion,
+	}
+
+	// Sign the transaction
+	err = ext.Sign(keyring, o)
+	if err != nil {
+		return errors.Wrap(err, "Sign err")
+	}
+
+	// Do the transfer and track the actual status
+	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	if err != nil {
+		return errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+	}
+	defer sub.Unsubscribe()
+
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsInBlock {
+				logger.InfoLogger.Sugar().Infof("[%v] tx blockhash: %#x", ci.TransactionName, status.AsInBlock)
+				return nil
+			}
+		case <-timeout:
+			return errors.Errorf("[%v] tx timeout", ci.TransactionName)
+		default:
+			time.Sleep(time.Second)
 		}
 	}
 }
