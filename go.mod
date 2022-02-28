@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/HaoyuHu/gosimhash v0.0.0-20171130162857-733e771035c5
+	github.com/CESSProject/cess-ffi v0.0.0-20220217052609-6c35c99d795c // indirect
 	github.com/ajstarks/svgo v0.0.0-20180226025133-644b8db467af
 	github.com/centrifuge/go-substrate-rpc-client/v3 v3.0.2
 	github.com/centrifuge/go-substrate-rpc-client/v4 v4.0.0
