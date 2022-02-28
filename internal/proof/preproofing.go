@@ -3,7 +3,8 @@ package proof
 import (
 	"io/ioutil"
 	"os"
-	"scheduler-mining/internal/ffi"
+
+	ffi "github.com/CESSProject/cess-ffi"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	cid "github.com/ipfs/go-cid"
@@ -64,10 +65,4 @@ func ComposePieces(pis []abi.PieceInfo) (pps []PublicPiece, preCIDs []cid.Cid) {
 		preCIDs = append(preCIDs, preGeneratedUnsealedCID)
 	}
 	return
-}
-
-func requireTempDirPath(prefix string) string {
-	dir, err := ioutil.TempDir("", prefix)
-	RequireNoError(err)
-	return dir
 }

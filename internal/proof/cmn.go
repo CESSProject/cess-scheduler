@@ -19,8 +19,8 @@ import (
 type PublicPiece []abi.PieceInfo
 
 type SectorID struct {
-	PeerID    abi.ActorID      `json:"peerId"`
-	SectorNum abi.SectorNumber `json:"sectorNum"`
+	PeerID    abi.ActorID
+	SectorNum abi.SectorNumber
 }
 
 const (
@@ -30,8 +30,8 @@ const (
 	SealProofType        abi.RegisteredSealProof = abi.RegisteredSealProof_StackedDrg8MiBV1
 	SealProofTypeForIdle abi.RegisteredSealProof = abi.RegisteredSealProof_StackedDrg8MiBV1
 	//PoSt params for different type of sector
-	// windowPostProofType        abi.RegisteredPoStProof = abi.RegisteredPoStProof_StackedDrgWindow8MiBV1
-	// windowPostProofTypeForIdle abi.RegisteredPoStProof = abi.RegisteredPoStProof_StackedDrgWindow8MiBV1
+	windowPostProofType        abi.RegisteredPoStProof = abi.RegisteredPoStProof_StackedDrgWindow8MiBV1
+	windowPostProofTypeForIdle abi.RegisteredPoStProof = abi.RegisteredPoStProof_StackedDrgWindow8MiBV1
 )
 
 // @title           Chunking
@@ -121,6 +121,11 @@ func requireFile(dir, name string, cet []byte) *os.File {
 	RequireNoError(err)
 	file.Sync()
 	_, err = file.Seek(0, 0)
-	RequireNoError(err)
 	return file
+}
+
+func requireTempDirPath(prefix string) string {
+	dir, err := ioutil.TempDir("", prefix)
+	RequireNoError(err)
+	return dir
 }

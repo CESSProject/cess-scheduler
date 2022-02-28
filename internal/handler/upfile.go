@@ -40,7 +40,7 @@ type UploadRq struct {
 type FileHeader struct {
 	ContentDisposition string
 	Name               string
-	FileName           string ///< ÎÄ¼þÃû
+	FileName           string
 	ContentType        string
 	ContentLength      int64
 }

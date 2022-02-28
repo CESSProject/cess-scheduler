@@ -6,7 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
-	"scheduler-mining/internal/ffi"
+
+	ffi "github.com/CESSProject/cess-ffi"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	prf "github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -172,7 +173,7 @@ func GetPoSt(sectorId SectorID, windowPostProofType abi.RegisteredPoStProof, sea
 		})
 	}
 
-	privateInfo2 := ffi.NewSortedPrivateSectorInfo(psInfos[:])
+	privateInfo2 := ffi.NewSortedPrivateSectorInfo(psInfos)
 	proofsWw, faultySectors, err = ffi.GenerateWindowPoSt(sectorId.PeerID, privateInfo2, randomness)
 	RequireNoError(err)
 
