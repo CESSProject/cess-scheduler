@@ -84,7 +84,7 @@ func verifyVpa() {
 			}
 
 			err = chain.VerifyInVpaOrVpb(
-				configs.Confile.MinerData.IdAccountPhraseOrSeed,
+				configs.Confile.SchedulerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpa,
 				data[i].Peer_id,
 				data[i].Segment_id,
@@ -174,7 +174,7 @@ func verifyVpb() {
 			}
 
 			err = chain.VerifyInVpaOrVpb(
-				configs.Confile.MinerData.IdAccountPhraseOrSeed,
+				configs.Confile.SchedulerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpb,
 				data[i].Peer_id,
 				data[i].Segment_id,
@@ -255,7 +255,7 @@ func verifyVpc() {
 			}
 
 			err = chain.VerifyInVpc(
-				configs.Confile.MinerData.IdAccountPhraseOrSeed,
+				configs.Confile.SchedulerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpc,
 				data[i].Peer_id,
 				data[i].Segment_id,
@@ -323,7 +323,7 @@ func verifyVpd() {
 			}
 
 			err = chain.VerifyInVpaOrVpb(
-				configs.Confile.MinerData.IdAccountPhraseOrSeed,
+				configs.Confile.SchedulerData.IdAccountPhraseOrSeed,
 				configs.ChainTx_SegmentBook_VerifyInVpd,
 				data[i].Peer_id,
 				data[i].Segment_id,

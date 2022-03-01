@@ -1,7 +1,13 @@
 [cessChain]
-rpcAddr = "wss://cess.today/rpc2-hacknet/ws/"
+# CESS chain address
+rpcAddr = "ws://106.15.44.155:9949/"
 
-[minerData]
-serviceIpAddress            = "127.0.0.1"
-servicePort                 = "8081"
-identifyAccountPhraseOrSeed = ""
+[schedulerData]
+# The IP address of the machine's public network used by the mining program.
+serviceIpAddress            = ""
+# Port number monitored by the mining program
+servicePort                 = ""
+# Public key of income account.
+incomeAccountPubkey    = ""
+# Phrase words or seeds for identity accounts.
+idAccountPhraseOrSeed  = ""

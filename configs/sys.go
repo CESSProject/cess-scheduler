@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "CESS-Scheduler-Mining_0.1.0_Alpha"
+const Version = "CESS-Scheduler-Mining_0.3.0_Alpha"
 
 // system exit code
 const (

@@ -1,36 +1,19 @@
 package configs
 
-type MinerOnChain struct {
-	CessChain      CessChain      `yaml:"cessChain"`
-	MinerData      MinerData      `yaml:"minerData"`
-	RotationModule RotationModule `yaml:"rotationmodule"`
+type SchedulerConfOnChain struct {
+	CessChain     CessChain     `yaml:"cessChain"`
+	SchedulerData SchedulerData `yaml:"schedulerData"`
 }
 
 type CessChain struct {
 	RpcAddr string `yaml:"rpcAddr"`
 }
 
-type MinerData struct {
-	ServiceIpAddr         string `yaml:"serviceIpAddr"`
+type SchedulerData struct {
+	ServiceIpAddr         string `yaml:"serviceIpAddress"`
 	ServicePort           string `yaml:"servicePort"`
+	IncomeAccountPubkey   string `yaml:"incomeAccountPubkey"`
 	IdAccountPhraseOrSeed string `yaml:"idAccountPhraseOrSeed"`
-}
-
-type RotationModule struct {
-	Endpoint                 string `yaml:"endpoints"`
-	Name                     string `yaml:"name"`
-	InitialAdvertisePeerUrls string `yaml:"initialAdvertisePeerUrls"`
-	ListenPeerUrls           string `yaml:"listenPeerUrls"`
-	ListenClientUrls         string `yaml:"listenClientUrls"`
-	AdvertiseClientUrls      string `yaml:"advertiseClientUrls"`
-	InitialClusterToken      string `yaml:"initialClusterToken"`
-	InitialClusterState      string `yaml:"initialClusterState"`
-	Username                 string `yaml:"user"`
-	Password                 string `yaml:"password"`
-	Cd0url                   string `yaml:"cd0url"`
-	RootTotal                int    `yaml:"rootTotal"`
-	NormalTotal              int64  `yaml:"normalTotal"`
-	PollingTime              int64  `yaml:"PollingTime"`
 }
 
 var (
@@ -38,4 +21,20 @@ var (
 	InitialClusterState string
 )
 
-var Confile = new(MinerOnChain)
+var Confile = new(SchedulerConfOnChain)
+var ConfigFilePath string
+
+const DefaultConfigurationFileName = "conf_template.toml"
+const ConfigFile_Templete = `[cessChain]
+# CESS chain address
+rpcAddr = "ws://106.15.44.155:9949/"
+
+[schedulerData]
+# The IP address of the machine's public network used by the mining program.
+serviceIpAddress            = ""
+# Port number monitored by the mining program
+servicePort                 = ""
+# Public key of income account.
+incomeAccountPubkey    = ""
+# Phrase words or seeds for identity accounts.
+idAccountPhraseOrSeed  = ""`

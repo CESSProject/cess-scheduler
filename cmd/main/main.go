@@ -1,21 +1,24 @@
 package main
 
 import (
+	"scheduler-mining/cmd"
 	"scheduler-mining/initlz"
-	"scheduler-mining/internal/handler"
+
 	"scheduler-mining/internal/proof"
-	"scheduler-mining/internal/rotation"
 )
 
 // program entry
 func main() {
+	cmd.Execute()
+
 	// init
 	initlz.SystemInit()
 
 	// start-up
 	proof.Chain_Main()
 	//tools.CleanLocalRecord(".etcd")
-	go rotation.EtcdClusterRegister()
+
+	select {}
 	// web service
-	handler.Handler_main()
+	//handler.Handler_main()
 }

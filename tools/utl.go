@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -17,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func RunOnLinuxSystem() bool {
@@ -164,4 +165,31 @@ func CleanLocalRecord(filename string) {
 func RandomInRange(min, max int) int {
 	rand.Seed(time.Now().Unix())
 	return rand.Intn(max-min) + min
+}
+
+func WriteStringtoFile(content, fileName string) error {
+	var (
+		err  error
+		name string
+		//filesuffix string
+		//fileprefix string
+	)
+	name = fileName
+	// _, err = os.Stat(name)
+	// if err == nil {
+	// 	filesuffix = filepath.Ext(name)
+	// 	fileprefix = name[0 : len(name)-len(filesuffix)]
+	// 	fileprefix = fileprefix + fmt.Sprintf("_%v", strconv.FormatInt(time.Now().UnixNano(), 10))
+	// 	name = fileprefix + filesuffix
+	// }
+	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return errors.Wrap(err, "OpenFile err")
+	}
+	defer f.Close()
+	_, err = f.Write([]byte(content))
+	if err != nil {
+		return errors.Wrap(err, "f.Write err")
+	}
+	return nil
 }
