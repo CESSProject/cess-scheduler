@@ -1,5 +1,5 @@
-# scheduler-mining-tool
-Scheduler mining tool for Polkadot Hackathon
+# ces-scheduler
+ces-scheduler is the scheduling service of cess platform
 
 ## Feature
 * Schedule files to appropriate storage miners
