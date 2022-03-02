@@ -1,6 +1,8 @@
 package chain
 
 import (
+	"fmt"
+	"scheduler-mining/configs"
 	"scheduler-mining/internal/logger"
 	"time"
 
@@ -16,6 +18,183 @@ type CessInfo struct {
 	TransactionName        string
 	ChainModule            string
 	ChainModuleMethod      string
+}
+
+// custom event type
+type Event_SegmentBook_ParamSet struct {
+	Phase     types.Phase
+	PeerId    types.U64
+	SegmentId types.U64
+	Random    types.U32
+	Topics    []types.Hash
+}
+
+type Event_VPABCD_Submit_Verify struct {
+	Phase     types.Phase
+	PeerId    types.U64
+	SegmentId types.U64
+	Topics    []types.Hash
+}
+
+type Event_Sminer_TimedTask struct {
+	Phase  types.Phase
+	Topics []types.Hash
+}
+
+type Event_Sminer_Registered struct {
+	Phase   types.Phase
+	PeerAcc types.AccountID
+	Staking types.U128
+	Topics  []types.Hash
+}
+
+type Event_UnsignedPhaseStarted struct {
+	Phase  types.Phase
+	Round  types.U32
+	Topics []types.Hash
+}
+
+type Event_SolutionStored struct {
+	Phase            types.Phase
+	Election_compute types.ElectionCompute
+	Prev_ejected     types.Bool
+	Topics           []types.Hash
+}
+
+type MyEventRecords struct {
+	types.EventRecords
+	SegmentBook_ParamSet     []Event_SegmentBook_ParamSet
+	SegmentBook_VPASubmitted []Event_VPABCD_Submit_Verify
+	SegmentBook_VPBSubmitted []Event_VPABCD_Submit_Verify
+	SegmentBook_VPCSubmitted []Event_VPABCD_Submit_Verify
+	SegmentBook_VPDSubmitted []Event_VPABCD_Submit_Verify
+	SegmentBook_VPAVerified  []Event_VPABCD_Submit_Verify
+	SegmentBook_VPBVerified  []Event_VPABCD_Submit_Verify
+	SegmentBook_VPCVerified  []Event_VPABCD_Submit_Verify
+	SegmentBook_VPDVerified  []Event_VPABCD_Submit_Verify
+	Sminer_TimedTask         []Event_Sminer_TimedTask
+	Sminer_Registered        []Event_Sminer_Registered
+	//
+	ElectionProviderMultiPhase_UnsignedPhaseStarted []Event_UnsignedPhaseStarted
+	ElectionProviderMultiPhase_SolutionStored       []Event_SolutionStored
+}
+
+func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, error) {
+	var (
+		err         error
+		accountInfo types.AccountInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
+
+	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
+	if err != nil {
+		return false, errors.Wrap(err, "KeyringPairFromSecret err")
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return false, errors.Wrap(err, "GetMetadataLatest err")
+	}
+
+	c, err := types.NewCall(meta, TransactionName, types.NewBytes([]byte(ipAddr)))
+	if err != nil {
+		return false, errors.Wrap(err, "NewCall err")
+	}
+
+	ext := types.NewExtrinsic(c)
+	if err != nil {
+		return false, errors.Wrap(err, "NewExtrinsic err")
+	}
+
+	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
+	if err != nil {
+		return false, errors.Wrap(err, "GetBlockHash err")
+	}
+
+	rv, err := api.RPC.State.GetRuntimeVersionLatest()
+	if err != nil {
+		return false, errors.Wrap(err, "GetRuntimeVersionLatest err")
+	}
+
+	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
+	if err != nil {
+		return false, errors.Wrap(err, "CreateStorageKey System  Account err")
+	}
+
+	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
+	if err != nil {
+		return false, errors.Wrap(err, "CreateStorageKey System Events err")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
+	if err != nil {
+		return false, errors.Wrap(err, "GetStorageLatest err")
+	}
+	if !ok {
+		return false, errors.New("GetStorageLatest return value is empty")
+	}
+
+	o := types.SignatureOptions{
+		BlockHash:          genesisHash,
+		Era:                types.ExtrinsicEra{IsMortalEra: false},
+		GenesisHash:        genesisHash,
+		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
+		SpecVersion:        rv.SpecVersion,
+		Tip:                types.NewUCompactFromUInt(0),
+		TransactionVersion: rv.TransactionVersion,
+	}
+
+	// Sign the transaction
+	err = ext.Sign(keyring, o)
+	if err != nil {
+		return false, errors.Wrap(err, "Sign err")
+	}
+
+	// Do the transfer and track the actual status
+	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	if err != nil {
+		return false, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+	}
+	defer sub.Unsubscribe()
+
+	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsInBlock {
+				events := MyEventRecords{}
+				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
+				if err != nil {
+					return false, err
+				}
+				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
+				if err != nil {
+					fmt.Println("+++ DecodeEvent err: ", err)
+				}
+				if events.Sminer_Registered != nil {
+					for i := 0; i < len(events.Sminer_Registered); i++ {
+						if events.Sminer_Registered[i].PeerAcc == types.NewAccountID(keyring.PublicKey) {
+							return true, nil
+						}
+					}
+				} else {
+					fmt.Println("+++ Not found events.Sminer_Registered ")
+				}
+				return false, nil
+			}
+		case err = <-sub.Err():
+			return false, err
+		case <-timeout:
+			return false, errors.New("SubmitAndWatchExtrinsic timeout")
+		}
+	}
 }
 
 // VerifyInVpaOrVpb

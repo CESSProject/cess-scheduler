@@ -21,7 +21,7 @@ var api = new(mySubstrateApi)
 func Chain_Init() {
 	var err error
 	api.wlock = new(sync.Mutex)
-	api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.RpcAddr)
+	api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		logger.ErrLogger.Sugar().Errorf("%v", err)
@@ -47,7 +47,7 @@ func substrateAPIKeepAlive() {
 		}
 		if count_r > 1 {
 			count_r = 2
-			api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.RpcAddr)
+			api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
 			if err != nil {
 				logger.ErrLogger.Sugar().Errorf("%v", err)
 			} else {

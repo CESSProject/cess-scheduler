@@ -1,40 +1,33 @@
 package configs
 
 type SchedulerConfOnChain struct {
-	CessChain     CessChain     `yaml:"cessChain"`
-	SchedulerData SchedulerData `yaml:"schedulerData"`
+	CessChain     CessChain     `toml:"CessChain"`
+	SchedulerInfo SchedulerInfo `toml:"SchedulerInfo"`
 }
 
 type CessChain struct {
-	RpcAddr string `yaml:"rpcAddr"`
+	ChainAddr string `toml:"ChainAddr"`
 }
 
-type SchedulerData struct {
-	ServiceIpAddr         string `yaml:"serviceIpAddress"`
-	ServicePort           string `yaml:"servicePort"`
-	IncomeAccountPubkey   string `yaml:"incomeAccountPubkey"`
-	IdAccountPhraseOrSeed string `yaml:"idAccountPhraseOrSeed"`
+type SchedulerInfo struct {
+	ServiceAddr    string `toml:"ServiceAddr"`
+	ServicePort    string `toml:"ServicePort"`
+	TransactionPrK string `toml:"TransactionPrK"`
 }
 
-var (
-	Cd0url              string
-	InitialClusterState string
-)
 
 var Confile = new(SchedulerConfOnChain)
 var ConfigFilePath string
 
 const DefaultConfigurationFileName = "conf_template.toml"
-const ConfigFile_Templete = `[cessChain]
+const ConfigFile_Templete = `[CessChain]
 # CESS chain address
-rpcAddr = "ws://106.15.44.155:9949/"
+ChainAddr = ""
 
-[schedulerData]
-# The IP address of the machine's public network used by the mining program.
-serviceIpAddress            = ""
-# Port number monitored by the mining program
-servicePort                 = ""
-# Public key of income account.
-incomeAccountPubkey    = ""
+[SchedulerInfo]
+# The IP address of the machine's public network used by the scheduler program.
+ServiceAddr    = ""
+# Port number monitored by the scheduler program
+ServicePort    = ""
 # Phrase words or seeds for identity accounts.
-idAccountPhraseOrSeed  = ""`
+TransactionPrK = ""`

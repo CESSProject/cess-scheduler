@@ -1,13 +1,11 @@
-[cessChain]
+[CessChain]
 # CESS chain address
-rpcAddr = "ws://106.15.44.155:9949/"
+ChainAddr = ""
 
-[schedulerData]
-# The IP address of the machine's public network used by the mining program.
-serviceIpAddress            = ""
-# Port number monitored by the mining program
-servicePort                 = ""
-# Public key of income account.
-incomeAccountPubkey    = ""
+[SchedulerInfo]
+# The IP address of the machine's public network used by the scheduler program.
+ServiceAddr    = ""
+# Port number monitored by the scheduler program
+ServicePort    = ""
 # Phrase words or seeds for identity accounts.
-idAccountPhraseOrSeed  = ""
+TransactionPrK = ""

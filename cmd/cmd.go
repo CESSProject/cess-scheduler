@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"scheduler-mining/configs"
+	"scheduler-mining/internal/chain"
+	"scheduler-mining/internal/logger"
 	"scheduler-mining/tools"
 
 	"github.com/spf13/cobra"
@@ -102,8 +104,8 @@ func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 }
 
 func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
-	//TODO
 	refreshProfile(cmd)
+	register()
 }
 
 func Command_State_Runfunc(cmd *cobra.Command, args []string) {
@@ -163,4 +165,27 @@ func parseProfile() {
 		os.Exit(configs.Exit_ConfFileFormatError)
 	}
 	fmt.Println(configs.Confile)
+}
+
+//
+func register() {
+
+	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
+
+	logger.InfoLogger.Sugar().Infof("Start registration......\n    CessAddr:%v\n    ServiceAddr:%v\n    TransactionPrK:%v\n",
+		configs.Confile.CessChain.ChainAddr, res, configs.Confile.SchedulerInfo.TransactionPrK)
+
+	ok, err := chain.RegisterToChain(
+		configs.Confile.SchedulerInfo.TransactionPrK,
+		configs.ChainTx_FileMap_Add_schedule,
+		res,
+	)
+	if !ok || err != nil {
+		logger.InfoLogger.Sugar().Infof("Registration failed......,err:%v", err)
+		logger.ErrLogger.Sugar().Errorf("%v", err)
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed, Please try again later. [%v]\n", 41, err)
+		os.Exit(-1)
+	}
+	fmt.Println("success")
+	os.Exit(0)
 }

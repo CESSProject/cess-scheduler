@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "CESS-Scheduler-Mining_0.3.0_Alpha"
+const Version = "ces-scheduler_0.3.0_Alpha"
 
 // system exit code
 const (
@@ -45,6 +45,7 @@ const (
 	ChainTx_SegmentBook_VerifyInVpd  = "SegmentBook.verify_in_vpd"
 	ChainTx_SegmentBook_IntentSubmit = "SegmentBook.intent_submit"
 	ChainTx_FileBank_Update          = "FileBank.update"
+	ChainTx_FileMap_Add_schedule     = "FileMap.add_schedule"
 )
 
 const (
@@ -53,7 +54,8 @@ const (
 )
 
 const (
-	SegMentSize_1M = 1048576
+	SegMentSize_1M     = 1048576
+	TimeToWaitEvents_S = 20
 )
 
 var (
