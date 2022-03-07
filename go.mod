@@ -20,6 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/viper v1.10.0
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	go.uber.org/zap v1.19.1
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
