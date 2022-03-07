@@ -16,9 +16,6 @@ func main() {
 
 	// start-up
 	proof.Chain_Main()
-	//tools.CleanLocalRecord(".etcd")
 
 	select {}
-	// web service
-	//handler.Handler_main()
 }

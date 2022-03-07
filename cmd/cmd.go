@@ -43,7 +43,6 @@ func init() {
 		Command_Default(),
 		Command_Version(),
 		Command_Register(),
-		Command_State(),
 		Command_Obtain(),
 	)
 }
