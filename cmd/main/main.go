@@ -3,6 +3,7 @@ package main
 import (
 	"scheduler-mining/cmd"
 	"scheduler-mining/initlz"
+	"scheduler-mining/rpc"
 
 	"scheduler-mining/internal/proof"
 )
@@ -17,5 +18,6 @@ func main() {
 	// start-up
 	proof.Chain_Main()
 
-	select {}
+	// rpc service
+	rpc.Rpc_Main()
 }

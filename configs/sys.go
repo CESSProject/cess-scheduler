@@ -22,6 +22,7 @@ const (
 const (
 	ChainModule_Sminer      = "Sminer"
 	ChainModule_SegmentBook = "SegmentBook"
+	ChainModule_FileMap     = "FileMap"
 )
 
 // cess chain module method
@@ -35,6 +36,7 @@ const (
 	ChainModule_SegmentBook_UnVerifiedB   = "UnVerifiedB"
 	ChainModule_SegmentBook_UnVerifiedC   = "UnVerifiedC"
 	ChainModule_SegmentBook_UnVerifiedD   = "UnVerifiedD"
+	ChainModule_FileMap_FileMetaInfo      = "FileInfo"
 )
 
 // cess chain Transaction name
@@ -60,7 +62,7 @@ const (
 
 var (
 	LogfilePathPrefix = "./log/"
-	CacheFilePath     = "./cess_filecache"
+	CacheFilePath     = "/var/cesscache"
 	MinSegMentSize    = 8323072
 	RduShards         = 2
 	CurrentPath       = ""

@@ -8,7 +8,7 @@ import (
 
 const (
 	ivaes = "abcdefghijklmnopqrstuvwxyz123456"
-	ivdes = "wumansgy"
+	ivdes = "abcdefgh"
 )
 
 var (

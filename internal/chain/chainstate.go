@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"scheduler-mining/internal/logger"
 	"strings"
 
@@ -73,6 +74,40 @@ type UnVerifiedVpd struct {
 	Sealed_cid []types.Bytes   `json:"sealed_cid"`
 	Rand       types.U32       `json:"rand"`
 	Size_type  types.U128      `json:"size_type"`
+}
+
+type FileMetaInfo struct {
+	FileId      types.Bytes         //File id
+	FileName    types.Bytes         //File name
+	FileSize    types.U64           //File size
+	FileHash    types.Bytes         //File hash
+	Public      types.Bool          //Public or not
+	Backups     types.U8            //Number of backups
+	Downloadfee *big.Int            //Download fee
+	UserAddr    types.Bytes         //Upload user's address
+	FileState   types.Bytes         //File state
+	FileDupl    []FileDuplicateInfo //File backup information list
+}
+
+type FileDuplicateInfo struct {
+	DuplId    types.Bytes     //Backup id
+	RandKey   types.Bytes     //Random key
+	SliceNum  types.U32       //Number of slices
+	FileSlice []FileSliceInfo //Slice information list
+}
+
+type FileSliceInfo struct {
+	SliceId   types.Bytes   //Slice id
+	SliceSize types.U16     //Slice size
+	SliceHash types.Bytes   //Slice hash
+	FileShard FileShardInfo //Shard information
+}
+
+type FileShardInfo struct {
+	DataShardNum  types.U8      //Number of data shard
+	RedunShardNum types.U8      //Number of redundant shard
+	ShardHash     []types.Bytes //Shard hash list
+	ShardAddr     []types.Bytes //Store miner address list
 }
 
 type CessChain_EtcdItems struct {
@@ -237,6 +272,37 @@ func GetUnverifiedVpd(chainModule, chainModuleMethod string) ([]UnVerifiedVpd, e
 		return paramdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
 	}
 	return paramdata, nil
+}
+
+// Query file meta info
+func GetFileMetaInfoOnChain(chainModule, chainModuleMethod, fileid string) (FileMetaInfo, error) {
+	var (
+		err   error
+		mdata FileMetaInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			logger.ErrLogger.Sugar().Errorf("[panic] [%v.%v] [err:%v]", chainModule, chainModuleMethod, err)
+		}
+	}()
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return mdata, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", chainModule, chainModuleMethod)
+	}
+
+	key, err := types.CreateStorageKey(meta, chainModule, chainModuleMethod, types.NewBytes([]byte(fileid)))
+	if err != nil {
+		return mdata, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", chainModule, chainModuleMethod)
+	}
+
+	_, err = api.RPC.State.GetStorageLatest(key, &mdata)
+	if err != nil {
+		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
+	}
+	return mdata, nil
 }
 
 //

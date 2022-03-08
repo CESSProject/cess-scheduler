@@ -93,7 +93,7 @@ func itoa(i int, wid int) []byte {
 
 // formatHeader fix header format
 func (l *Logger) formatHeader(t time.Time, file string, line int) error {
-	_, err := l.dst.Write(tools.S2b(l.prefix))
+	_, err := l.dst.Write(tools.S2B(l.prefix))
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func (l *Logger) formatHeader(t time.Time, file string, line int) error {
 			}
 			file = short
 		}
-		_, err = l.dst.Write(tools.S2b(file))
+		_, err = l.dst.Write(tools.S2B(file))
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func (l *Logger) Write(callDepth int, s string, lvl Lvl) error {
 	if err != nil {
 		return err
 	}
-	_, err = l.dst.Write(tools.S2b(s))
+	_, err = l.dst.Write(tools.S2B(s))
 	if err != nil {
 		return err
 	}

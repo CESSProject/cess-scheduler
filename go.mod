@@ -15,6 +15,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-ipfs-chunker v0.0.5
+	github.com/itering/scale.go v1.1.49
 	github.com/klauspost/reedsolomon v1.9.14
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/pkg/errors v0.9.1

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/pkg/errors"
 )
@@ -251,4 +252,22 @@ func GetRandomkey(length uint8) string {
 		bytes[i] = baseStr[r.Intn(l)]
 	}
 	return string(bytes)
+}
+
+//
+func B2S(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
+}
+
+func S2B(s string) []byte {
+	return *(*[]byte)(unsafe.Pointer(&s))
+}
+
+//
+func CreatDirIfNotExist(dir string) error {
+	_, err := os.Stat(dir)
+	if err != nil {
+		return os.MkdirAll(dir, os.ModeDir)
+	}
+	return nil
 }
