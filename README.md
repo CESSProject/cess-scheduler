@@ -1,5 +1,5 @@
-# ces-scheduler
-ces-scheduler is the scheduling service of cess platform
+# cess-scheduler
+cess-scheduler is the scheduling service of cess platform
 
 ## Feature
 * Schedule files to appropriate storage miners
