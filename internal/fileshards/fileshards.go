@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func cutFileRule(file string) (int64, int64, uint8, error) {
+func cutFileRule(file string) (uint64, uint64, uint8, error) {
 	f, err := os.Stat(file)
 	if err != nil {
 		return 0, 0, 0, err
@@ -25,33 +25,33 @@ func cutFileRule(file string) (int64, int64, uint8, error) {
 	num := f.Size() / (1024 * 1024 * 1024)
 	slicesize := f.Size() / (num + 1)
 	tailsize := f.Size() - slicesize*(num+1)
-	return slicesize, slicesize + tailsize, uint8(num) + 1, nil
+	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil
 }
 
-func CutFile(file string) ([]string, error) {
+func CutFile(file string) ([]string, uint64, uint64, error) {
 	var fileshards = make([]string, 0)
 	slicesize, lastslicesize, num, err := cutFileRule(file)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	fi, err := os.OpenFile(file, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	defer fi.Close()
 	dir := filepath.Dir(file)
 	b := make([]byte, slicesize)
 	lb := make([]byte, lastslicesize)
-	var i int64 = 1
-	for ; i <= int64(num); i++ {
-		fi.Seek((i-1)*(slicesize), 0)
+	var i uint64 = 1
+	for ; i <= uint64(num); i++ {
+		fi.Seek(int64((i-1)*(slicesize)), 0)
 		var shards = dir + fi.Name() + "-" + strconv.Itoa(int(i))
 		f, err := os.OpenFile(shards, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 		if err != nil {
-			return nil, err
+			return nil, 0, 0, err
 		}
 		fileshards = append(fileshards, shards)
-		if i == int64(num) {
+		if i == uint64(num) {
 			fi.Read(lb)
 			f.Write(lb)
 			f.Close()
@@ -61,7 +61,7 @@ func CutFile(file string) ([]string, error) {
 			f.Close()
 		}
 	}
-	return fileshards, nil
+	return fileshards, slicesize, lastslicesize, nil
 }
 
 func reedSolomonRule(file string) (int, int, error) {
@@ -79,14 +79,45 @@ func reedSolomonRule(file string) (int, int, error) {
 	}
 }
 
-func ReedSolomon(file string) error {
+func ReedSolomon(file string) ([]string, int, int, error) {
+	var shardsname = make([]string, 0)
 	datashards, rdunshards, err := reedSolomonRule(file)
 	if err != nil {
-		return err
+		return shardsname, datashards, rdunshards, err
 	}
-	_ = datashards
-	_ = rdunshards
-	return nil
+
+	enc, err := reedsolomon.New(datashards, rdunshards)
+	if err != nil {
+		return shardsname, datashards, rdunshards, err
+	}
+
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		return shardsname, datashards, rdunshards, err
+	}
+
+	// Split the file into equally sized shards.
+	shards, err := enc.Split(b)
+	if err != nil {
+		return shardsname, datashards, rdunshards, err
+	}
+	// Encode parity
+	err = enc.Encode(shards)
+	if err != nil {
+		return shardsname, datashards, rdunshards, err
+	}
+	// Write out the resulting files.
+	for i, shard := range shards {
+		var outfn = fmt.Sprintf("%s-%d", file, i)
+		//shardfilepath := filepath.Join(outFilePath, outfn)
+		fmt.Println("Writing to", outfn)
+		err = ioutil.WriteFile(outfn, shard, os.ModePerm)
+		if err != nil {
+			return shardsname, datashards, rdunshards, err
+		}
+		shardsname = append(shardsname, outfn)
+	}
+	return shardsname, datashards, rdunshards, nil
 }
 
 func Shards(inFilePath, outFilePath string, dataShards, rduShards int) (int, []string, error) {

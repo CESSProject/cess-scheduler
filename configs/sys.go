@@ -48,11 +48,12 @@ const (
 	ChainTx_SegmentBook_IntentSubmit = "SegmentBook.intent_submit"
 	ChainTx_FileBank_Update          = "FileBank.update"
 	ChainTx_FileMap_Add_schedule     = "FileMap.add_schedule"
+	ChainTx_FileBank_PutMetaInfo     = "FileBank.update_dupl"
 )
 
 const (
-	MinerUpfileUrl   = "/upfile"
-	MinerDownfileUrl = "/downfile"
+	RpcService_Miner          = "wsminer"
+	RpcMethod_Miner_WriteFile = "WriteFile"
 )
 
 const (
@@ -67,18 +68,4 @@ var (
 	RduShards         = 2
 	CurrentPath       = ""
 	FilePostProof     = 6
-)
-
-const (
-	ChainModule_EtcdSminer           = "Sminer"
-	ChainTransaction_Sminer_Register = "Sminer.setetcd"
-	ChainModule_Sminer_EtcdRegister  = "EtcdRegister"
-
-	ClusterToken_Sminer_Register   = "Sminer.setetcdtoken"
-	ClusterToken_Sminer            = "Sminer"
-	ClusterToken_Sminer_MinerItems = "EtcdToken"
-
-	ServicePort_Sminer_Register   = "Sminer.setserviceport"
-	ServicePort_Sminer            = "Sminer"
-	ServicePort_Sminer_MinerItems = "ServicePort"
 )

@@ -24,12 +24,13 @@ type CessChain_MinerItems struct {
 }
 
 type CessChain_AllMinerItems struct {
-	Peerid   types.U64  `json:"peerid"`
-	Ip       types.U32  `json:"ip"`
-	Port     types.U32  `json:"port"`
-	FilePort types.U32  `json:"fileport"`
-	Power    types.U128 `json:"power"`
-	Space    types.U128 `json:"space"`
+	Peerid    types.U64       `json:"peerid"`
+	Ip        types.Bytes     `json:"ip"`
+	Port      types.U32       `json:"port"`
+	FilePort  types.U32       `json:"fileport"`
+	Power     types.U128      `json:"power"`
+	Space     types.U128      `json:"space"`
+	AccountID types.AccountID `json:"accountID"`
 }
 
 type ParamInfo struct {
@@ -98,14 +99,14 @@ type FileDuplicateInfo struct {
 
 type FileSliceInfo struct {
 	SliceId   types.Bytes   //Slice id
-	SliceSize types.U16     //Slice size
+	SliceSize types.U64     //Slice size
 	SliceHash types.Bytes   //Slice hash
 	FileShard FileShardInfo //Shard information
 }
 
 type FileShardInfo struct {
-	DataShardNum  types.U8      //Number of data shard
-	RedunShardNum types.U8      //Number of redundant shard
+	DataShardNum  types.U16     //Number of data shard
+	RedunShardNum types.U16     //Number of redundant shard
 	ShardHash     []types.Bytes //Shard hash list
 	ShardAddr     []types.Bytes //Store miner address list
 }

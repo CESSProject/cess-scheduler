@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"os"
 	"scheduler-mining/configs"
+	"scheduler-mining/initlz"
 	"scheduler-mining/internal/chain"
 	"scheduler-mining/internal/logger"
+	"scheduler-mining/internal/proof"
+	"scheduler-mining/rpc"
 	"scheduler-mining/tools"
 
 	"github.com/spf13/cobra"
@@ -44,6 +47,7 @@ func init() {
 		Command_Version(),
 		Command_Register(),
 		Command_Obtain(),
+		Command_Run(),
 	)
 }
 
@@ -92,6 +96,15 @@ func Command_Obtain() *cobra.Command {
 	return cc
 }
 
+func Command_Run() *cobra.Command {
+	cc := &cobra.Command{
+		Use:   "run",
+		Short: "Operation scheduling service",
+		Run:   Command_Run_Runfunc,
+	}
+	return cc
+}
+
 func Command_Version_Runfunc(cmd *cobra.Command, args []string) {
 	fmt.Println(configs.Version)
 	os.Exit(0)
@@ -115,6 +128,19 @@ func Command_State_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
 	//TODO
 	refreshProfile(cmd)
+}
+
+func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
+	//TODO
+	refreshProfile(cmd)
+	// init
+	initlz.SystemInit()
+
+	// start-up
+	proof.Chain_Main()
+
+	// rpc service
+	rpc.Rpc_Main()
 }
 
 //
