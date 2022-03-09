@@ -28,6 +28,14 @@ func cutFileRule(file string) (uint64, uint64, uint8, error) {
 	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil
 }
 
+func CutDataRule(size uint64) (uint64, uint64, uint8, error) {
+	fmt.Println(size)
+	num := size / (1024 * 1024 * 1024)
+	slicesize := size / (num + 1)
+	tailsize := size - slicesize*(num+1)
+	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil
+}
+
 func CutFile(file string) ([]string, uint64, uint64, error) {
 	var fileshards = make([]string, 0)
 	slicesize, lastslicesize, num, err := cutFileRule(file)
@@ -118,6 +126,53 @@ func ReedSolomon(file string) ([]string, int, int, error) {
 		shardsname = append(shardsname, outfn)
 	}
 	return shardsname, datashards, rdunshards, nil
+}
+
+func ReedSolomon_Restore(file string, datashards, rdushards int) error {
+	enc, err := reedsolomon.New(datashards, rdushards)
+	if err != nil {
+		return err
+	}
+	shards := make([][]byte, datashards+rdushards)
+	for i := range shards {
+		infn := fmt.Sprintf("%s-%d", file, i)
+		fmt.Println("Opening", infn)
+		shards[i], err = ioutil.ReadFile(infn)
+		if err != nil {
+			fmt.Println("Error reading file", err)
+			shards[i] = nil
+		}
+	}
+
+	// Verify the shards
+	ok, _ := enc.Verify(shards)
+	if ok {
+		fmt.Println("No reconstruction needed")
+	} else {
+		fmt.Println("Verification failed. Reconstructing data")
+		err = enc.Reconstruct(shards)
+		if err != nil {
+			fmt.Println("Reconstruct failed -", err)
+			return err
+		}
+		ok, err = enc.Verify(shards)
+		if !ok {
+			fmt.Println("Verification failed after reconstruction, data likely corrupted.")
+			return err
+		}
+	}
+	fmt.Println("Writing data to", file)
+	f, err := os.Create(file)
+	if err != nil {
+		return err
+	}
+
+	// We don't know the exact filesize.
+	err = enc.Join(f, shards, len(shards[0])*datashards)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func Shards(inFilePath, outFilePath string, dataShards, rduShards int) (int, []string, error) {

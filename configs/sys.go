@@ -54,6 +54,7 @@ const (
 const (
 	RpcService_Miner          = "wsminer"
 	RpcMethod_Miner_WriteFile = "WriteFile"
+	RpcMethod_Miner_ReadFile  = "ReadFile"
 )
 
 const (

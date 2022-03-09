@@ -119,7 +119,163 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		return &Err{Code: 400, Msg: "body format error"}, nil
 	}
-	return &RespMsg{Id: 0, Body: nil}, nil
+	//Query client is able to read file
+	fmeta, err := chain.GetFileMetaInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
+	if err != nil {
+		return &Err{Code: 500, Msg: "Network timeout, try again later!"}, nil
+	}
+	if string(fmeta.UserAddr) != b.WalletAddress {
+		return &Err{Code: 400, Msg: "No permission"}, nil
+	}
+
+	path := filepath.Join(configs.CacheFilePath, b.FileId)
+	_, err = os.Stat(path + b.FileId + ".user")
+	if err != nil {
+		for i := 0; i < len(fmeta.FileDupl); i++ {
+			for j := 0; j < int(fmeta.FileDupl[i].SliceNum); j++ {
+				for k := 0; k < len(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardHash); k++ {
+					b := myproto.FileDownloadReq{
+						FileId: string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardHash[k]),
+					}
+					bo, err := proto.Marshal(&b)
+					if err != nil {
+						//TODO
+					}
+					fs, err := readFile(path+string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardAddr[k]), bo)
+					if err != nil {
+						//TODO
+					}
+
+					_, err = os.Stat(path)
+					if err != nil {
+						os.MkdirAll(path, os.ModeDir)
+					}
+					f, err := os.OpenFile(path+string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardHash[k]), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+					if err != nil {
+						//TODO
+					}
+					f.Write(fs)
+					f.Close()
+				}
+				//reed solomon recover
+				err = fileshards.ReedSolomon_Restore(path+string(fmeta.FileDupl[i].FileSlice[j].SliceId), int(fmeta.FileDupl[i].FileSlice[j].FileShard.DataShardNum), int(fmeta.FileDupl[i].FileSlice[j].FileShard.RedunShardNum))
+				if err != nil {
+					//TODO
+				}
+				if j+1 == int(fmeta.FileDupl[i].SliceNum) {
+					fii, err := os.OpenFile(path+b.FileId+".cess", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+					if err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					defer fii.Close()
+					for l := 0; l <= int(fmeta.FileDupl[i].SliceNum); l++ {
+						f, err := os.OpenFile(path+string(fmeta.FileDupl[i].FileSlice[l].SliceId), os.O_RDONLY, os.ModePerm)
+						if err != nil {
+							//TODO
+							fmt.Println(err)
+						}
+						defer f.Close()
+						b, err := ioutil.ReadAll(f)
+						if err != nil {
+							//TODO
+							fmt.Println(err)
+						}
+						fii.Write(b)
+					}
+					//aes decryption
+					ivkey := string(fmeta.FileDupl[i].RandKey)[:8]
+					bkey, err := base64.StdEncoding.DecodeString(string(fmeta.FileDupl[i].RandKey))
+					if err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					buf := bytes.NewBuffer(nil)
+					if _, err := io.Copy(buf, fii); err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					decrypted, err := encryption.AesCtrDecrypt(buf.Bytes(), bkey, []byte(ivkey))
+					if err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					fuser, err := os.OpenFile(path+b.FileId+".user", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+					if err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					defer fuser.Close()
+					fuser.Write(decrypted)
+
+					slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(decrypted)))
+					if err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					if b.Blocks >= int32(num) {
+						return &Err{Code: 400, Msg: "BlockNum err"}, nil
+					}
+					var tmp = make([]byte, 0)
+					if b.Blocks+1 == int32(num) {
+						tmp = decrypted[uint64(len(decrypted)-int(lastslicesize)):]
+					} else {
+						tmp = decrypted[uint64(uint64(b.Blocks)*slicesize):uint64(uint64(b.Blocks+1)*slicesize)]
+					}
+					respb := &myproto.FileDownloadInfo{
+						FileId:    b.FileId,
+						Blocks:    int32(num),
+						BlockSize: int32(slicesize),
+						BlockNum:  b.Blocks,
+						Data:      tmp,
+					}
+					protob, err := proto.Marshal(respb)
+					if err != nil {
+						//TODO
+						fmt.Println(err)
+					}
+					return &RespMsg{Body: protob}, nil
+				}
+			}
+		}
+	} else {
+		fuser, err := os.Open(path + b.FileId + ".user")
+		if err != nil {
+			//TODO
+			fmt.Println(err)
+		}
+		buf := bytes.NewBuffer(nil)
+		if _, err := io.Copy(buf, fuser); err != nil {
+			//TODO
+			fmt.Println(err)
+		}
+		slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(buf.Len()))
+		if err != nil {
+			//TODO
+			fmt.Println(err)
+		}
+		var tmp = make([]byte, 0)
+		if b.Blocks+1 == int32(num) {
+			tmp = buf.Bytes()[uint64(buf.Len()-int(lastslicesize)):]
+		} else {
+			tmp = buf.Bytes()[uint64(uint64(b.Blocks)*slicesize):uint64(uint64(b.Blocks+1)*slicesize)]
+		}
+		respb := &myproto.FileDownloadInfo{
+			FileId:    b.FileId,
+			Blocks:    int32(num),
+			BlockSize: int32(slicesize),
+			BlockNum:  b.Blocks,
+			Data:      tmp,
+		}
+		protob, err := proto.Marshal(respb)
+		if err != nil {
+			//TODO
+			fmt.Println(err)
+		}
+		return &RespMsg{Body: protob}, nil
+	}
+	//fileshards.CutDataRule(uint64(fmeta.FileSize))
+	return &Err{Code: 500, Msg: "fail"}, nil
 }
 
 func recvCallBack(fid, dir string, num int, meta chain.FileMetaInfo) {
@@ -334,4 +490,33 @@ func writeFile(dst string, body []byte) error {
 	}
 	errstr := fmt.Sprintf("%d", b.Code)
 	return errors.New("return code:" + errstr)
+}
+
+//
+func readFile(dst string, body []byte) ([]byte, error) {
+	dstip := tools.Base58Decoding(dst)
+	wsURL := "ws:" + strings.TrimPrefix(dstip, "http:")
+	req := &ReqMsg{
+		Service: configs.RpcService_Miner,
+		Method:  configs.RpcMethod_Miner_ReadFile,
+		Body:    body,
+	}
+	client, err := DialWebsocket(context.Background(), wsURL, "")
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	resp, err := client.Call(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	cancel()
+	var b Err
+	err = proto.Unmarshal(resp.Body, &b)
+	if err != nil {
+		return resp.Body, nil
+	}
+	errstr := fmt.Sprintf("%d", b.Code)
+	return nil, errors.New(errstr)
 }
