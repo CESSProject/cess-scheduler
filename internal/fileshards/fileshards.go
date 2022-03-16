@@ -47,14 +47,15 @@ func CutFile(file string) ([]string, uint64, uint64, error) {
 		return nil, 0, 0, err
 	}
 	defer fi.Close()
-	dir := filepath.Dir(file)
+	//dir := filepath.Dir(file)
 	b := make([]byte, slicesize)
 	lb := make([]byte, lastslicesize)
-	var i uint64 = 1
-	for ; i <= uint64(num); i++ {
-		fi.Seek(int64((i-1)*(slicesize)), 0)
-		var shards = dir + fi.Name() + "-" + strconv.Itoa(int(i))
-		f, err := os.OpenFile(shards, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	var i uint64 = 0
+	for ; i < uint64(num); i++ {
+		fi.Seek(int64((i)*(slicesize)), 0)
+		var shards = fi.Name() + "-" + strconv.Itoa(int(i))
+		fmt.Println("shards: ", shards)
+		f, err := os.OpenFile(shards, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -80,7 +81,7 @@ func reedSolomonRule(file string) (int, int, error) {
 	num := int(f.Size() / int64(configs.MinSegMentSize))
 	if num < 1 {
 		return 1, 1, nil
-	} else if num/4 < 0 {
+	} else if num/4 <= 0 {
 		return num + 1, 1, nil
 	} else {
 		return num + 1, num / 4, nil

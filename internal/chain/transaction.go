@@ -61,7 +61,35 @@ type Event_SolutionStored struct {
 	Topics           []types.Hash
 }
 
-type Event_FileBank_FileUpdate struct {
+type Event_FileMap_RegistrationScheduler struct {
+	Phase  types.Phase
+	Acc    types.AccountID
+	Ip     types.Bytes
+	Topics []types.Hash
+}
+
+type Event_DeleteFile struct {
+	Phase  types.Phase
+	Acc    types.AccountID
+	Fileid types.Bytes
+	Topics []types.Hash
+}
+
+type Event_BuySpace struct {
+	Phase  types.Phase
+	Acc    types.AccountID
+	Size   types.U128
+	Fee    types.U128
+	Topics []types.Hash
+}
+
+type Event_FileUpload struct {
+	Phase  types.Phase
+	Acc    types.AccountID
+	Topics []types.Hash
+}
+
+type Event_FileUpdate struct {
 	Phase  types.Phase
 	Acc    types.AccountID
 	Fileid types.Bytes
@@ -70,18 +98,23 @@ type Event_FileBank_FileUpdate struct {
 
 type MyEventRecords struct {
 	types.EventRecords
-	SegmentBook_ParamSet     []Event_SegmentBook_ParamSet
-	SegmentBook_VPASubmitted []Event_VPABCD_Submit_Verify
-	SegmentBook_VPBSubmitted []Event_VPABCD_Submit_Verify
-	SegmentBook_VPCSubmitted []Event_VPABCD_Submit_Verify
-	SegmentBook_VPDSubmitted []Event_VPABCD_Submit_Verify
-	SegmentBook_VPAVerified  []Event_VPABCD_Submit_Verify
-	SegmentBook_VPBVerified  []Event_VPABCD_Submit_Verify
-	SegmentBook_VPCVerified  []Event_VPABCD_Submit_Verify
-	SegmentBook_VPDVerified  []Event_VPABCD_Submit_Verify
-	Sminer_TimedTask         []Event_Sminer_TimedTask
-	Sminer_Registered        []Event_Sminer_Registered
-	FileBank_FileUpdate      []Event_FileBank_FileUpdate
+	SegmentBook_ParamSet          []Event_SegmentBook_ParamSet
+	SegmentBook_VPASubmitted      []Event_VPABCD_Submit_Verify
+	SegmentBook_VPBSubmitted      []Event_VPABCD_Submit_Verify
+	SegmentBook_VPCSubmitted      []Event_VPABCD_Submit_Verify
+	SegmentBook_VPDSubmitted      []Event_VPABCD_Submit_Verify
+	SegmentBook_VPAVerified       []Event_VPABCD_Submit_Verify
+	SegmentBook_VPBVerified       []Event_VPABCD_Submit_Verify
+	SegmentBook_VPCVerified       []Event_VPABCD_Submit_Verify
+	SegmentBook_VPDVerified       []Event_VPABCD_Submit_Verify
+	Sminer_TimedTask              []Event_Sminer_TimedTask
+	Sminer_Registered             []Event_Sminer_Registered
+	FileMap_RegistrationScheduler []Event_FileMap_RegistrationScheduler
+	//yz
+	FileBank_DeleteFile []Event_DeleteFile
+	FileBank_BuySpace   []Event_BuySpace
+	FileBank_FileUpload []Event_FileUpload
+	FileBank_FileUpdate []Event_FileUpdate
 	//
 	ElectionProviderMultiPhase_UnsignedPhaseStarted []Event_UnsignedPhaseStarted
 	ElectionProviderMultiPhase_SolutionStored       []Event_SolutionStored
@@ -186,16 +219,16 @@ func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, erro
 				if err != nil {
 					fmt.Println("+++ DecodeEvent err: ", err)
 				}
-				if events.Sminer_Registered != nil {
-					for i := 0; i < len(events.Sminer_Registered); i++ {
-						if events.Sminer_Registered[i].PeerAcc == types.NewAccountID(keyring.PublicKey) {
+				if events.FileMap_RegistrationScheduler != nil {
+					for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
+						if events.FileMap_RegistrationScheduler[i].Acc == types.NewAccountID(keyring.PublicKey) {
 							return true, nil
 						}
 					}
 				} else {
-					fmt.Println("+++ Not found events.Sminer_Registered ")
+					fmt.Println("+++ Not found events.FileMap_RegistrationScheduler")
 				}
-				return false, nil
+				return false, errors.New("Not found events.FileMap_RegistrationScheduler")
 			}
 		case err = <-sub.Err():
 			return false, err
@@ -392,7 +425,7 @@ func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid ty
 }
 
 //Submit unsealed cid
-func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizetype, segtype uint8, peerd uint64, unsealedcid [][]byte, hash, shardhash []byte) error {
+func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizetype, segtype uint8, peerid uint64, unsealedcid [][]byte, hash, shardhash []byte) error {
 	var (
 		err         error
 		ok          bool
@@ -421,7 +454,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		uncid[i] = make(types.Bytes, 0)
 		uncid[i] = append(uncid[i], unsealedcid[i]...)
 	}
-	c, err := types.NewCall(meta, TransactionName, types.NewU8(segsizetype), types.NewU8(segtype), types.NewU64(peerd), uncid, types.NewBytes(hash), types.NewBytes(shardhash))
+	c, err := types.NewCall(meta, TransactionName, types.NewU8(segsizetype), types.NewU8(segtype), types.NewU64(peerid), uncid, types.NewBytes(hash), types.NewBytes(shardhash))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}
@@ -590,7 +623,7 @@ func UpdateFileInfoToChain(identifyAccountPhrase, TransactionName string, fid, s
 	}
 }
 
-func PutMetaInfoToChain(transactionPrK, TransactionName string, info []FileDuplicateInfo) (bool, error) {
+func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []FileDuplicateInfo) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -603,7 +636,6 @@ func PutMetaInfoToChain(transactionPrK, TransactionName string, info []FileDupli
 			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
-
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
 	if err != nil {
 		return false, errors.Wrap(err, "KeyringPairFromSecret err")
@@ -614,9 +646,7 @@ func PutMetaInfoToChain(transactionPrK, TransactionName string, info []FileDupli
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	//types.EncodeToBytes(info)
-
-	c, err := types.NewCall(meta, TransactionName, info)
+	c, err := types.NewCall(meta, TransactionName, types.Bytes([]byte(fid)), info)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -692,7 +722,8 @@ func PutMetaInfoToChain(transactionPrK, TransactionName string, info []FileDupli
 					fmt.Println("+++ DecodeEvent err: ", err)
 				}
 				if events.FileBank_FileUpdate != nil {
-					for i := 0; i < len(events.Sminer_Registered); i++ {
+					//fmt.Println("**", events.FileBank_FileUpdate)
+					for i := 0; i < len(events.FileBank_FileUpdate); i++ {
 						if events.FileBank_FileUpdate[i].Acc == types.NewAccountID(keyring.PublicKey) {
 							return true, nil
 						}

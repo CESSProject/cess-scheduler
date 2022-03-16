@@ -15,6 +15,8 @@ import (
 	"scheduler-mining/rpc"
 	"scheduler-mining/tools"
 
+	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
+	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -78,15 +80,6 @@ func Command_Register() *cobra.Command {
 	return cc
 }
 
-func Command_State() *cobra.Command {
-	cc := &cobra.Command{
-		Use:   "state",
-		Short: "List miners' own information",
-		Run:   Command_State_Runfunc,
-	}
-	return cc
-}
-
 func Command_Obtain() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "obtain",
@@ -117,12 +110,8 @@ func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 
 func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
+	initlz.SystemInit()
 	register()
-}
-
-func Command_State_Runfunc(cmd *cobra.Command, args []string) {
-	//TODO
-	refreshProfile(cmd)
 }
 
 func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
@@ -194,18 +183,34 @@ func parseProfile() {
 
 //
 func register() {
+	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+		os.Exit(-1)
+	}
+	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.TransactionPrK, 0)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+		os.Exit(-1)
+	}
+	for _, v := range sd {
+		if v.Acc == types.NewAccountID(keyring.PublicKey) {
+			fmt.Printf("\x1b[%dm[ok]\x1b[0m The account is already registered.\n", 42)
+			os.Exit(0)
+		}
+	}
 
 	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
 
 	logger.InfoLogger.Sugar().Infof("Start registration......\n    CessAddr:%v\n    ServiceAddr:%v\n    TransactionPrK:%v\n",
 		configs.Confile.CessChain.ChainAddr, res, configs.Confile.SchedulerInfo.TransactionPrK)
 
-	ok, err := chain.RegisterToChain(
+	_, err = chain.RegisterToChain(
 		configs.Confile.SchedulerInfo.TransactionPrK,
 		configs.ChainTx_FileMap_Add_schedule,
 		res,
 	)
-	if !ok || err != nil {
+	if err != nil {
 		logger.InfoLogger.Sugar().Infof("Registration failed......,err:%v", err)
 		logger.ErrLogger.Sugar().Errorf("%v", err)
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed, Please try again later. [%v]\n", 41, err)

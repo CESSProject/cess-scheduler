@@ -25,8 +25,8 @@ func newServiceRouter() *serviceRouter {
 
 // service represents a registered object.
 type service struct {
-	name         string
-	handlers     map[string]handleWrapper
+	name     string
+	handlers map[string]handleWrapper
 }
 
 func (r *serviceRouter) registerName(name string, svc interface{}) error {
@@ -48,8 +48,8 @@ func (r *serviceRouter) registerName(name string, svc interface{}) error {
 	s, ok := r.services[name]
 	if !ok {
 		s = service{
-			name:          name,
-			handlers:     make(map[string]handleWrapper),
+			name:     name,
+			handlers: make(map[string]handleWrapper),
 		}
 		r.services[name] = s
 	}

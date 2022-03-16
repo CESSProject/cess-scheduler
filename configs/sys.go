@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "ces-scheduler_0.3.0_Alpha"
+const Version = "cess-scheduler_0.3.0_Alpha"
 
 // system exit code
 const (
@@ -22,6 +22,7 @@ const (
 const (
 	ChainModule_Sminer      = "Sminer"
 	ChainModule_SegmentBook = "SegmentBook"
+	ChainModule_FileBank    = "FileBank"
 	ChainModule_FileMap     = "FileMap"
 )
 
@@ -36,7 +37,8 @@ const (
 	ChainModule_SegmentBook_UnVerifiedB   = "UnVerifiedB"
 	ChainModule_SegmentBook_UnVerifiedC   = "UnVerifiedC"
 	ChainModule_SegmentBook_UnVerifiedD   = "UnVerifiedD"
-	ChainModule_FileMap_FileMetaInfo      = "FileInfo"
+	ChainModule_FileMap_FileMetaInfo      = "File"
+	ChainModule_FileMap_SchedulerInfo     = "SchedulerMap"
 )
 
 // cess chain Transaction name
@@ -47,14 +49,14 @@ const (
 	ChainTx_SegmentBook_VerifyInVpd  = "SegmentBook.verify_in_vpd"
 	ChainTx_SegmentBook_IntentSubmit = "SegmentBook.intent_submit"
 	ChainTx_FileBank_Update          = "FileBank.update"
-	ChainTx_FileMap_Add_schedule     = "FileMap.add_schedule"
+	ChainTx_FileMap_Add_schedule     = "FileMap.registration_scheduler"
 	ChainTx_FileBank_PutMetaInfo     = "FileBank.update_dupl"
 )
 
 const (
-	RpcService_Miner          = "wsminer"
-	RpcMethod_Miner_WriteFile = "WriteFile"
-	RpcMethod_Miner_ReadFile  = "ReadFile"
+	RpcService_Miner          = "mservice"
+	RpcMethod_Miner_WriteFile = "writefile"
+	RpcMethod_Miner_ReadFile  = "readfile"
 )
 
 const (

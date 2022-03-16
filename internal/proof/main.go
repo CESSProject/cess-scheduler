@@ -47,6 +47,9 @@ func verifyVpa() {
 			logger.InfoLogger.Sugar().Infof("Number of unverified vpa: %v", len(data))
 		}
 		for i = 0; i < len(data); i++ {
+			if len(data[i].Proof) == 0 {
+				continue
+			}
 			proofs = ""
 			sealcid = ""
 			for j = 0; j < len(data[i].Proof); j++ {

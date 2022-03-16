@@ -8,11 +8,11 @@ import (
 )
 
 type protoCodec struct {
-	conn         *websocket.Conn
-	closedCh      chan struct{}
+	conn     *websocket.Conn
+	closedCh chan struct{}
 }
 
-func (p *protoCodec) closed() <- chan struct{} {
+func (p *protoCodec) closed() <-chan struct{} {
 	return p.closedCh
 }
 
@@ -60,8 +60,7 @@ func (p *protoCodec) getConn() *websocket.Conn {
 }
 
 func errorMessage(err error) *RespMsg {
-	msg := &RespMsg{
-	}
+	msg := &RespMsg{}
 	ec, ok := err.(Error)
 	errMsg := &Err{
 		Code: defaultErrorCode,
