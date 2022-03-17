@@ -3,18 +3,20 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"net/http/httptest"
 	"scheduler-mining/log"
+	. "scheduler-mining/rpc/proto"
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type testService struct{}
 
 func (testService) HelloAction(body []byte) (proto.Message, error) {
-	return &Err{Msg: "test hello"}, nil
+	return &RespBody{Msg: "test hello"}, nil
 }
 
 func TestDialWebsocket(t *testing.T) {
@@ -25,7 +27,7 @@ func TestDialWebsocket(t *testing.T) {
 	defer log.Flush()
 	defer srv.Close()
 
-	wsURL   := "ws:" + strings.TrimPrefix(s.URL, "http:")
+	wsURL := "ws:" + strings.TrimPrefix(s.URL, "http:")
 	fmt.Println(wsURL)
 	client, err := DialWebsocket(context.Background(), wsURL, "")
 	if err != nil {

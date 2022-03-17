@@ -310,7 +310,7 @@ func GetFileMetaInfoOnChain(chainModule, chainModuleMethod, fileid string) (File
 	if err != nil {
 		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
 	}
-	fmt.Println(mdata)
+	//fmt.Println(mdata)
 	return mdata, nil
 }
 

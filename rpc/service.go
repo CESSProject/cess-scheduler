@@ -7,7 +7,9 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/golang/protobuf/proto"
+	. "scheduler-mining/rpc/proto"
+
+	"google.golang.org/protobuf/proto"
 )
 
 const methodSuffix = "Action"

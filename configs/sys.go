@@ -65,10 +65,11 @@ const (
 )
 
 var (
-	LogfilePathPrefix = "./log/"
-	CacheFilePath     = "/var/cesscache"
-	MinSegMentSize    = 8323072
-	RduShards         = 2
-	CurrentPath       = ""
-	FilePostProof     = 6
+	LogFilePath    = "/var/cesscache/log"
+	CacheFilePath  = "/var/cesscache"
+	DbFilePath     = "/var/cesscache/db"
+	MinSegMentSize = 8323072
+	RduShards      = 2
+	CurrentPath    = ""
+	FilePostProof  = 6
 )

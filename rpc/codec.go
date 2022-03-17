@@ -3,8 +3,10 @@ package rpc
 import (
 	"io"
 
-	"github.com/golang/protobuf/proto"
+	. "scheduler-mining/rpc/proto"
+
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/proto"
 )
 
 type protoCodec struct {
@@ -62,7 +64,7 @@ func (p *protoCodec) getConn() *websocket.Conn {
 func errorMessage(err error) *RespMsg {
 	msg := &RespMsg{}
 	ec, ok := err.(Error)
-	errMsg := &Err{
+	errMsg := &RespBody{
 		Code: defaultErrorCode,
 		Msg:  err.Error(),
 	}

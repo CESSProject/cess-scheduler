@@ -3,13 +3,13 @@ package rpc
 import (
 	"context"
 
-	"github.com/golang/protobuf/proto"
 	"scheduler-mining/log"
+	. "scheduler-mining/rpc/proto"
 )
 
 type SrvConn struct {
-	srv       *Server
-	codec     *websocketCodec
+	srv   *Server
+	codec *websocketCodec
 }
 
 func (c *SrvConn) readLoop() {
@@ -17,7 +17,7 @@ func (c *SrvConn) readLoop() {
 	for {
 		msg := ReqMsg{}
 		err := c.codec.read(&msg)
-		if _, ok := err.(*proto.ParseError); ok {
+		if _, ok := err.(*parseError); ok {
 			c.codec.WriteMsg(context.Background(), errorMessage(&parseError{err.Error()}))
 			continue
 		}
@@ -33,15 +33,15 @@ func (c *SrvConn) readLoop() {
 }
 
 type ClientConn struct {
-	codec     *websocketCodec
-	closeCh   chan<-struct{}
+	codec   *websocketCodec
+	closeCh chan<- struct{}
 }
 
 func (c *ClientConn) readLoop(recv func(msg RespMsg)) {
 	for {
 		msg := RespMsg{}
 		err := c.codec.read(&msg)
-		if _, ok := err.(*proto.ParseError); ok {
+		if _, ok := err.(*parseError); ok {
 			continue
 		}
 

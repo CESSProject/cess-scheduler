@@ -28,7 +28,6 @@ func Chain_Init() {
 		os.Exit(configs.Exit_Normal)
 	}
 	go substrateAPIKeepAlive()
-
 }
 
 func substrateAPIKeepAlive() {

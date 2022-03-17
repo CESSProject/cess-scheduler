@@ -30,7 +30,7 @@ func cutFileRule(file string) (uint64, uint64, uint8, error) {
 
 func CutDataRule(size uint64) (uint64, uint64, uint8, error) {
 	fmt.Println(size)
-	num := size / (1024 * 1024 * 1024)
+	num := size / (2 * 1024 * 1024)
 	slicesize := size / (num + 1)
 	tailsize := size - slicesize*(num+1)
 	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil

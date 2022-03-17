@@ -1,6 +1,9 @@
 package cache
 
 import (
+	"os"
+	"scheduler-mining/configs"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -18,8 +21,43 @@ const (
 )
 
 type LevelDB struct {
-	fn       string
-	db       *leveldb.DB
+	fn string
+	db *leveldb.DB
+}
+
+var C Cache
+
+func GetCache() (Cache, error) {
+	var err error
+	if C == nil {
+		_, err = os.Stat(configs.DbFilePath)
+		if err != nil {
+			err = os.MkdirAll(configs.DbFilePath, os.ModeDir)
+			if err != nil {
+				return nil, err
+			}
+		}
+		C, err = newLevelDB(configs.DbFilePath, 0, 0, "cess")
+		if err != nil {
+			return nil, err
+		}
+		return C, nil
+	}
+	if err = C.Delete([]byte("NIL")); err != nil {
+		_, err = os.Stat(configs.DbFilePath)
+		if err != nil {
+			err = os.MkdirAll(configs.DbFilePath, os.ModeDir)
+			if err != nil {
+				return nil, err
+			}
+		}
+		C, err = newLevelDB(configs.DbFilePath, 0, 0, "cess")
+		if err != nil {
+			return nil, err
+		}
+		return C, nil
+	}
+	return C, nil
 }
 
 func NewLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {

@@ -14,18 +14,18 @@ import (
 	"scheduler-mining/log"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	wsBuffRead      = 1024
-	wsBuffWrite     = 1024
-	wsMsgSizeLimit  = 8*1024*1024
+	wsBuffRead     = 1024
+	wsBuffWrite    = 1024
+	wsMsgSizeLimit = 3 * 1024 * 1024
 
-	wsHeartbeatInterval     = 120 * time.Second
-	wsWriteTimeout          = 10*time.Second
-	wsReadTimeout           = 10*time.Second
+	wsHeartbeatInterval = 120 * time.Second
+	wsWriteTimeout      = 15 * time.Second
+	wsReadTimeout       = 15 * time.Second
 )
 
 var wsBufferPool = new(sync.Pool)
@@ -203,7 +203,7 @@ func newWebsocketCodec(conn *websocket.Conn, host string, req http.Header) *webs
 	})
 	wc := &websocketCodec{
 		protoCodec: &protoCodec{
-			conn: conn,
+			conn:     conn,
 			closedCh: make(chan struct{}),
 		},
 		pingReset: make(chan struct{}, 1),
