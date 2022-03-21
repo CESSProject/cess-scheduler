@@ -24,8 +24,7 @@ func Chain_Init() {
 	api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		logger.ErrLogger.Sugar().Errorf("%v", err)
-		os.Exit(configs.Exit_Normal)
+		os.Exit(1)
 	}
 	go substrateAPIKeepAlive()
 }

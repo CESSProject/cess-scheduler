@@ -28,8 +28,17 @@ func cutFileRule(file string) (uint64, uint64, uint8, error) {
 	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil
 }
 
+func cutFileRule_bytes(file uint64) (uint64, uint64, uint8, error) {
+	num := file / (1024 * 1024 * 1024)
+	slicesize := file / (num + 1)
+	tailsize := file - slicesize*(num+1)
+	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil
+}
+
 func CutDataRule(size uint64) (uint64, uint64, uint8, error) {
-	fmt.Println(size)
+	if size <= 0 {
+		return 0, 0, 0, errors.New("file size is 0")
+	}
 	num := size / (2 * 1024 * 1024)
 	slicesize := size / (num + 1)
 	tailsize := size - slicesize*(num+1)
@@ -67,6 +76,43 @@ func CutFile(file string) ([]string, uint64, uint64, error) {
 		} else {
 			fi.Read(b)
 			f.Write(b)
+			f.Close()
+		}
+	}
+	return fileshards, slicesize, lastslicesize, nil
+}
+
+func CutFile_bytes(name string, file []byte) ([]string, uint64, uint64, error) {
+	var fileshards = make([]string, 0)
+	slicesize, lastslicesize, num, err := cutFileRule_bytes(uint64(len(file)))
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	// fi, err := os.OpenFile(file, os.O_RDONLY, os.ModePerm)
+	// if err != nil {
+	// 	return nil, 0, 0, err
+	// }
+	// defer fi.Close()
+	//dir := filepath.Dir(file)
+	//b := make([]byte, slicesize)
+	//lb := make([]byte, lastslicesize)
+	var i uint64 = 0
+	for ; i < uint64(num); i++ {
+		//fi.Seek(int64((i)*(slicesize)), 0)
+		var shards = name + "-" + strconv.Itoa(int(i))
+		fmt.Println("shards: ", shards)
+		f, err := os.OpenFile(shards, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		fileshards = append(fileshards, shards)
+		if i+1 == uint64(num) {
+			//fi.Read(lb)
+			f.Write(file[uint64(len(file))-lastslicesize:])
+			f.Close()
+		} else {
+			//fi.Read(b)
+			f.Write(file[int64((i)*(slicesize)):int64((i+1)*(slicesize))])
 			f.Close()
 		}
 	}
@@ -140,7 +186,6 @@ func ReedSolomon_Restore(file string, datashards, rdushards int) error {
 		fmt.Println("Opening", infn)
 		shards[i], err = ioutil.ReadFile(infn)
 		if err != nil {
-			fmt.Println("Error reading file", err)
 			shards[i] = nil
 		}
 	}

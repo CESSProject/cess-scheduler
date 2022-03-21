@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"scheduler-mining/log"
-	. "scheduler-mining/rpc/proto"
+	. "scheduler-mining/rpc/protobuf"
 	"strings"
 	"testing"
 	"time"

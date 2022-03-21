@@ -3,9 +3,9 @@ package rpc
 import (
 	"context"
 
-	. "scheduler-mining/rpc/proto"
+	. "scheduler-mining/rpc/protobuf"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 type handleWrapper func(id uint64, body []byte) *RespMsg

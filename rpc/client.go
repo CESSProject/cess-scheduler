@@ -2,7 +2,7 @@ package rpc
 
 import (
 	"context"
-	. "scheduler-mining/rpc/proto"
+	. "scheduler-mining/rpc/protobuf"
 	"sync"
 	"sync/atomic"
 )

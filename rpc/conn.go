@@ -3,8 +3,9 @@ package rpc
 import (
 	"context"
 
+	"github.com/golang/protobuf/proto"
 	"scheduler-mining/log"
-	. "scheduler-mining/rpc/proto"
+	. "scheduler-mining/rpc/protobuf"
 )
 
 type SrvConn struct {
@@ -17,7 +18,7 @@ func (c *SrvConn) readLoop() {
 	for {
 		msg := ReqMsg{}
 		err := c.codec.read(&msg)
-		if _, ok := err.(*parseError); ok {
+		if _, ok := err.(*proto.ParseError); ok {
 			c.codec.WriteMsg(context.Background(), errorMessage(&parseError{err.Error()}))
 			continue
 		}
@@ -41,7 +42,7 @@ func (c *ClientConn) readLoop(recv func(msg RespMsg)) {
 	for {
 		msg := RespMsg{}
 		err := c.codec.read(&msg)
-		if _, ok := err.(*parseError); ok {
+		if _, ok := err.(*proto.ParseError); ok {
 			continue
 		}
 
@@ -50,7 +51,6 @@ func (c *ClientConn) readLoop(recv func(msg RespMsg)) {
 			c.closeCh <- struct{}{}
 			break
 		}
-
 		recv(msg)
 	}
 }

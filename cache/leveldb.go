@@ -60,7 +60,7 @@ func GetCache() (Cache, error) {
 	return C, nil
 }
 
-func NewLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {
+func newLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {
 	options := configureOptions(cache, handles)
 	db, err := leveldb.OpenFile(file, options)
 	if _, corrupted := err.(*errors.ErrCorrupted); corrupted {
@@ -71,8 +71,8 @@ func NewLevelDB(file string, cache int, handles int, namespace string) (Cache, e
 	}
 
 	ldb := &LevelDB{
-		fn:       file,
-		db:       db,
+		fn: file,
+		db: db,
 	}
 	return ldb, nil
 }

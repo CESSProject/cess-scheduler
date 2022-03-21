@@ -7,6 +7,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"scheduler-mining/configs"
 	"scheduler-mining/initlz"
 	"scheduler-mining/internal/chain"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	Name        = "schdl-ser"
+	Name        = "scheduler"
 	Description = "Scheduler service of CESS platform"
 )
 
@@ -115,17 +116,38 @@ func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 }
 
 func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
-	//TODO
 	refreshProfile(cmd)
+	//TODO
 }
 
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
-	//TODO
+	var reg bool
 	refreshProfile(cmd)
 	// init
 	initlz.SystemInit()
 
+	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+		os.Exit(-1)
+	}
+	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.TransactionPrK, 0)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+		os.Exit(-1)
+	}
+	for _, v := range sd {
+		if v.Acc == types.NewAccountID(keyring.PublicKey) {
+			reg = true
+		}
+	}
+
+	if !reg {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Unregistered.\n", 41)
+		os.Exit(1)
+	}
 	// start-up
+	exit_interrupt()
 	proof.Chain_Main()
 
 	// rpc service
@@ -158,11 +180,11 @@ func parseProfile() {
 	f, err := os.Stat(confFilePath)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file does not exist\n", 41, confFilePath)
-		os.Exit(configs.Exit_ConfFileNotExist)
+		os.Exit(1)
 	}
 	if f.IsDir() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' is not a file\n", 41, confFilePath)
-		os.Exit(configs.Exit_ConfFileNotExist)
+		os.Exit(1)
 	}
 
 	viper.SetConfigFile(confFilePath)
@@ -171,14 +193,14 @@ func parseProfile() {
 	err = viper.ReadInConfig()
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file type error\n", 41, confFilePath)
-		os.Exit(configs.Exit_ConfFileTypeError)
+		os.Exit(1)
 	}
 	err = viper.Unmarshal(configs.Confile)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
-		os.Exit(configs.Exit_ConfFileFormatError)
+		os.Exit(1)
 	}
-	fmt.Println(configs.Confile)
+	//fmt.Println(configs.Confile)
 }
 
 //
@@ -218,4 +240,16 @@ func register() {
 	}
 	fmt.Println("success")
 	os.Exit(0)
+}
+
+// Catch the system unexpected exit signal.
+// Execute defer statement.
+func exit_interrupt() {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+	go func() {
+		for range signalChan {
+			panic(signalChan)
+		}
+	}()
 }

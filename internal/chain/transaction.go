@@ -425,7 +425,7 @@ func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid ty
 }
 
 //Submit unsealed cid
-func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizetype, segtype uint8, peerid uint64, unsealedcid [][]byte, hash, shardhash []byte) error {
+func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizetype, segtype uint8, peerid uint64, unsealedcid [][]byte, shardhash []byte) error {
 	var (
 		err         error
 		ok          bool
@@ -454,7 +454,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		uncid[i] = make(types.Bytes, 0)
 		uncid[i] = append(uncid[i], unsealedcid[i]...)
 	}
-	c, err := types.NewCall(meta, TransactionName, types.NewU8(segsizetype), types.NewU8(segtype), types.NewU64(peerid), uncid, types.NewBytes(hash), types.NewBytes(shardhash))
+	c, err := types.NewCall(meta, TransactionName, types.NewU8(segsizetype), types.NewU8(segtype), types.NewU64(peerid), uncid, types.NewBytes(shardhash))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}
