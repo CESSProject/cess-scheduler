@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler_0.3.0_Alpha"
+const Version = "cess-scheduler_V0.3.0"
 
 // cess chain module
 const (

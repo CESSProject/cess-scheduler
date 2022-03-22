@@ -56,45 +56,50 @@ func init() {
 
 func Command_Version() *cobra.Command {
 	cc := &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
-		Run:   Command_Version_Runfunc,
+		Use:                   "version",
+		Short:                 "Print version information",
+		Run:                   Command_Version_Runfunc,
+		DisableFlagsInUseLine: true,
 	}
 	return cc
 }
 
 func Command_Default() *cobra.Command {
 	cc := &cobra.Command{
-		Use:   "default",
-		Short: "Generate profile template",
-		Run:   Command_Default_Runfunc,
+		Use:                   "default",
+		Short:                 "Generate profile template",
+		Run:                   Command_Default_Runfunc,
+		DisableFlagsInUseLine: true,
 	}
 	return cc
 }
 
 func Command_Register() *cobra.Command {
 	cc := &cobra.Command{
-		Use:   "register",
-		Short: "Register miner information to cess chain",
-		Run:   Command_Register_Runfunc,
+		Use:                   "register",
+		Short:                 "Register miner information to cess chain",
+		Run:                   Command_Register_Runfunc,
+		DisableFlagsInUseLine: true,
 	}
 	return cc
 }
 
 func Command_Obtain() *cobra.Command {
 	cc := &cobra.Command{
-		Use:   "obtain",
-		Short: "Get cess test coin",
-		Run:   Command_Obtain_Runfunc,
+		Use:                   "obtain <pubkey> <faucet address>",
+		Short:                 "Get cess test coin",
+		Run:                   Command_Obtain_Runfunc,
+		DisableFlagsInUseLine: true,
 	}
 	return cc
 }
 
 func Command_Run() *cobra.Command {
 	cc := &cobra.Command{
-		Use:   "run",
-		Short: "Operation scheduling service",
-		Run:   Command_Run_Runfunc,
+		Use:                   "run",
+		Short:                 "Operation scheduling service",
+		Run:                   Command_Run_Runfunc,
+		DisableFlagsInUseLine: true,
 	}
 	return cc
 }
@@ -116,8 +121,19 @@ func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 }
 
 func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
-	refreshProfile(cmd)
-	//TODO
+	//refreshProfile(cmd)
+	if len(os.Args) < 3 {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please enter the faucet token address.\n", 41)
+		os.Exit(1)
+	}
+	err := chain.ObtainFromFaucet(os.Args[3], os.Args[2])
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err.Error())
+		os.Exit(1)
+	} else {
+		fmt.Println("success")
+		os.Exit(0)
+	}
 }
 
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
@@ -129,7 +145,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(-1)
+		os.Exit(1)
 	}
 	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.TransactionPrK, 0)
 	if err != nil {
