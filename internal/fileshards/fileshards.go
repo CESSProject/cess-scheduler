@@ -1,12 +1,12 @@
 package fileshards
 
 import (
+	"cess-scheduler/configs"
+	"cess-scheduler/tools"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"scheduler-mining/configs"
-	"scheduler-mining/tools"
 	"strconv"
 
 	"github.com/klauspost/reedsolomon"

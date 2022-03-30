@@ -1,8 +1,8 @@
 package cache
 
 import (
+	"cess-scheduler/configs"
 	"os"
-	"scheduler-mining/configs"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"

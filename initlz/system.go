@@ -1,9 +1,9 @@
 package initlz
 
 import (
-	"scheduler-mining/internal/chain"
-	"scheduler-mining/internal/logger"
-	"scheduler-mining/rpc"
+	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/logger"
+	"cess-scheduler/internal/rpc"
 )
 
 func SystemInit() {

@@ -1,11 +1,10 @@
 package rpc
 
 import (
+	. "cess-scheduler/internal/rpc/protobuf"
 	"context"
 	"fmt"
 	"net/http/httptest"
-	"scheduler-mining/log"
-	. "scheduler-mining/rpc/protobuf"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +23,6 @@ func TestDialWebsocket(t *testing.T) {
 	srv.Register("test", testService{})
 	s := httptest.NewServer(srv.WebsocketHandler([]string{"*"}))
 	defer s.Close()
-	defer log.Flush()
 	defer srv.Close()
 
 	wsURL := "ws:" + strings.TrimPrefix(s.URL, "http:")

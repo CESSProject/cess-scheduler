@@ -3,9 +3,9 @@ package rpc
 import (
 	"context"
 
+	. "cess-scheduler/internal/rpc/protobuf"
+
 	"github.com/golang/protobuf/proto"
-	"scheduler-mining/log"
-	. "scheduler-mining/rpc/protobuf"
 )
 
 type SrvConn struct {
@@ -24,7 +24,7 @@ func (c *SrvConn) readLoop() {
 		}
 
 		if err != nil {
-			log.Debug("server RPC connection read error ", err)
+			//log.Debug("server RPC connection read error ", err)
 			c.codec.Close()
 			break
 		}
@@ -47,7 +47,7 @@ func (c *ClientConn) readLoop(recv func(msg RespMsg)) {
 		}
 
 		if err != nil {
-			log.Debug("client RPC connection read error ", err)
+			//log.Debug("client RPC connection read error ", err)
 			c.closeCh <- struct{}{}
 			break
 		}

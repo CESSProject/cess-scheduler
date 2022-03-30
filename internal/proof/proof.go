@@ -1,9 +1,9 @@
 package proof
 
 import (
+	"cess-scheduler/internal/logger"
+	"cess-scheduler/tools"
 	"fmt"
-	"scheduler-mining/internal/logger"
-	"scheduler-mining/tools"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	prf "github.com/filecoin-project/specs-actors/actors/runtime/proof"

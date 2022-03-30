@@ -2,10 +2,10 @@ package proof
 
 import (
 	"bytes"
+	"cess-scheduler/internal/logger"
 	"io"
 	"io/ioutil"
 	"os"
-	"scheduler-mining/internal/logger"
 	"sort"
 	"strconv"
 	"strings"

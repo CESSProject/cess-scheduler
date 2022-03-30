@@ -1,8 +1,8 @@
 package rpc
 
 import (
+	. "cess-scheduler/internal/rpc/protobuf"
 	"context"
-	. "scheduler-mining/rpc/protobuf"
 	"sync"
 	"sync/atomic"
 )

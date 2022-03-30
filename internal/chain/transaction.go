@@ -1,11 +1,11 @@
 package chain
 
 import (
+	"cess-scheduler/configs"
+	"cess-scheduler/internal/logger"
+	"cess-scheduler/tools"
 	"encoding/json"
 	"fmt"
-	"scheduler-mining/configs"
-	"scheduler-mining/internal/logger"
-	"scheduler-mining/tools"
 	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"

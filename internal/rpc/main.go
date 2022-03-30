@@ -1,6 +1,14 @@
 package rpc
 
 import (
+	"cess-scheduler/cache"
+	"cess-scheduler/configs"
+	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/encryption"
+	"cess-scheduler/internal/fileshards"
+	"cess-scheduler/internal/logger"
+	"cess-scheduler/internal/proof"
+	"cess-scheduler/tools"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,21 +16,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"scheduler-mining/cache"
-	"scheduler-mining/configs"
-	"scheduler-mining/internal/chain"
-	"scheduler-mining/internal/encryption"
-	"scheduler-mining/internal/fileshards"
-	"scheduler-mining/internal/logger"
-	"scheduler-mining/internal/proof"
-	"scheduler-mining/tools"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 
-	. "scheduler-mining/rpc/protobuf"
+	. "cess-scheduler/internal/rpc/protobuf"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/golang/protobuf/proto"
