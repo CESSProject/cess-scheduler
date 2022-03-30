@@ -1,9 +1,9 @@
 package logger
 
 import (
+	"cess-scheduler/configs"
 	"fmt"
 	"os"
-	"scheduler-mining/configs"
 	"time"
 
 	"github.com/natefinch/lumberjack"

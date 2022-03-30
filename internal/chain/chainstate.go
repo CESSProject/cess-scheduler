@@ -1,10 +1,10 @@
 package chain
 
 import (
+	"cess-scheduler/internal/logger"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"scheduler-mining/internal/logger"
 	"strings"
 
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"

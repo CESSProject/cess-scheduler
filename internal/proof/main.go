@@ -1,10 +1,10 @@
 package proof
 
 import (
+	"cess-scheduler/configs"
+	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/logger"
 	"fmt"
-	"scheduler-mining/configs"
-	"scheduler-mining/internal/chain"
-	"scheduler-mining/internal/logger"
 	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v3/types"

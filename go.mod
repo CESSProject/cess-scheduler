@@ -1,4 +1,4 @@
-module scheduler-mining
+module cess-scheduler
 
 go 1.16
 

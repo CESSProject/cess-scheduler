@@ -7,7 +7,7 @@ import (
 	"sync"
 	"unicode"
 
-	. "scheduler-mining/rpc/protobuf"
+	. "cess-scheduler/internal/rpc/protobuf"
 
 	"github.com/golang/protobuf/proto"
 )

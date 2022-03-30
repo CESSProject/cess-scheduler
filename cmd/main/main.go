@@ -1,6 +1,6 @@
 package main
 
-import "scheduler-mining/cmd"
+import "cess-scheduler/cmd"
 
 // program entry
 func main() {

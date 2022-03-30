@@ -5,16 +5,16 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"cess-scheduler/configs"
+	"cess-scheduler/initlz"
+	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/logger"
+	"cess-scheduler/internal/proof"
+	"cess-scheduler/internal/rpc"
+	"cess-scheduler/tools"
 	"fmt"
 	"os"
 	"os/signal"
-	"scheduler-mining/configs"
-	"scheduler-mining/initlz"
-	"scheduler-mining/internal/chain"
-	"scheduler-mining/internal/logger"
-	"scheduler-mining/internal/proof"
-	"scheduler-mining/rpc"
-	"scheduler-mining/tools"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"

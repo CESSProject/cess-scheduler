@@ -3,7 +3,7 @@ package rpc
 import (
 	"context"
 
-	. "scheduler-mining/rpc/protobuf"
+	. "cess-scheduler/internal/rpc/protobuf"
 
 	"github.com/golang/protobuf/proto"
 )

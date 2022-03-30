@@ -3,10 +3,10 @@ package rpc
 import (
 	"io"
 
-	. "scheduler-mining/rpc/protobuf"
+	. "cess-scheduler/internal/rpc/protobuf"
 
-	"github.com/gorilla/websocket"
 	"github.com/golang/protobuf/proto"
+	"github.com/gorilla/websocket"
 )
 
 type protoCodec struct {

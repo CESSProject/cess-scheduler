@@ -1,10 +1,10 @@
 package chain
 
 import (
+	"cess-scheduler/configs"
+	"cess-scheduler/internal/logger"
 	"fmt"
 	"os"
-	"scheduler-mining/configs"
-	"scheduler-mining/internal/logger"
 	"sync"
 	"time"
 
