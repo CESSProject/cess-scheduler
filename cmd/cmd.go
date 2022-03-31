@@ -8,7 +8,7 @@ import (
 	"cess-scheduler/configs"
 	"cess-scheduler/initlz"
 	"cess-scheduler/internal/chain"
-	"cess-scheduler/internal/logger"
+	. "cess-scheduler/internal/logger"
 	"cess-scheduler/internal/proof"
 	"cess-scheduler/internal/rpc"
 	"cess-scheduler/tools"
@@ -224,12 +224,12 @@ func register() {
 	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(-1)
+		os.Exit(1)
 	}
 	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.TransactionPrK, 0)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(-1)
+		os.Exit(1)
 	}
 	for _, v := range sd {
 		if v.Acc == types.NewAccountID(keyring.PublicKey) {
@@ -240,7 +240,7 @@ func register() {
 
 	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
 
-	logger.InfoLogger.Sugar().Infof("Start registration......\n    CessAddr:%v\n    ServiceAddr:%v\n    TransactionPrK:%v\n",
+	Out.Sugar().Infof("Start registration......\n    CessAddr:%v\n    ServiceAddr:%v\n    TransactionPrK:%v\n",
 		configs.Confile.CessChain.ChainAddr, res, configs.Confile.SchedulerInfo.TransactionPrK)
 
 	_, err = chain.RegisterToChain(
@@ -249,10 +249,10 @@ func register() {
 		res,
 	)
 	if err != nil {
-		logger.InfoLogger.Sugar().Infof("Registration failed......,err:%v", err)
-		logger.ErrLogger.Sugar().Errorf("%v", err)
+		Out.Sugar().Infof("Registration failed......,err:%v", err)
+		Err.Sugar().Errorf("%v", err)
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed, Please try again later. [%v]\n", 41, err)
-		os.Exit(-1)
+		os.Exit(1)
 	}
 	fmt.Println("success")
 	os.Exit(0)

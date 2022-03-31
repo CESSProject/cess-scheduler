@@ -2,7 +2,7 @@ package chain
 
 import (
 	"cess-scheduler/configs"
-	"cess-scheduler/internal/logger"
+	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
 	"encoding/json"
 	"fmt"
@@ -22,106 +22,6 @@ type CessInfo struct {
 	ChainModuleMethod      string
 }
 
-// custom event type
-type Event_SegmentBook_ParamSet struct {
-	Phase     types.Phase
-	PeerId    types.U64
-	SegmentId types.U64
-	Random    types.U32
-	Topics    []types.Hash
-}
-
-type Event_VPABCD_Submit_Verify struct {
-	Phase     types.Phase
-	PeerId    types.U64
-	SegmentId types.U64
-	Topics    []types.Hash
-}
-
-type Event_Sminer_TimedTask struct {
-	Phase  types.Phase
-	Topics []types.Hash
-}
-
-type Event_Sminer_Registered struct {
-	Phase   types.Phase
-	PeerAcc types.AccountID
-	Staking types.U128
-	Topics  []types.Hash
-}
-
-type Event_UnsignedPhaseStarted struct {
-	Phase  types.Phase
-	Round  types.U32
-	Topics []types.Hash
-}
-
-type Event_SolutionStored struct {
-	Phase            types.Phase
-	Election_compute types.ElectionCompute
-	Prev_ejected     types.Bool
-	Topics           []types.Hash
-}
-
-type Event_FileMap_RegistrationScheduler struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Ip     types.Bytes
-	Topics []types.Hash
-}
-
-type Event_DeleteFile struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Fileid types.Bytes
-	Topics []types.Hash
-}
-
-type Event_BuySpace struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Size   types.U128
-	Fee    types.U128
-	Topics []types.Hash
-}
-
-type Event_FileUpload struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Topics []types.Hash
-}
-
-type Event_FileUpdate struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Fileid types.Bytes
-	Topics []types.Hash
-}
-
-type MyEventRecords struct {
-	types.EventRecords
-	SegmentBook_ParamSet          []Event_SegmentBook_ParamSet
-	SegmentBook_VPASubmitted      []Event_VPABCD_Submit_Verify
-	SegmentBook_VPBSubmitted      []Event_VPABCD_Submit_Verify
-	SegmentBook_VPCSubmitted      []Event_VPABCD_Submit_Verify
-	SegmentBook_VPDSubmitted      []Event_VPABCD_Submit_Verify
-	SegmentBook_VPAVerified       []Event_VPABCD_Submit_Verify
-	SegmentBook_VPBVerified       []Event_VPABCD_Submit_Verify
-	SegmentBook_VPCVerified       []Event_VPABCD_Submit_Verify
-	SegmentBook_VPDVerified       []Event_VPABCD_Submit_Verify
-	Sminer_TimedTask              []Event_Sminer_TimedTask
-	Sminer_Registered             []Event_Sminer_Registered
-	FileMap_RegistrationScheduler []Event_FileMap_RegistrationScheduler
-	//yz
-	FileBank_DeleteFile []Event_DeleteFile
-	FileBank_BuySpace   []Event_BuySpace
-	FileBank_FileUpload []Event_FileUpload
-	FileBank_FileUpdate []Event_FileUpdate
-	//
-	ElectionProviderMultiPhase_UnsignedPhaseStarted []Event_UnsignedPhaseStarted
-	ElectionProviderMultiPhase_SolutionStored       []Event_SolutionStored
-}
-
 func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, error) {
 	var (
 		err         error
@@ -132,7 +32,7 @@ func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, erro
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 
@@ -251,7 +151,7 @@ func VerifyInVpaOrVpb(identifyAccountPhrase, TransactionName string, peerid, seg
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic] [%v] [err:%v]", TransactionName, err)
+			Err.Sugar().Errorf("[panic] [%v] [err:%v]", TransactionName, err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
@@ -316,19 +216,24 @@ func VerifyInVpaOrVpb(identifyAccountPhrase, TransactionName string, peerid, seg
 		return errors.Wrap(err, "SubmitAndWatchExtrinsic err")
 	}
 	defer sub.Unsubscribe()
-
+	var head *types.Header
 	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
+				head, _ = api.RPC.Chain.GetHeader(status.AsInBlock)
+				if head != nil {
+					Out.Sugar().Infof("[%v][%v][%v] block height: %v", peerid, segid, TransactionName, head.Number)
+				} else {
+					Out.Sugar().Infof("[%v][%v][%v] block hash: %#x", peerid, segid, TransactionName, status.AsInBlock)
+				}
 				return nil
 			}
+		case err = <-sub.Err():
+			return err
 		case <-timeout:
-			return errors.Errorf("[%v] tx timeout", TransactionName)
-		default:
-			time.Sleep(time.Second)
+			return errors.Errorf("[%v][%v][%v] tx timeout", peerid, segid, TransactionName)
 		}
 	}
 }
@@ -344,7 +249,7 @@ func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid ty
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic] [%v] [err:%v]", TransactionName, err)
+			Err.Sugar().Errorf("[panic] [%v][%v][%v] [err:%v]", peerid, segid, TransactionName, err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
@@ -415,7 +320,7 @@ func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid ty
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
+				Out.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:
@@ -438,7 +343,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
@@ -517,7 +422,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
+				Err.Sugar().Infof("[%v] tx hash: %#x", TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:
@@ -540,7 +445,7 @@ func UpdateFileInfoToChain(identifyAccountPhrase, TransactionName string, fid, s
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
@@ -614,7 +519,7 @@ func UpdateFileInfoToChain(identifyAccountPhrase, TransactionName string, fid, s
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("[%v] tx blockhash: %#x", TransactionName, status.AsInBlock)
+				Err.Sugar().Infof("[%v] tx blockhash: %#x", TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:
@@ -635,7 +540,7 @@ func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []File
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
@@ -754,7 +659,7 @@ func (ci *CessInfo) RegisterEtcdOnChain(ipAddr string) error {
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(ci.IdentifyAccountPhrase, 0)
@@ -828,7 +733,7 @@ func (ci *CessInfo) RegisterEtcdOnChain(ipAddr string) error {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				logger.InfoLogger.Sugar().Infof("[%v] tx blockhash: %#x", ci.TransactionName, status.AsInBlock)
+				Err.Sugar().Infof("[%v] tx blockhash: %#x", ci.TransactionName, status.AsInBlock)
 				return nil
 			}
 		case <-timeout:

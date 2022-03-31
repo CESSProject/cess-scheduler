@@ -6,7 +6,7 @@ import (
 	"cess-scheduler/internal/chain"
 	"cess-scheduler/internal/encryption"
 	"cess-scheduler/internal/fileshards"
-	"cess-scheduler/internal/logger"
+	. "cess-scheduler/internal/logger"
 	"cess-scheduler/internal/proof"
 	"cess-scheduler/tools"
 	"context"
@@ -74,10 +74,10 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	err := proto.Unmarshal(body, &b)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("%v", err)
+		Err.Sugar().Errorf("%v", err)
 		return &RespBody{Code: 400, Msg: "data format error"}, nil
 	}
-	logger.InfoLogger.Sugar().Infof("Receive client upload request:[%v][%v]", b.FileId, b.Blocks)
+	Err.Sugar().Infof("Receive client upload request:[%v][%v]", b.FileId, b.Blocks)
 	err = tools.CreatDirIfNotExist(configs.CacheFilePath)
 	if err == nil {
 		cachepath = filepath.Join(configs.CacheFilePath, b.FileId)
@@ -97,18 +97,18 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 				break
 			}
 			if trycount > 3 {
-				logger.ErrLogger.Sugar().Errorf("[%v-%v]Failed to query file metadata more than 3 times,Please check your network.", b.FileId, b.Backups)
+				Err.Sugar().Errorf("[%v-%v]Failed to query file metadata more than 3 times,Please check your network.", b.FileId, b.Backups)
 				return &RespBody{Code: 500, Msg: "Net error"}, nil
 			}
 		}
 		if string(fmeta.FileHash) == b.FileHash {
 			err = os.MkdirAll(cachepath, os.ModeDir)
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
+				Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
 				return &RespBody{Code: 500, Msg: "mkdir error"}, nil
 			}
 		} else {
-			logger.ErrLogger.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
+			Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
 			return &RespBody{Code: 400, Msg: "file hash error"}, nil
 		}
 	}
@@ -116,19 +116,19 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	filename := filepath.Join(cachepath, b.FileId+"_"+fmt.Sprintf("%d", b.BlockNum))
 	f, err := os.Create(filename)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
+		Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
 		return &RespBody{Code: 500, Msg: "creat error"}, nil
 	}
 	defer f.Close()
 	_, err = f.Write(b.Data)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
+		Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
 		return &RespBody{Code: 500, Msg: "write file error"}, nil
 	}
 	if b.BlockNum == b.Blocks {
 		go recvCallBack(b.FileId, cachepath, int(b.Blocks), uint8(fmeta.Backups))
 	}
-	logger.InfoLogger.Sugar().Infof("[%v-%v]success", b.FileId, b.Backups)
+	Err.Sugar().Infof("[%v-%v]success", b.FileId, b.Backups)
 	return &RespBody{Code: 0, Msg: "sucess"}, nil
 }
 
@@ -143,23 +143,23 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("%v", err)
+		Err.Sugar().Errorf("%v", err)
 		return &RespBody{Code: 400, Msg: "body format error"}, nil
 	}
 	//Query client is able to read file
 	fmeta, err := chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 		return &RespBody{Code: 500, Msg: "Network timeout, try again later!"}, nil
 	}
 
 	a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 		return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
 	}
 	if a.AsAccountID != fmeta.UserAddr {
-		logger.ErrLogger.Sugar().Errorf("[%v]No permission", b.FileId)
+		Err.Sugar().Errorf("[%v]No permission", b.FileId)
 		return &RespBody{Code: 400, Msg: "No permission"}, nil
 	}
 
@@ -177,27 +177,27 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 					if err != nil {
 						// Download file slices from miner
 						err = readFile(string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardAddr[k]), path, string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardHash[k]), b.WalletAddress)
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 					}
 				}
 				//reed solomon recover
 				err = fileshards.ReedSolomon_Restore(filepath.Join(path, string(fmeta.FileDupl[i].FileSlice[j].SliceId)), int(fmeta.FileDupl[i].FileSlice[j].FileShard.DataShardNum), int(fmeta.FileDupl[i].FileSlice[j].FileShard.RedunShardNum))
 				if err != nil {
-					logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+					Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 					goto label
 				}
 				if j+1 == int(fmeta.FileDupl[i].SliceNum) {
-					logger.InfoLogger.Sugar().Infof("[%v]All slices have been downloaded and scheduled for decryption......", b.FileId)
+					Err.Sugar().Infof("[%v]All slices have been downloaded and scheduled for decryption......", b.FileId)
 					//fmt.Println(filepath.Join(path, b.FileId+".cess-"+fmt.Sprintf("%d", i)))
 					fii, err := os.OpenFile(filepath.Join(path, b.FileId+".cess-"+fmt.Sprintf("%d", i)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, os.ModePerm)
 					if err != nil {
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 						goto label
 					}
 					for l := 0; l < int(fmeta.FileDupl[i].SliceNum); l++ {
 						bufs, err := ioutil.ReadFile(filepath.Join(path, string(fmeta.FileDupl[i].FileSlice[l].SliceId)))
 						if err != nil {
-							logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+							Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 							goto label
 						}
 						fii.Write(bufs)
@@ -206,7 +206,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 					bufs, err := ioutil.ReadFile(filepath.Join(path, b.FileId+".cess-"+fmt.Sprintf("%d", i)))
 					if err != nil {
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 						goto label
 					}
 
@@ -215,19 +215,19 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 					bkey := tools.Base58Decoding(string(fmeta.FileDupl[i].RandKey))
 					decrypted, err := encryption.AesCtrDecrypt(bufs, []byte(bkey), []byte(ivkey))
 					if err != nil {
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 						goto label
 					}
 					fuser, err := os.OpenFile(filepath.Join(path, b.FileId+".user"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 					if err != nil {
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 						goto label
 					}
 					fuser.Write(decrypted)
 					fuser.Close()
 					slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(decrypted)))
 					if err != nil {
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 						goto label
 					}
 					if b.Blocks > int32(num) {
@@ -249,7 +249,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 					}
 					protob, err := proto.Marshal(respb)
 					if err != nil {
-						logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 						goto label
 					}
 					return &RespBody{Code: 0, Msg: "success", Data: protob}, nil
@@ -260,12 +260,12 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	} else {
 		fuser, err := os.ReadFile(filepath.Join(path, b.FileId+".user"))
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+			Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 			return &RespBody{Code: 400, Msg: "unexpected error"}, nil
 		}
 		slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(fuser)))
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+			Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 			return &RespBody{Code: 400, Msg: err.Error()}, nil
 		}
 		var tmp = make([]byte, 0)
@@ -286,7 +286,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 		protob, err := proto.Marshal(respb)
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v]%v", b.FileId, err)
+			Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 			return &RespBody{Code: 400, Msg: err.Error()}, nil
 		}
 		return &RespBody{Code: 0, Msg: "success", Data: protob}, nil
@@ -302,7 +302,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 	)
 	completefile, err := combinationFile(fid, dir, num)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("%v,%v,%v,%v", fid, dir, num, err)
+		Err.Sugar().Errorf("%v,%v,%v,%v", fid, dir, num, err)
 		return
 	} else {
 		// delete file segments
@@ -311,11 +311,11 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 			os.Remove(path)
 		}
 	}
-	logger.InfoLogger.Sugar().Infof("The complete dfile [%v]", completefile)
+	Out.Sugar().Infof("The complete dfile [%v]", completefile)
 	// read file into memory
 	buf, err := os.ReadFile(completefile)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+		Err.Sugar().Errorf("[%v][%v]", completefile, err)
 		return
 	}
 
@@ -337,7 +337,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 		// Aes ctr mode encryption
 		encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58[:16]))
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+			Err.Sugar().Errorf("[%v][%v]", completefile, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
@@ -347,7 +347,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 		// file slice
 		fileshard, slicesize, lastslicesize, err := fileshards.CutFile_bytes(completefile+"-"+fmt.Sprintf("%d", i), encrypted)
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+			Err.Sugar().Errorf("[%v][%v]", completefile, err)
 			continue
 		}
 		//fmt.Println("--", fileshard)
@@ -369,7 +369,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 				break
 			}
 			if trycount > 3 {
-				logger.ErrLogger.Sugar().Errorf("[%v]Failed to query miner info more than 3 times,Please check your network.", fid)
+				Err.Sugar().Errorf("[%v]Failed to query miner info more than 3 times,Please check your network.", fid)
 				break
 			}
 		}
@@ -382,7 +382,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 			filedump[i].FileSlice[j].SliceId = []byte(filepath.Base(fileshard[j]))
 			h, err := tools.CalcFileHash(fileshard[j])
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+				Err.Sugar().Errorf("[%v][%v]", completefile, err)
 				break
 			} else {
 				filedump[i].FileSlice[j].SliceHash = types.Bytes([]byte(h))
@@ -397,7 +397,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 			// Redundant encoding
 			shards, datashards, rdunshards, err := fileshards.ReedSolomon(fileshard[j])
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+				Err.Sugar().Errorf("[%v][%v]", completefile, err)
 				break
 			}
 			fmt.Println("ReedSolomon ", fileshard[j], ": ", shards, datashards, rdunshards)
@@ -415,7 +415,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 
 				fbuf, err := os.ReadFile(shards[k])
 				if err != nil {
-					logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+					Err.Sugar().Errorf("[%v][%v]", completefile, err)
 					break
 				}
 				var bo = FileUploadInfo{
@@ -429,7 +429,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 				}
 				bob, err := proto.Marshal(&bo)
 				if err != nil {
-					logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+					Err.Sugar().Errorf("[%v][%v]", completefile, err)
 					break
 				}
 				for {
@@ -459,17 +459,17 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 								[]byte(filepath.Base(shards[k])),
 							)
 							if err != nil {
-								logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+								Err.Sugar().Errorf("[%v][%v]", completefile, err)
 								time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 10)))
 								continue
 							} else {
-								logger.InfoLogger.Sugar().Infof("[C%v] submit uncid success [%v]", mDatas[index].Peerid, shards[k])
+								Out.Sugar().Infof("[C%v] submit uncid success [%v]", mDatas[index].Peerid, shards[k])
 								break
 							}
 						}
 						break
 					} else {
-						logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+						Err.Sugar().Errorf("[%v][%v]", completefile, err)
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 					}
 				}
@@ -479,7 +479,7 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 				filedump[i].FileSlice[j].FileShard.ShardAddr = shardaddr
 				filedump[i].FileSlice[j].FileShard.Peerid = mineraccount
 			} else {
-				logger.ErrLogger.Sugar().Errorf("[%v]Error during file processing", completefile)
+				Err.Sugar().Errorf("[%v]Error during file processing", completefile)
 				continue
 			}
 		}
@@ -490,24 +490,24 @@ func recvCallBack(fid, dir string, num int, bks uint8) {
 	for {
 		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.TransactionPrK, configs.ChainTx_FileBank_PutMetaInfo, fid, filedump)
 		if !ok || err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+			Err.Sugar().Errorf("[%v][%v]", completefile, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
-		logger.InfoLogger.Sugar().Infof("[%v]File metainfo up chain success", completefile)
+		Out.Sugar().Infof("[%v]File metainfo up chain success", completefile)
 		c, err := cache.GetCache()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+			Err.Sugar().Errorf("[%v][%v]", completefile, err)
 		} else {
 			b, err := json.Marshal(filedump)
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+				Err.Sugar().Errorf("[%v][%v]", completefile, err)
 			} else {
 				err = c.Put([]byte(fid), b)
 				if err != nil {
-					logger.ErrLogger.Sugar().Errorf("[%v][%v]", completefile, err)
+					Err.Sugar().Errorf("[%v][%v]", completefile, err)
 				} else {
-					logger.InfoLogger.Sugar().Infof("[%v]File metainfo write cache success", completefile)
+					Out.Sugar().Infof("[%v]File metainfo write cache success", completefile)
 				}
 			}
 		}
@@ -590,7 +590,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 	//fmt.Println("will read: ", reqbody.FileId)
 	bo, err := proto.Marshal(&reqbody)
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("%v", err)
+		Err.Sugar().Errorf("%v", err)
 		return err
 	}
 	req := &ReqMsg{
@@ -609,7 +609,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 			break
 		}
 		if count > 10 {
-			logger.ErrLogger.Sugar().Errorf("DialWebsocket failed more than 10 times:%v", err)
+			Err.Sugar().Errorf("DialWebsocket failed more than 10 times:%v", err)
 			return err
 		}
 	}
@@ -618,7 +618,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 	resp, err := client.Call(ctx, req)
 	defer cancel()
 	if err != nil {
-		logger.ErrLogger.Sugar().Errorf("%v", err)
+		Err.Sugar().Errorf("%v", err)
 		return err
 	}
 
@@ -631,13 +631,13 @@ func readFile(dst string, path, fid, walletaddr string) error {
 	if b.Code == 0 {
 		err = proto.Unmarshal(b.Data, &b_data)
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("%v", err)
+			Err.Sugar().Errorf("%v", err)
 			return err
 		}
 		if b_data.BlockNum <= 1 {
 			f, err := os.OpenFile(filepath.Join(path, fid), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("%v", err)
+				Err.Sugar().Errorf("%v", err)
 				return err
 			}
 			f.Write(b_data.Data)
@@ -646,7 +646,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 		} else {
 			f, err := os.OpenFile(filepath.Join(path, fid+"-0"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("%v", err)
+				Err.Sugar().Errorf("%v", err)
 				return err
 			}
 			f.Write(b_data.Data)
@@ -660,7 +660,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 			}
 			body_loop, err := proto.Marshal(&reqbody)
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("%v", err)
+				Err.Sugar().Errorf("%v", err)
 				if i > 1 {
 					i--
 				}
