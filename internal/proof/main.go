@@ -33,7 +33,7 @@ func verifyVpa() {
 		data    []chain.UnVerifiedVpaVpb
 	)
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 60)))
 		data, err = chain.GetUnverifiedVpaVpb(
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedA,
@@ -81,7 +81,7 @@ func verifyVpa() {
 				Err.Sugar().Errorf("[C%v] %v", data[i].Peer_id, err)
 				continue
 			}
-			err = chain.VerifyInVpaOrVpb(
+			err = chain.VerifyInVpaOrVpbOrVpd(
 				configs.Confile.SchedulerInfo.TransactionPrK,
 				configs.ChainTx_SegmentBook_VerifyInVpa,
 				data[i].Peer_id,
@@ -161,7 +161,7 @@ func verifyVpb() {
 				continue
 			}
 
-			err = chain.VerifyInVpaOrVpb(
+			err = chain.VerifyInVpaOrVpbOrVpd(
 				configs.Confile.SchedulerInfo.TransactionPrK,
 				configs.ChainTx_SegmentBook_VerifyInVpb,
 				data[i].Peer_id,
@@ -293,7 +293,7 @@ func verifyVpd() {
 				continue
 			}
 
-			err = chain.VerifyInVpaOrVpb(
+			err = chain.VerifyInVpaOrVpbOrVpd(
 				configs.Confile.SchedulerInfo.TransactionPrK,
 				configs.ChainTx_SegmentBook_VerifyInVpd,
 				data[i].Peer_id,
