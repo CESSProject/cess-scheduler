@@ -1,9 +1,8 @@
 package proof
 
 import (
-	"cess-scheduler/internal/logger"
+	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
-	"fmt"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	prf "github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -15,7 +14,7 @@ func verifyVpaProof(id, segid uint64, rand uint32, segtype uint8, sealedcid stri
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
@@ -27,7 +26,6 @@ func verifyVpaProof(id, segid uint64, rand uint32, segtype uint8, sealedcid stri
 	if err != nil {
 		return false, errors.Wrap(err, "cid.Parse err")
 	}
-	fmt.Println(sectorId, " - ", seed, " - ", abi.RegisteredSealProof(segtype), " - ", scid, " - ", proof)
 	isValid := VerifyFileOnceForIdle(sectorId, seed, seed, abi.RegisteredSealProof(segtype), scid, proof)
 	return isValid, nil
 }
@@ -36,7 +34,7 @@ func verifyVpbProof(id, segid uint64, rand uint32, segtype uint8, sealedcid stri
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
@@ -57,7 +55,7 @@ func verifyVpcProof(id, segid uint64, rand uint32, segtype uint8, sealcid, uncid
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}
@@ -90,7 +88,7 @@ func verifyVpdProof(id, segid uint64, rand uint32, segtype uint8, sealcid []stri
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	sectorId := SectorID{PeerID: abi.ActorID(id), SectorNum: abi.SectorNumber(segid)}

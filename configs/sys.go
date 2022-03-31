@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler_V0.3.0"
+const Version = "cess-scheduler_V0.3.1"
 
 // cess chain module
 const (
@@ -46,8 +46,14 @@ const (
 )
 
 const (
-	SegMentSize_1M     = 1048576
-	TimeToWaitEvents_S = 20
+	SegMentSize_1M            = 1048576
+	TimeToWaitEvents_S        = 20
+	SegMentType_Idle    uint8 = 1
+	SegMentType_Service uint8 = 2
+	SegMentType_8M      uint8 = 1
+	SegMentType_8M_S          = "1"
+	SegMentType_512M    uint8 = 2
+	SegMentType_512M_S        = "2"
 )
 
 var (

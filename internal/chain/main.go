@@ -2,7 +2,7 @@ package chain
 
 import (
 	"cess-scheduler/configs"
-	"cess-scheduler/internal/logger"
+	. "cess-scheduler/internal/logger"
 	"fmt"
 	"os"
 	"sync"
@@ -11,17 +11,15 @@ import (
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 )
 
-type mySubstrateApi struct {
+var (
 	wlock *sync.Mutex
 	r     *gsrpc.SubstrateAPI
-}
-
-var api = new(mySubstrateApi)
+)
 
 func Chain_Init() {
 	var err error
-	api.wlock = new(sync.Mutex)
-	api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
+	wlock = new(sync.Mutex)
+	r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
@@ -38,16 +36,16 @@ func substrateAPIKeepAlive() {
 
 	for range time.Tick(time.Second * 25) {
 		if count_r <= 1 {
-			peer, err = healthchek(api.r)
+			peer, err = healthchek(r)
 			if err != nil || peer == 0 {
 				count_r++
 			}
 		}
 		if count_r > 1 {
 			count_r = 2
-			api.r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
+			r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)
 			if err != nil {
-				logger.ErrLogger.Sugar().Errorf("%v", err)
+				Err.Sugar().Errorf("%v", err)
 			} else {
 				count_r = 0
 			}
@@ -59,7 +57,7 @@ func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.ErrLogger.Sugar().Errorf("[panic]: %v", err)
+			Err.Sugar().Errorf("[panic]: %v", err)
 		}
 	}()
 	h, err := a.RPC.System.Health()
@@ -67,9 +65,9 @@ func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
 }
 
 func getSubstrateApi_safe() *gsrpc.SubstrateAPI {
-	api.wlock.Lock()
-	return api.r
+	wlock.Lock()
+	return r
 }
 func releaseSubstrateApi() {
-	api.wlock.Unlock()
+	wlock.Unlock()
 }
