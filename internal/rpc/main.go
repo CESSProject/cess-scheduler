@@ -67,24 +67,26 @@ func Rpc_Main() {
 // The returned Msg indicates the result reason.
 func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	var (
-		b         FileUploadInfo
+		err       error
+		t         int64
 		cachepath string
+		b         FileUploadInfo
 		fmeta     chain.FileMetaInfo
 	)
-
-	err := proto.Unmarshal(body, &b)
+	t = time.Now().Unix()
+	Out.Sugar().Infof("[%v]Receive upload request", t)
+	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Err.Sugar().Errorf("%v", err)
-		return &RespBody{Code: 400, Msg: "data format error"}, nil
+		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
-	Err.Sugar().Infof("Receive client upload request:[%v][%v]", b.FileId, b.Blocks)
+	Out.Sugar().Infof("[%v]Receive client upload request:[%v][%v][%v]", t, b.FileId, b.Blocks, len(b.Data))
 	err = tools.CreatDirIfNotExist(configs.CacheFilePath)
 	if err == nil {
 		cachepath = filepath.Join(configs.CacheFilePath, b.FileId)
 	} else {
 		cachepath = filepath.Join("./cesscache/cache", b.FileId)
 	}
-
 	_, err = os.Stat(cachepath)
 	if err != nil {
 		trycount := 0
@@ -97,39 +99,40 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 				break
 			}
 			if trycount > 3 {
-				Err.Sugar().Errorf("[%v-%v]Failed to query file metadata more than 3 times,Please check your network.", b.FileId, b.Backups)
-				return &RespBody{Code: 500, Msg: "Net error"}, nil
+				Err.Sugar().Errorf("[%v][%v-%v]Failed to query file metadata more than 3 times.", t, b.FileId, b.Backups)
+				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
 		}
 		if string(fmeta.FileHash) == b.FileHash {
 			err = os.MkdirAll(cachepath, os.ModeDir)
 			if err != nil {
-				Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
-				return &RespBody{Code: 500, Msg: "mkdir error"}, nil
+				Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Backups, err)
+				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
 		} else {
-			Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
-			return &RespBody{Code: 400, Msg: "file hash error"}, nil
+			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Backups, err)
+			return &RespBody{Code: 400, Msg: "file hash error", Data: nil}, nil
 		}
 	}
 
 	filename := filepath.Join(cachepath, b.FileId+"_"+fmt.Sprintf("%d", b.BlockNum))
 	f, err := os.Create(filename)
 	if err != nil {
-		Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
-		return &RespBody{Code: 500, Msg: "creat error"}, nil
+		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Backups, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	defer f.Close()
 	_, err = f.Write(b.Data)
 	if err != nil {
-		Err.Sugar().Errorf("[%v-%v]%v", b.FileId, b.Backups, err)
-		return &RespBody{Code: 500, Msg: "write file error"}, nil
+		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Backups, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	if b.BlockNum == b.Blocks {
 		go recvCallBack(b.FileId, cachepath, int(b.Blocks), uint8(fmeta.Backups))
+		Out.Sugar().Infof("[%v][%v-%v-%v]success", t, b.FileId, b.Blocks, b.BlockNum)
 	}
-	Err.Sugar().Infof("[%v-%v]success", b.FileId, b.Backups)
-	return &RespBody{Code: 0, Msg: "sucess"}, nil
+	Out.Sugar().Infof("[%v][%v-%v]success", t, b.FileId, b.Blocks)
+	return &RespBody{Code: 0, Msg: "success", Data: nil}, nil
 }
 
 // ReadfileAction is used to handle client requests to download files.
@@ -137,34 +140,37 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 // The returned Msg indicates the result reason.
 func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	var (
-		err error
-		b   FileDownloadReq
+		err   error
+		t     int64
+		b     FileDownloadReq
+		fmeta chain.FileMetaInfo
 	)
-
+	t = time.Now().Unix()
+	Out.Sugar().Infof("[%v]Receive download request", t)
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Err.Sugar().Errorf("%v", err)
-		return &RespBody{Code: 400, Msg: "body format error"}, nil
+		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
-	//Query client is able to read file
-	fmeta, err := chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
+	//Query file meta information
+	fmeta, err = chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
 	if err != nil {
 		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
-		return &RespBody{Code: 500, Msg: "Network timeout, try again later!"}, nil
+		return &RespBody{Code: 500, Msg: "Network timeout, try again later!", Data: nil}, nil
 	}
 
-	a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
-	if err != nil {
-		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
-		return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
-	}
-	if a.AsAccountID != fmeta.UserAddr {
-		Err.Sugar().Errorf("[%v]No permission", b.FileId)
-		return &RespBody{Code: 400, Msg: "No permission"}, nil
-	}
+	// Determine whether the user has download permission
+	// a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
+	// if err != nil {
+	// 	Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+	// 	return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
+	// }
+	// if a.AsAccountID != fmeta.UserAddr {
+	// 	Err.Sugar().Errorf("[%v]No permission", b.FileId)
+	// 	return &RespBody{Code: 400, Msg: "No permission"}, nil
+	// }
 
 	path := filepath.Join(configs.CacheFilePath, b.FileId)
-	//fmt.Println("path: ", path)
 	_, err = os.Stat(path)
 	if err != nil {
 		os.MkdirAll(path, os.ModeDir)
@@ -177,27 +183,26 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 					if err != nil {
 						// Download file slices from miner
 						err = readFile(string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardAddr[k]), path, string(fmeta.FileDupl[i].FileSlice[j].FileShard.ShardHash[k]), b.WalletAddress)
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 					}
 				}
 				//reed solomon recover
 				err = fileshards.ReedSolomon_Restore(filepath.Join(path, string(fmeta.FileDupl[i].FileSlice[j].SliceId)), int(fmeta.FileDupl[i].FileSlice[j].FileShard.DataShardNum), int(fmeta.FileDupl[i].FileSlice[j].FileShard.RedunShardNum))
 				if err != nil {
-					Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+					Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 					goto label
 				}
 				if j+1 == int(fmeta.FileDupl[i].SliceNum) {
-					Err.Sugar().Infof("[%v]All slices have been downloaded and scheduled for decryption......", b.FileId)
-					//fmt.Println(filepath.Join(path, b.FileId+".cess-"+fmt.Sprintf("%d", i)))
+					Out.Sugar().Infof("[%v][%v]All slices have been downloaded and scheduled for decryption......", t, b.FileId)
 					fii, err := os.OpenFile(filepath.Join(path, b.FileId+".cess-"+fmt.Sprintf("%d", i)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, os.ModePerm)
 					if err != nil {
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 						goto label
 					}
 					for l := 0; l < int(fmeta.FileDupl[i].SliceNum); l++ {
 						bufs, err := ioutil.ReadFile(filepath.Join(path, string(fmeta.FileDupl[i].FileSlice[l].SliceId)))
 						if err != nil {
-							Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+							Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 							goto label
 						}
 						fii.Write(bufs)
@@ -206,36 +211,35 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 					bufs, err := ioutil.ReadFile(filepath.Join(path, b.FileId+".cess-"+fmt.Sprintf("%d", i)))
 					if err != nil {
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 						goto label
 					}
-
 					//aes decryption
 					ivkey := string(fmeta.FileDupl[i].RandKey)[:16]
 					bkey := tools.Base58Decoding(string(fmeta.FileDupl[i].RandKey))
 					decrypted, err := encryption.AesCtrDecrypt(bufs, []byte(bkey), []byte(ivkey))
 					if err != nil {
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 						goto label
 					}
 					fuser, err := os.OpenFile(filepath.Join(path, b.FileId+".user"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 					if err != nil {
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 						goto label
 					}
 					fuser.Write(decrypted)
 					fuser.Close()
 					slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(decrypted)))
 					if err != nil {
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 						goto label
 					}
 					if b.Blocks > int32(num) {
-						fmt.Println(" b.Blocks >= int32(num) ")
-						return &RespBody{Code: 400, Msg: "BlockNum err"}, nil
+						Err.Sugar().Errorf("[%v][%v]BlockNum err", t, b.FileId)
+						return &RespBody{Code: 400, Msg: "BlockNum err", Data: nil}, nil
 					}
 					var tmp = make([]byte, 0)
-					if b.Blocks+1 == int32(num) {
+					if b.Blocks == int32(num) {
 						tmp = decrypted[uint64(len(decrypted)-int(lastslicesize)):]
 					} else {
 						tmp = decrypted[uint64(uint64(b.Blocks)*slicesize):uint64(uint64(b.Blocks+1)*slicesize)]
@@ -249,9 +253,10 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 					}
 					protob, err := proto.Marshal(respb)
 					if err != nil {
-						Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+						Err.Sugar().Errorf("[%v][%v]%v", t, b.FileId, err)
 						goto label
 					}
+					Out.Sugar().Infof("[%v][%v-%v]success", t, b.FileId, b.Blocks)
 					return &RespBody{Code: 0, Msg: "success", Data: protob}, nil
 				}
 			}
@@ -260,12 +265,12 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	} else {
 		fuser, err := os.ReadFile(filepath.Join(path, b.FileId+".user"))
 		if err != nil {
-			Err.Sugar().Errorf("[%v]%v", b.FileId, err)
-			return &RespBody{Code: 400, Msg: "unexpected error"}, nil
+			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
+			return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 		}
 		slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(fuser)))
 		if err != nil {
-			Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 400, Msg: err.Error()}, nil
 		}
 		var tmp = make([]byte, 0)
@@ -286,12 +291,13 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 		protob, err := proto.Marshal(respb)
 		if err != nil {
-			Err.Sugar().Errorf("[%v]%v", b.FileId, err)
-			return &RespBody{Code: 400, Msg: err.Error()}, nil
+			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
+			return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 		}
+		Out.Sugar().Infof("[%v][%v-%v]success", t, b.FileId, b.Blocks)
 		return &RespBody{Code: 0, Msg: "success", Data: protob}, nil
 	}
-	return &RespBody{Code: 500, Msg: "fail"}, nil
+	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
 }
 
 // recvCallBack is used to process files uploaded by the client, such as encryption, slicing, etc.
