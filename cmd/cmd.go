@@ -43,6 +43,7 @@ func Execute() {
 	}
 }
 
+// init
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&configs.ConfigFilePath, "config", "c", "", "Custom profile")
 	rootCmd.AddCommand(
@@ -104,22 +105,26 @@ func Command_Run() *cobra.Command {
 	return cc
 }
 
+// Print version number and exit
 func Command_Version_Runfunc(cmd *cobra.Command, args []string) {
 	fmt.Println(configs.Version)
 	os.Exit(0)
 }
 
+// Generate configuration file template
 func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 	tools.WriteStringtoFile(configs.ConfigFile_Templete, configs.DefaultConfigurationFileName)
 	os.Exit(0)
 }
 
+// Scheduler registration
 func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	initlz.SystemInit()
 	register()
 }
 
+// obtain tCESS
 func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
 	//refreshProfile(cmd)
 	if len(os.Args) < 3 {
@@ -136,6 +141,7 @@ func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
 	}
 }
 
+// start service
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	var reg bool
 	refreshProfile(cmd)
@@ -170,7 +176,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	rpc.Rpc_Main()
 }
 
-//
+// Parse the configuration file
 func refreshProfile(cmd *cobra.Command) {
 	configpath1, _ := cmd.Flags().GetString("config")
 	configpath2, _ := cmd.Flags().GetString("c")
@@ -219,7 +225,7 @@ func parseProfile() {
 	//fmt.Println(configs.Confile)
 }
 
-//
+// Scheduler registration function
 func register() {
 	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
 	if err != nil {
