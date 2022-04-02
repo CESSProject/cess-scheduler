@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	Name        = "scheduler"
-	Description = "Scheduler service of CESS platform"
+	Name        = "cess-scheduler"
+	Description = "An implementation of the CESS scheduler for consensus nodes."
 )
 
 // rootCmd represents the base command when called without any subcommands
