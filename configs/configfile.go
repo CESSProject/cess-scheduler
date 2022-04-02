@@ -15,7 +15,6 @@ type SchedulerInfo struct {
 	TransactionPrK string `toml:"TransactionPrK"`
 }
 
-
 var Confile = new(SchedulerConfOnChain)
 var ConfigFilePath string
 
