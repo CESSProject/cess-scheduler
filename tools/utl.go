@@ -86,28 +86,14 @@ func RandomInRange(min, max int) int {
 }
 
 func WriteStringtoFile(content, fileName string) error {
-	var (
-		err  error
-		name string
-		//filesuffix string
-		//fileprefix string
-	)
-	name = fileName
-	// _, err = os.Stat(name)
-	// if err == nil {
-	// 	filesuffix = filepath.Ext(name)
-	// 	fileprefix = name[0 : len(name)-len(filesuffix)]
-	// 	fileprefix = fileprefix + fmt.Sprintf("_%v", strconv.FormatInt(time.Now().UnixNano(), 10))
-	// 	name = fileprefix + filesuffix
-	// }
-	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	f, err := os.Create(fileName)
 	if err != nil {
-		return errors.Wrap(err, "OpenFile err")
+		return err
 	}
 	defer f.Close()
-	_, err = f.Write([]byte(content))
+	_, err = f.WriteString(content)
 	if err != nil {
-		return errors.Wrap(err, "f.Write err")
+		return err
 	}
 	return nil
 }
