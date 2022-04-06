@@ -20,14 +20,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Determine if the operating system is linux
 func RunOnLinuxSystem() bool {
 	return runtime.GOOS == "linux"
 }
 
-func RunWithRootPrivileges() bool {
-	return os.Geteuid() == 0
-}
-
+// Allocate all cores to the program
 func SetAllCores() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
@@ -66,6 +64,7 @@ func IntegerToBytes(n interface{}) ([]byte, error) {
 	}
 }
 
+// Calculate the file hash value
 func CalcFileHash(fpath string) (string, error) {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -80,11 +79,13 @@ func CalcFileHash(fpath string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// Get a random integer in a specified range
 func RandomInRange(min, max int) int {
 	rand.Seed(time.Now().Unix())
 	return rand.Intn(max-min) + min
 }
 
+// Write string content to file
 func WriteStringtoFile(content, fileName string) error {
 	f, err := os.Create(fileName)
 	if err != nil {
@@ -146,6 +147,7 @@ func Base58Decoding(str string) string {
 //  ----------------------- Random key -----------------------
 const baseStr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()[]{}+-*/_=."
 
+// Generate random password
 func GetRandomkey(length uint8) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano() + rand.Int63()))
 	bytes := make([]byte, length)
@@ -156,16 +158,17 @@ func GetRandomkey(length uint8) string {
 	return string(bytes)
 }
 
-//
+// bytes to string
 func B2S(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
 }
 
+// string to bytes
 func S2B(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&s))
 }
 
-//
+// Create a directory
 func CreatDirIfNotExist(dir string) error {
 	_, err := os.Stat(dir)
 	if err != nil {
@@ -174,6 +177,7 @@ func CreatDirIfNotExist(dir string) error {
 	return nil
 }
 
+// Get the name of a first-level subdirectory in a given directory
 func Post(url string, para interface{}) ([]byte, error) {
 	body, err := json.Marshal(para)
 	if err != nil {
