@@ -6,19 +6,14 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"reflect"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -35,49 +30,6 @@ func RunWithRootPrivileges() bool {
 
 func SetAllCores() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-}
-
-// parse ip
-func ParseIpPort(ip string) (string, string, error) {
-	if ip != "" {
-		ip_port := strings.Split(ip, ":")
-		if len(ip_port) == 1 {
-			isipv4 := net.ParseIP(ip_port[0])
-			if isipv4 != nil {
-				return ip + ":15001", ":15001", nil
-			}
-			return ip_port[0], ":15001", nil
-		}
-		if len(ip_port) == 2 {
-			_, err := strconv.ParseUint(ip_port[1], 10, 16)
-			if err != nil {
-				return "", "", err
-			}
-			return ip, ":" + ip_port[1], nil
-		}
-		return "", "", errors.New(" The IP address is incorrect")
-	} else {
-		return "", "", errors.New(" The IP address is nil")
-	}
-}
-
-//Judge whether IP can connect with TCP normally.
-//Returning true means normal.
-func TestConnectionWithTcp(ip string) bool {
-	if ip == "" {
-		return false
-	}
-	tmp := strings.Split(ip, ":")
-	address := ""
-	if len(tmp) > 1 {
-		address = ip
-	} else if len(tmp) == 1 {
-		address = net.JoinHostPort(ip, "80")
-	} else {
-		return false
-	}
-	_, err := net.DialTimeout("tcp", address, 3*time.Second)
-	return err == nil
 }
 
 // Integer to bytes
@@ -114,25 +66,6 @@ func IntegerToBytes(n interface{}) ([]byte, error) {
 	}
 }
 
-// Bytes to Integer
-func BytesToInteger(n []byte) (int32, error) {
-	var x int32
-	bytesBuffer := bytes.NewBuffer(n)
-	err := binary.Read(bytesBuffer, binary.LittleEndian, &x)
-	return x, err
-}
-
-func Uint32ToIp(n uint32) string {
-	ip := fmt.Sprintf("%v", uint8(n>>24))
-	ip += "."
-	ip += fmt.Sprintf("%v", uint8(n>>16))
-	ip += "."
-	ip += fmt.Sprintf("%v", uint8(n>>8))
-	ip += "."
-	ip += fmt.Sprintf("%v", uint8(n))
-	return ip
-}
-
 func CalcFileHash(fpath string) (string, error) {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -145,26 +78,6 @@ func CalcFileHash(fpath string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-func CleanLocalRecord(filename string) {
-	path, _ := os.Getwd()
-	filepath.Walk(path, func(path string, fi os.FileInfo, err error) error {
-		if nil == fi {
-			return err
-		}
-		if !fi.IsDir() {
-			return nil
-		}
-		fname := fi.Name()
-		if strings.Contains(fname, filename) {
-			err := os.RemoveAll(path)
-			if err != nil {
-				fmt.Println("Delete dir error:", err)
-			}
-		}
-		return nil
-	})
 }
 
 func RandomInRange(min, max int) int {
