@@ -136,13 +136,13 @@ func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, erro
 						}
 					}
 					if head != nil {
-						return false, errors.Wrapf(err, "[%v]events.FileMap_RegistrationScheduler data err", head.Number)
+						return false, errors.Errorf("[%v]events.FileMap_RegistrationScheduler data err", head.Number)
 					} else {
 						return false, errors.New("events.FileMap_RegistrationScheduler data err")
 					}
 				}
 				if head != nil {
-					return false, errors.Wrapf(err, "[%v]events.FileMap_RegistrationScheduler not found", head.Number)
+					return false, errors.Errorf("[%v]events.FileMap_RegistrationScheduler not found", head.Number)
 				} else {
 					return false, errors.New("events.FileMap_RegistrationScheduler not found")
 				}
@@ -269,13 +269,13 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 							}
 						}
 						if head != nil {
-							return errors.Wrapf(err, "[%v]events.SegmentBook_VPAVerified data err", head.Number)
+							return errors.Errorf("[%v]events.SegmentBook_VPAVerified data err", head.Number)
 						} else {
 							return errors.New("events.SegmentBook_VPAVerified data err")
 						}
 					}
 					if head != nil {
-						return errors.Wrapf(err, "[%v]events.SegmentBook_VPAVerified not found", head.Number)
+						return errors.Errorf("[%v]events.SegmentBook_VPAVerified not found", head.Number)
 					} else {
 						return errors.New("events.SegmentBook_VPAVerified not found")
 					}
@@ -287,13 +287,13 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 							}
 						}
 						if head != nil {
-							return errors.Wrapf(err, "[%v]events.SegmentBook_VPBVerified data err", head.Number)
+							return errors.Errorf("[%v]events.SegmentBook_VPBVerified data err", head.Number)
 						} else {
 							return errors.New("events.SegmentBook_VPBVerified data err")
 						}
 					}
 					if head != nil {
-						return errors.Wrapf(err, "[%v]events.SegmentBook_VPBVerified not found", head.Number)
+						return errors.Errorf("[%v]events.SegmentBook_VPBVerified not found", head.Number)
 					} else {
 						return errors.New("events.SegmentBook_VPBVerified not found")
 					}
@@ -305,19 +305,19 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 							}
 						}
 						if head != nil {
-							return errors.Wrapf(err, "[%v]events.SegmentBook_VPDVerified data err", head.Number)
+							return errors.Errorf("[%v]events.SegmentBook_VPDVerified data err", head.Number)
 						} else {
 							return errors.New("events.SegmentBook_VPDVerified data err")
 						}
 					}
 					if head != nil {
-						return errors.Wrapf(err, "[%v]events.SegmentBook_VPDVerified not found", head.Number)
+						return errors.Errorf("[%v]events.SegmentBook_VPDVerified not found", head.Number)
 					} else {
 						return errors.New("events.SegmentBook_VPDVerified not found")
 					}
 				}
 				if head != nil {
-					return errors.Wrapf(err, "[%v]events.SegmentBook_VPA_or_VPB_Verified not found", head.Number)
+					return errors.Errorf("[%v]events.SegmentBook_VPA_or_VPB_Verified not found", head.Number)
 				} else {
 					return errors.New("events.SegmentBook_VPA_or_VPB_Verified not found")
 				}
@@ -442,13 +442,13 @@ func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid ty
 						}
 					}
 					if head != nil {
-						return errors.Wrapf(err, "[%v]events.SegmentBook_VPCVerified data err", head.Number)
+						return errors.Errorf("[%v]events.SegmentBook_VPCVerified data err", head.Number)
 					} else {
 						return errors.New("events.SegmentBook_VPCVerified data err")
 					}
 				}
 				if head != nil {
-					return errors.Wrapf(err, "[%v]events.SegmentBook_VPCVerified not found", head.Number)
+					return errors.Errorf("[%v]events.SegmentBook_VPCVerified not found", head.Number)
 				} else {
 					return errors.New("events.SegmentBook_VPCVerified not found")
 				}
@@ -582,13 +582,13 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 						}
 					}
 					if head != nil {
-						return errors.Wrapf(err, "[%v]events.SegmentBook_ParamSet data err", head.Number)
+						return errors.Errorf("[%v]events.SegmentBook_ParamSet data err", head.Number)
 					} else {
 						return errors.New("events.SegmentBook_ParamSet data err")
 					}
 				}
 				if head != nil {
-					return errors.Wrapf(err, "[%v]events.SegmentBook_ParamSet not found", head.Number)
+					return errors.Errorf("[%v]events.SegmentBook_ParamSet not found", head.Number)
 				} else {
 					return errors.New("events.SegmentBook_ParamSet not found")
 				}
@@ -717,13 +717,13 @@ func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []File
 						}
 					}
 					if head != nil {
-						return false, errors.Wrapf(err, "[%v]events.FileBank_FileUpdate data err", head.Number)
+						return false, errors.Errorf("[%v]events.FileBank_FileUpdate data err", head.Number)
 					} else {
 						return false, errors.New("events.FileBank_FileUpdate data err")
 					}
 				}
 				if head != nil {
-					return false, errors.Wrapf(err, "[%v]events.FileBank_FileUpdate not found", head.Number)
+					return false, errors.Errorf("[%v]events.FileBank_FileUpdate not found", head.Number)
 				} else {
 					return false, errors.New("events.FileBank_FileUpdate not found")
 				}
