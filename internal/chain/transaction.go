@@ -45,7 +45,7 @@ func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, erro
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, types.NewBytes([]byte(ipAddr)))
+	c, err := types.NewCall(meta, TransactionName, types.Bytes([]byte(ipAddr)))
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -179,7 +179,7 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 		return errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, peerid, segid, types.NewBool(result))
+	c, err := types.NewCall(meta, TransactionName, peerid, segid, types.Bool(result))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}
@@ -354,7 +354,7 @@ func VerifyInVpc(identifyAccountPhrase, TransactionName string, peerid, segid ty
 		return errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, peerid, segid, uncid, types.NewBool(result))
+	c, err := types.NewCall(meta, TransactionName, peerid, segid, uncid, types.Bool(result))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}
@@ -491,7 +491,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		uncid[i] = make(types.Bytes, 0)
 		uncid[i] = append(uncid[i], unsealedcid[i]...)
 	}
-	c, err := types.NewCall(meta, TransactionName, types.NewU8(segsizetype), types.NewU8(segtype), types.NewU64(peerid), uncid, types.NewBytes(shardhash))
+	c, err := types.NewCall(meta, TransactionName, types.U8(segsizetype), types.U8(segtype), types.U64(peerid), uncid, types.Bytes(shardhash))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}
