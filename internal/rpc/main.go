@@ -1,8 +1,8 @@
 package rpc
 
 import (
-	"cess-scheduler/cache"
 	"cess-scheduler/configs"
+	"cess-scheduler/internal/cache"
 	"cess-scheduler/internal/chain"
 	"cess-scheduler/internal/encryption"
 	"cess-scheduler/internal/fileshards"
