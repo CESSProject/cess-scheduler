@@ -253,9 +253,10 @@ func verifyVpc() {
 // normally it will run forever.
 func verifyVpd() {
 	var (
-		err  error
-		ok   bool
-		data []chain.UnVerifiedVpd
+		err          error
+		ok           bool
+		data         []chain.UnVerifiedVpd
+		vpdfailcount = make(map[uint64]uint8, 0)
 	)
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 60)))
@@ -292,19 +293,28 @@ func verifyVpd() {
 				Err.Sugar().Errorf("[C%v][%v] %v", data[i].Peer_id, data[i].Segment_id, err)
 				continue
 			}
-
-			err = chain.VerifyInVpaOrVpbOrVpd(
-				configs.Confile.SchedulerInfo.TransactionPrK,
-				configs.ChainTx_SegmentBook_VerifyInVpd,
-				data[i].Peer_id,
-				data[i].Segment_id,
-				ok,
-			)
-			if err != nil {
-				Err.Sugar().Errorf("[C%v][%v][%v] vpc submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
-				continue
+			if ok {
+				vpdfailcount[uint64(data[i].Segment_id)] = 0
+			} else {
+				vpdfailcount[uint64(data[i].Segment_id)]++
 			}
-			Out.Sugar().Infof("[C%v][%v][%v] vpd submit suc", data[i].Peer_id, data[i].Segment_id, ok)
+			if ok || vpdfailcount[uint64(data[i].Segment_id)] >= uint8(3) {
+				err = chain.VerifyInVpaOrVpbOrVpd(
+					configs.Confile.SchedulerInfo.TransactionPrK,
+					configs.ChainTx_SegmentBook_VerifyInVpd,
+					data[i].Peer_id,
+					data[i].Segment_id,
+					ok,
+				)
+				if err != nil {
+					Err.Sugar().Errorf("[C%v][%v][%v] vpc submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
+					continue
+				}
+				Out.Sugar().Infof("[C%v][%v][%v][%v] vpd submit suc", data[i].Peer_id, data[i].Segment_id, ok, vpdfailcount[uint64(data[i].Segment_id)])
+				if !ok {
+					delete(vpdfailcount, uint64(data[i].Segment_id))
+				}
+			}
 		}
 	}
 }
