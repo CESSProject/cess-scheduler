@@ -246,8 +246,10 @@ func register() {
 
 	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
 
-	Out.Sugar().Infof("Start registration......\n    CessAddr:%v\n    ServiceAddr:%v\n    TransactionPrK:%v\n",
-		configs.Confile.CessChain.ChainAddr, res, configs.Confile.SchedulerInfo.TransactionPrK)
+	Out.Sugar().Infof("Registration message:")
+	Out.Sugar().Infof("CessAddr:%v", configs.Confile.CessChain.ChainAddr)
+	Out.Sugar().Infof("ServiceAddr:%v", res)
+	Out.Sugar().Infof("TransactionPrK:%v", configs.Confile.SchedulerInfo.TransactionPrK)
 
 	_, err = chain.RegisterToChain(
 		configs.Confile.SchedulerInfo.TransactionPrK,

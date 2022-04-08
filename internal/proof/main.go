@@ -33,7 +33,7 @@ func verifyVpa() {
 		data    []chain.UnVerifiedVpaVpb
 	)
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpaVpb(
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedA,
@@ -42,15 +42,11 @@ func verifyVpa() {
 			Err.Sugar().Errorf("%v", err)
 			continue
 		}
-		Out.Sugar().Infof("UnVerifiedVpa:[%v] %v", len(data), data)
-
 		if len(data) == 0 {
 			continue
 		}
+		Out.Sugar().Infof("Number of unVerifiedVpa: %v", len(data))
 		for i := 0; i < len(data); i++ {
-			if len(data[i].Proof) == 0 {
-				continue
-			}
 			proofs = ""
 			sealcid = ""
 			for j := 0; j < len(data[i].Proof); j++ {
@@ -60,6 +56,7 @@ func verifyVpa() {
 			p, err := types.HexDecodeString(proofs)
 			if err != nil {
 				Err.Sugar().Errorf("%v", err)
+				continue
 			}
 			for j := 0; j < len(data[i].Sealed_cid); j++ {
 				temp := fmt.Sprintf("%c", data[i].Sealed_cid[j])
@@ -110,7 +107,7 @@ func verifyVpb() {
 		data      []chain.UnVerifiedVpaVpb
 	)
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpaVpb(
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedB,
@@ -119,10 +116,10 @@ func verifyVpb() {
 			Err.Sugar().Errorf("%v", err)
 			continue
 		}
-		Out.Sugar().Infof("UnVerifiedVpb:[%v] %v", len(data), data)
 		if len(data) == 0 {
 			continue
 		}
+		Out.Sugar().Infof("Number of unVerifiedVpb:%v", len(data))
 		for i := 0; i < len(data); i++ {
 			proofs = ""
 			sealcid = ""
@@ -133,6 +130,7 @@ func verifyVpb() {
 			p, err := types.HexDecodeString(proofs)
 			if err != nil {
 				Err.Sugar().Errorf("%v", err)
+				continue
 			}
 			for j := 0; j < len(data[i].Sealed_cid); j++ {
 				temp := fmt.Sprintf("%c", data[i].Sealed_cid[j])
@@ -186,7 +184,7 @@ func verifyVpc() {
 		data []chain.UnVerifiedVpc
 	)
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpc(
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedC,
@@ -195,10 +193,10 @@ func verifyVpc() {
 			Err.Sugar().Errorf("%v", err)
 			continue
 		}
-		Out.Sugar().Infof("UnVerifiedVpc:[%v] %v", len(data), data)
 		if len(data) == 0 {
 			continue
 		}
+		Out.Sugar().Infof("Number of unVerifiedVpc:%v", len(data))
 		for i := 0; i < len(data); i++ {
 			var proof = make([][]byte, len(data[i].Proof))
 			var sealcid = make([]string, 0)
@@ -259,7 +257,7 @@ func verifyVpd() {
 		vpdfailcount = make(map[uint64]uint8, 0)
 	)
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpd(
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedD,
@@ -268,10 +266,10 @@ func verifyVpd() {
 			Err.Sugar().Errorf("%v", err)
 			continue
 		}
-		Out.Sugar().Infof("UnVerifiedVpd:[%v] %v", len(data), data)
 		if len(data) == 0 {
 			continue
 		}
+		Out.Sugar().Infof("Number of unVerifiedVpd:%v", len(data))
 		for i := 0; i < len(data); i++ {
 			var postproof = make([]proof.PoStProof, len(data[i].Proof))
 			for j := 0; j < len(data[i].Proof); j++ {
