@@ -33,7 +33,7 @@ func verifyVpa() {
 		data    []chain.UnVerifiedVpaVpb
 	)
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpaVpb(
 			configs.ChainModule_SegmentBook,
 			configs.ChainModule_SegmentBook_UnVerifiedA,
