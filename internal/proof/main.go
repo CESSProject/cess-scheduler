@@ -305,7 +305,7 @@ func verifyVpd() {
 					ok,
 				)
 				if err != nil {
-					Err.Sugar().Errorf("[C%v][%v][%v] vpc submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
+					Err.Sugar().Errorf("[C%v][%v][%v] vpd submit failed,err:%v", data[i].Peer_id, data[i].Segment_id, ok, err)
 					continue
 				}
 				Out.Sugar().Infof("[C%v][%v][%v][%v] vpd submit suc", data[i].Peer_id, data[i].Segment_id, ok, vpdfailcount[uint64(data[i].Segment_id)])
