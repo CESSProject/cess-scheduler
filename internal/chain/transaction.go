@@ -491,7 +491,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		uncid[i] = make(types.Bytes, 0)
 		uncid[i] = append(uncid[i], unsealedcid[i]...)
 	}
-	c, err := types.NewCall(meta, TransactionName, types.U8(segsizetype), types.U8(segtype), types.U64(peerid), uncid, types.Bytes(shardhash))
+	c, err := types.NewCall(meta, TransactionName, types.U8(segsizetype), types.U8(segtype), types.U64(peerid), uncid, types.NewBytes(shardhash))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}

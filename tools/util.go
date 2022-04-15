@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"reflect"
 	"runtime"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -156,10 +157,11 @@ func Post(url string, para interface{}) ([]byte, error) {
 
 // Get external network ip
 func GetExternalIp() (string, error) {
-	cmd := exec.Command("/bin/bash", "-c", "curl ifconfig.co")
-	output, err := cmd.CombinedOutput()
+	output, err := exec.Command("bash", "-c", "curl ifconfig.co").Output()
+	// output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
-	return string(output), nil
+	result := strings.Replace(string(output), "\n", "", -1)
+	return strings.Replace(result, " ", "", -1), nil
 }

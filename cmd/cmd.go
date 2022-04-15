@@ -249,6 +249,7 @@ func register() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
+
 	if eip != configs.Confile.SchedulerInfo.ServiceAddr {
 		fmt.Printf("\x1b[%dm[err]\x1b[0mYou can use \"curl ifconfig.co\" to view the external network ip address\n", 41)
 		os.Exit(1)
