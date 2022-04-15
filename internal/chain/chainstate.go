@@ -104,8 +104,9 @@ type FileShardInfo struct {
 }
 
 type SchedulerInfo struct {
-	Ip  types.Bytes
-	Acc types.AccountID
+	Ip             types.Bytes
+	StashUser      types.AccountID
+	ControllerUser types.AccountID
 }
 
 type CessChain_EtcdItems struct {

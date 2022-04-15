@@ -159,7 +159,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 	for _, v := range sd {
-		if v.Acc == types.NewAccountID(keyring.PublicKey) {
+		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
 			reg = true
 		}
 	}
@@ -238,7 +238,7 @@ func register() {
 		os.Exit(1)
 	}
 	for _, v := range sd {
-		if v.Acc == types.NewAccountID(keyring.PublicKey) {
+		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
 			fmt.Printf("\x1b[%dm[ok]\x1b[0m The account is already registered.\n", 42)
 			os.Exit(0)
 		}
