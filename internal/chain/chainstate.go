@@ -71,7 +71,7 @@ type UnVerifiedVpd struct {
 type FileMetaInfo struct {
 	//FileId      types.Bytes         `json:"acc"`         //File id
 	File_name   types.Bytes         `json:"file_name"`   //File name
-	FileSize    types.U128          `json:"file_size"`   //File size
+	FileSize    types.U64           `json:"file_size"`   //File size
 	FileHash    types.Bytes         `json:"file_hash"`   //File hash
 	Public      types.Bool          `json:"public"`      //Public or not
 	UserAddr    types.AccountID     `json:"user_addr"`   //Upload user's address
@@ -104,8 +104,9 @@ type FileShardInfo struct {
 }
 
 type SchedulerInfo struct {
-	Ip  types.Bytes
-	Acc types.AccountID
+	Ip             types.Bytes
+	StashUser      types.AccountID
+	ControllerUser types.AccountID
 }
 
 type CessChain_EtcdItems struct {

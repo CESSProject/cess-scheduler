@@ -21,7 +21,7 @@ type CessInfo struct {
 	ChainModuleMethod      string
 }
 
-func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, error) {
+func RegisterToChain(transactionPrK, TransactionName, controll_wallet, ipAddr string) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -45,7 +45,15 @@ func RegisterToChain(transactionPrK, TransactionName, ipAddr string) (bool, erro
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, types.Bytes([]byte(ipAddr)))
+	ip, err := types.EncodeToBytes(ipAddr)
+	if err != nil {
+		return false, errors.Wrap(err, "EncodeToBytes")
+	}
+	bytes, err := tools.DecodeToPub(controll_wallet)
+	if err != nil {
+		return false, errors.Wrap(err, "DecodeToPub")
+	}
+	c, err := types.NewCall(meta, TransactionName, types.NewAccountID(bytes), types.Bytes(ip))
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -491,7 +499,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 		uncid[i] = make(types.Bytes, 0)
 		uncid[i] = append(uncid[i], unsealedcid[i]...)
 	}
-	c, err := types.NewCall(meta, TransactionName, types.U8(segsizetype), types.U8(segtype), types.U64(peerid), uncid, types.Bytes(shardhash))
+	c, err := types.NewCall(meta, TransactionName, types.U8(segsizetype), types.U8(segtype), types.U64(peerid), uncid, types.NewBytes(shardhash))
 	if err != nil {
 		return errors.Wrap(err, "NewCall err")
 	}

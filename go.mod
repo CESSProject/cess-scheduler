@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/CESSProject/cess-ffi v0.0.0-20220223120821-e42303f4cccf
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
-	github.com/centrifuge/go-substrate-rpc-client/v3 v3.0.2
+	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/centrifuge/go-substrate-rpc-client/v4 v4.0.0
 	github.com/deckarep/golang-set v1.7.1
 	github.com/filecoin-project/go-fil-commcid v0.1.0 // indirect
@@ -35,7 +35,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1
-	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce // indirect
+	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
 	golang.org/x/net v0.0.0-20211208012354-db4efeb81f4b // indirect
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	golang.org/x/tools v0.1.9 // indirect

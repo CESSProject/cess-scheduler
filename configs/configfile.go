@@ -10,9 +10,10 @@ type CessChain struct {
 }
 
 type SchedulerInfo struct {
-	ServiceAddr    string `toml:"ServiceAddr"`
-	ServicePort    string `toml:"ServicePort"`
-	TransactionPrK string `toml:"TransactionPrK"`
+	ServiceAddr             string `toml:"ServiceAddr"`
+	ServicePort             string `toml:"ServicePort"`
+	ControllerAccountPhrase string `toml:"ControllerAccountPhrase"`
+	StashAccountAddress     string `toml:"StashAccountAddress"`
 }
 
 var Confile = new(SchedulerConfOnChain)
