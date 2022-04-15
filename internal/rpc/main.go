@@ -470,7 +470,7 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 						go func(ts int64, peerid uint64, unsealcid [][]byte, shardhash string) {
 							for {
 								errs := chain.IntentSubmitToChain(
-									configs.Confile.SchedulerInfo.TransactionPrK,
+									configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 									configs.ChainTx_SegmentBook_IntentSubmit,
 									configs.SegMentType_Idle,
 									configs.SegMentType_Service,
@@ -511,7 +511,7 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 
 	// Upload the file meta information to the chain and write it to the cache
 	for {
-		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.TransactionPrK, configs.ChainTx_FileBank_PutMetaInfo, fid, filedump)
+		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, configs.ChainTx_FileBank_PutMetaInfo, fid, filedump)
 		if !ok || err != nil {
 			Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))

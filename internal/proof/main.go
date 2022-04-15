@@ -79,7 +79,7 @@ func verifyVpa() {
 				continue
 			}
 			err = chain.VerifyInVpaOrVpbOrVpd(
-				configs.Confile.SchedulerInfo.TransactionPrK,
+				configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 				configs.ChainTx_SegmentBook_VerifyInVpa,
 				data[i].Peer_id,
 				data[i].Segment_id,
@@ -160,7 +160,7 @@ func verifyVpb() {
 			}
 
 			err = chain.VerifyInVpaOrVpbOrVpd(
-				configs.Confile.SchedulerInfo.TransactionPrK,
+				configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 				configs.ChainTx_SegmentBook_VerifyInVpb,
 				data[i].Peer_id,
 				data[i].Segment_id,
@@ -231,7 +231,7 @@ func verifyVpc() {
 			}
 
 			err = chain.VerifyInVpc(
-				configs.Confile.SchedulerInfo.TransactionPrK,
+				configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 				configs.ChainTx_SegmentBook_VerifyInVpc,
 				data[i].Peer_id,
 				data[i].Segment_id,
@@ -298,7 +298,7 @@ func verifyVpd() {
 			}
 			if ok || vpdfailcount[uint64(data[i].Segment_id)] >= uint8(3) {
 				err = chain.VerifyInVpaOrVpbOrVpd(
-					configs.Confile.SchedulerInfo.TransactionPrK,
+					configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 					configs.ChainTx_SegmentBook_VerifyInVpd,
 					data[i].Peer_id,
 					data[i].Segment_id,

@@ -153,7 +153,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
 	}
-	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.TransactionPrK, 0)
+	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.ControllerAccountPhrase, 0)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(-1)
@@ -232,7 +232,7 @@ func register() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
 	}
-	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.TransactionPrK, 0)
+	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.ControllerAccountPhrase, 0)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -260,11 +260,13 @@ func register() {
 	Out.Sugar().Infof("Registration message:")
 	Out.Sugar().Infof("CessAddr:%v", configs.Confile.CessChain.ChainAddr)
 	Out.Sugar().Infof("ServiceAddr:%v", res)
-	Out.Sugar().Infof("TransactionPrK:%v", configs.Confile.SchedulerInfo.TransactionPrK)
+	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.Confile.SchedulerInfo.ControllerAccountPhrase)
+	Out.Sugar().Infof("StashAccountAddress:%v", configs.Confile.SchedulerInfo.StashAccountAddress)
 
 	_, err = chain.RegisterToChain(
-		configs.Confile.SchedulerInfo.TransactionPrK,
+		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 		configs.ChainTx_FileMap_Add_schedule,
+		configs.Confile.SchedulerInfo.StashAccountAddress,
 		res,
 	)
 	if err != nil {
