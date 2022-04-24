@@ -159,7 +159,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	} else {
 		cachedata, err := c.Get([]byte(b.FileId))
 		if err == nil {
-			err = json.Unmarshal(cachedata, &fmeta)
+			err = json.Unmarshal(cachedata, &fmeta.FileDupl)
 			if err != nil {
 				Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			}
@@ -629,9 +629,8 @@ func readFile(dst string, path, fid, walletaddr string) error {
 		}
 	}
 	defer client.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 90*time.Second)
 	resp, err := client.Call(ctx, req)
-	defer cancel()
 	if err != nil {
 		return err
 	}
@@ -642,7 +641,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 	if err != nil {
 		return err
 	}
-	if b.Code == 0 {
+	if b.Code == 200 {
 		err = proto.Unmarshal(b.Data, &b_data)
 		if err != nil {
 			return err
@@ -700,7 +699,7 @@ func readFile(dst string, path, fid, walletaddr string) error {
 			if err != nil {
 				return err
 			}
-			if rtn_body.Code == 0 {
+			if rtn_body.Code == 200 {
 				err = proto.Unmarshal(rtn_body.Data, &bdata_loop)
 				if err != nil {
 					return err
