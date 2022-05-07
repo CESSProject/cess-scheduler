@@ -266,7 +266,7 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 					}
 				}
 				switch TransactionName {
-				case configs.ChainTx_SegmentBook_VerifyInVpa:
+				case ChainTx_SegmentBook_VerifyInVpa:
 					if events.SegmentBook_VPAVerified != nil {
 						for i := 0; i < len(events.SegmentBook_VPAVerified); i++ {
 							if events.SegmentBook_VPAVerified[i].PeerId == peerid && events.SegmentBook_VPAVerified[i].SegmentId == segid {
@@ -284,7 +284,7 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 					} else {
 						return errors.New("events.SegmentBook_VPAVerified not found")
 					}
-				case configs.ChainTx_SegmentBook_VerifyInVpb:
+				case ChainTx_SegmentBook_VerifyInVpb:
 					if events.SegmentBook_VPBVerified != nil {
 						for i := 0; i < len(events.SegmentBook_VPBVerified); i++ {
 							if events.SegmentBook_VPBVerified[i].PeerId == peerid && events.SegmentBook_VPBVerified[i].SegmentId == segid {
@@ -302,7 +302,7 @@ func VerifyInVpaOrVpbOrVpd(identifyAccountPhrase, TransactionName string, peerid
 					} else {
 						return errors.New("events.SegmentBook_VPBVerified not found")
 					}
-				case configs.ChainTx_SegmentBook_VerifyInVpd:
+				case ChainTx_SegmentBook_VerifyInVpd:
 					if events.SegmentBook_VPDVerified != nil {
 						for i := 0; i < len(events.SegmentBook_VPDVerified); i++ {
 							if events.SegmentBook_VPDVerified[i].PeerId == peerid && events.SegmentBook_VPDVerified[i].SegmentId == segid {

@@ -92,7 +92,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		trycount := 0
 		for {
-			fmeta, err = chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
+			fmeta, err = chain.GetFileMetaInfoOnChain(chain.State_FileBank, chain.FileMap_FileMetaInfo, b.FileId)
 			if err != nil {
 				trycount++
 				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -167,7 +167,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 	}
 	if fmeta.FileDupl == nil {
-		fmeta, err = chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
+		fmeta, err = chain.GetFileMetaInfoOnChain(chain.State_FileBank, chain.FileMap_FileMetaInfo, b.FileId)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 500, Msg: "Network timeout, try again later!", Data: nil}, nil
@@ -437,8 +437,8 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 		trycount := 0
 		for {
 			mDatas, err = chain.GetAllMinerDataOnChain(
-				configs.ChainModule_Sminer,
-				configs.ChainModule_Sminer_AllMinerItems,
+				chain.State_Sminer,
+				chain.Sminer_AllMinerItems,
 			)
 			if err != nil {
 				trycount++
@@ -532,7 +532,7 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 							for {
 								errs := chain.IntentSubmitToChain(
 									configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-									configs.ChainTx_SegmentBook_IntentSubmit,
+									chain.ChainTx_SegmentBook_IntentSubmit,
 									configs.SegMentType_Idle,
 									configs.SegMentType_Service,
 									peerid,
@@ -572,7 +572,7 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 
 	// Upload the file meta information to the chain and write it to the cache
 	for {
-		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, configs.ChainTx_FileBank_PutMetaInfo, fid, filedump)
+		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, chain.ChainTx_FileBank_PutMetaInfo, fid, filedump)
 		if !ok || err != nil {
 			Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
