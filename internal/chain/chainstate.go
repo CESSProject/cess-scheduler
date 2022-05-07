@@ -2,151 +2,50 @@ package chain
 
 import (
 	. "cess-scheduler/internal/logger"
+	"cess-scheduler/tools"
+	"net/http"
 
-	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
 
-type CessChain_MinerItems struct {
-	Peerid      types.U64       `json:"peerid"`
-	Beneficiary types.AccountID `json:"beneficiary"`
-	Ip          types.U32       `json:"ip"`
-	Collaterals types.U128      `json:"collaterals"`
-	Earnings    types.U128      `json:"earnings"`
-	Locked      types.U128      `json:"locked"`
-}
-
-type CessChain_AllMinerInfo struct {
-	Peerid types.U64   `json:"peerid"`
-	Ip     types.Bytes `json:"ip"`
-	Power  types.U128  `json:"power"`
-	Space  types.U128  `json:"space"`
-}
-
-type ParamInfo struct {
-	Peer_id    types.U64 `json:"peer_id"`
-	Segment_id types.U64 `json:"segment_id"`
-	Rand       types.U32 `json:"rand"`
-}
-
-type IpostParaInfo struct {
-	Peer_id    types.U64   `json:"peer_id"`
-	Segment_id types.U64   `json:"segment_id"`
-	Size_type  types.U128  `json:"size_type"`
-	Sealed_cid types.Bytes `json:"sealed_cid"`
-}
-
-type UnVerifiedVpaVpb struct {
-	Accountid  types.AccountID `json:"acc"`
-	Peer_id    types.U64       `json:"peer_id"`
-	Segment_id types.U64       `json:"segment_id"`
-	Proof      types.Bytes     `json:"proof"`
-	Sealed_cid types.Bytes     `json:"sealed_cid"`
-	Rand       types.U32       `json:"rand"`
-	Size_type  types.U128      `json:"size_type"`
-}
-
-type UnVerifiedVpc struct {
-	Accountid    types.AccountID `json:"acc"`
-	Peer_id      types.U64       `json:"peer_id"`
-	Segment_id   types.U64       `json:"segment_id"`
-	Proof        []types.Bytes   `json:"proof"`
-	Sealed_cid   []types.Bytes   `json:"sealed_cid"`
-	Unsealed_cid []types.Bytes   `json:"unsealed_cid"`
-	Rand         types.U32       `json:"rand"`
-	Size_type    types.U128      `json:"size_type"`
-}
-
-type UnVerifiedVpd struct {
-	Accountid  types.AccountID `json:"acc"`
-	Peer_id    types.U64       `json:"peer_id"`
-	Segment_id types.U64       `json:"segment_id"`
-	Proof      []types.Bytes   `json:"proof"`
-	Sealed_cid []types.Bytes   `json:"sealed_cid"`
-	Rand       types.U32       `json:"rand"`
-	Size_type  types.U128      `json:"size_type"`
-}
-
-type FileMetaInfo struct {
-	//FileId      types.Bytes         `json:"acc"`         //File id
-	File_name   types.Bytes         `json:"file_name"`   //File name
-	FileSize    types.U64           `json:"file_size"`   //File size
-	FileHash    types.Bytes         `json:"file_hash"`   //File hash
-	Public      types.Bool          `json:"public"`      //Public or not
-	UserAddr    types.AccountID     `json:"user_addr"`   //Upload user's address
-	FileState   types.Bytes         `json:"file_state"`  //File state
-	Backups     types.U8            `json:"backups"`     //Number of backups
-	Downloadfee types.U128          `json:"downloadfee"` //Download fee
-	FileDupl    []FileDuplicateInfo `json:"file_dupl"`   //File backup information list
-}
-
-type FileDuplicateInfo struct {
-	DuplId    types.Bytes     `json:"dupl_id"`    //Backup id
-	RandKey   types.Bytes     `json:"rand_key"`   //Random key
-	SliceNum  types.U16       `json:"slice_num"`  //Number of slices
-	FileSlice []FileSliceInfo `json:"file_slice"` //Slice information list
-}
-
-type FileSliceInfo struct {
-	SliceId   types.Bytes   `json:"slice_id"`   //Slice id
-	SliceSize types.U32     `json:"slice_size"` //Slice size
-	SliceHash types.Bytes   `json:"slice_hash"` //Slice hash
-	FileShard FileShardInfo `json:"file_shard"` //Shard information
-}
-
-type FileShardInfo struct {
-	DataShardNum  types.U8      `json:"data_shard_num"`  //Number of data shard
-	RedunShardNum types.U8      `json:"redun_shard_num"` //Number of redundant shard
-	ShardHash     []types.Bytes `json:"shard_hash"`      //Shard hash list
-	ShardAddr     []types.Bytes `json:"shard_addr"`      //Store miner service addr list
-	Peerid        []types.U64   `json:"wallet_addr"`     //Store miner wallet addr list
-}
-
-type SchedulerInfo struct {
-	Ip             types.Bytes
-	StashUser      types.AccountID
-	ControllerUser types.AccountID
-}
-
-type CessChain_EtcdItems struct {
-	Ip types.Bytes `json:"ip"`
-}
-
-// Get miner information on the cess chain
-func GetMinerDataOnChain(identifyAccountPhrase, chainModule, chainModuleMethod string) (CessChain_MinerItems, error) {
+// Get miner information on the chain
+func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 	var (
 		err   error
-		mdata CessChain_MinerItems
+		mdata Chain_MinerItems
 	)
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", chainModule, chainModuleMethod, err)
+			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_MinerItems, err)
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", chainModule, chainModuleMethod)
+		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", State_Sminer, Sminer_MinerItems)
 	}
 
-	account, err := signature.KeyringPairFromSecret(identifyAccountPhrase, 0)
+	pub, err := tools.DecodeToPub(addr)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:KeyringPairFromSecret]", chainModule, chainModuleMethod)
+		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:DecodeToPub]", State_Sminer, Sminer_MinerItems)
 	}
 
-	key, err := types.CreateStorageKey(meta, chainModule, chainModuleMethod, account.PublicKey)
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, pub)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", chainModule, chainModuleMethod)
+		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", State_Sminer, Sminer_MinerItems)
 	}
 
-	_, err = api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
+		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", State_Sminer, Sminer_MinerItems)
 	}
-	return mdata, nil
+	if !ok {
+		return mdata, http.StatusNotFound, errors.Errorf("[%v not found]", addr)
+	}
+	return mdata, http.StatusOK, nil
 }
 
 // Get all miner information on the cess chain
@@ -302,11 +201,13 @@ func GetFileMetaInfoOnChain(chainModule, chainModuleMethod, fileid string) (File
 		return mdata, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", chainModule, chainModuleMethod)
 	}
 
-	_, err = api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
 		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
 	}
-	//fmt.Println(mdata)
+	if !ok {
+		return mdata, errors.Errorf("[%v not folund]", fileid)
+	}
 	return mdata, nil
 }
 

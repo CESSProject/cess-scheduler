@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/CESSProject/cess-ffi v0.0.0-20220223120821-e42303f4cccf
+	github.com/Nik-U/pbc v0.0.0-20181205041846-3e516ca0c5d6
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/centrifuge/go-substrate-rpc-client/v4 v4.0.0

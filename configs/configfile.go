@@ -12,6 +12,7 @@ type CessChain struct {
 type SchedulerInfo struct {
 	ServiceAddr             string `toml:"ServiceAddr"`
 	ServicePort             string `toml:"ServicePort"`
+	DataDir                 string `toml:"DataDir"`
 	ControllerAccountPhrase string `toml:"ControllerAccountPhrase"`
 	StashAccountAddress     string `toml:"StashAccountAddress"`
 }
@@ -29,5 +30,9 @@ ChainAddr = ""
 ServiceAddr    = ""
 # Port number monitored by the scheduler program
 ServicePort    = ""
-# Phrase words or seeds for identity accounts.
-TransactionPrK = ""`
+# Data storage directory
+DataDir        = ""
+# Phrase words or seeds for controller accounts.
+ControllerAccountPhrase = ""
+# Stash account address.
+StashAccountAddress     = ""`

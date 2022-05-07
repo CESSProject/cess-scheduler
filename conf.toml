@@ -7,7 +7,9 @@ ChainAddr = ""
 ServiceAddr    = ""
 # Port number monitored by the scheduler program
 ServicePort    = ""
+# data storage directory
+DataDir        = ""
 # Phrase words or seeds for controller accounts.
 ControllerAccountPhrase = ""
 # Stash account address.
-StashAccountAddress = ""
+StashAccountAddress     = ""

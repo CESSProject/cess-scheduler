@@ -51,6 +51,10 @@ func EncodeByPubHex(publicHex string, prefix []byte) (string, error) {
 }
 
 func DecodeToPub(address string) ([]byte, error) {
+	err := VerityAddress(address, SubstratePrefix)
+	if err != nil {
+		return nil, errors.New("Invalid addrss")
+	}
 	data := base58.Decode(address)
 	if len(data) != 35 {
 		return nil, errors.New("base58 decode error")

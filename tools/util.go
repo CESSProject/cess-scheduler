@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -73,6 +74,15 @@ func CalcFileHash(fpath string) (string, error) {
 	}
 	defer f.Close()
 
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// Calculate the file hash value
+func CalcFileHash2(f *os.File) (string, error) {
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
@@ -164,4 +174,29 @@ func GetExternalIp() (string, error) {
 	}
 	result := strings.Replace(string(output), "\n", "", -1)
 	return strings.Replace(result, " ", "", -1), nil
+}
+
+func Split(file *os.File, s int64) (M [][]byte, S int64, N uint64, err error) {
+	file.Seek(0, 0)
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	size := fileInfo.Size()
+	n := uint64(math.Ceil(float64(size / s)))
+	// matrix is indexed as m_ij, so the first dimension has n items and the second has s.
+	matrix := make([][]byte, n)
+	for i := uint64(0); i < n; i++ {
+		piece := make([]byte, s)
+		_, err := file.Read(piece)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		matrix[i] = piece
+	}
+	if n == 0 {
+		n = 1
+	}
+	return matrix, s, n, nil
 }

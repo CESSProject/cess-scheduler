@@ -454,6 +454,69 @@ func (x *FileDownloadReq) GetBlocks() int32 {
 	return 0
 }
 
+type SpaceTagReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	WalletAddress string `protobuf:"bytes,1,opt,name=walletAddress,proto3" json:"walletAddress,omitempty"`
+	SizeMb        uint32 `protobuf:"varint,2,opt,name=size_mb,json=sizeMb,proto3" json:"size_mb,omitempty"`
+	Sign          []byte `protobuf:"bytes,3,opt,name=sign,proto3" json:"sign,omitempty"`
+}
+
+func (x *SpaceTagReq) Reset() {
+	*x = SpaceTagReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_msg_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SpaceTagReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpaceTagReq) ProtoMessage() {}
+
+func (x *SpaceTagReq) ProtoReflect() protoreflect.Message {
+	mi := &file_msg_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpaceTagReq.ProtoReflect.Descriptor instead.
+func (*SpaceTagReq) Descriptor() ([]byte, []int) {
+	return file_msg_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *SpaceTagReq) GetWalletAddress() string {
+	if x != nil {
+		return x.WalletAddress
+	}
+	return ""
+}
+
+func (x *SpaceTagReq) GetSizeMb() uint32 {
+	if x != nil {
+		return x.SizeMb
+	}
+	return 0
+}
+
+func (x *SpaceTagReq) GetSign() []byte {
+	if x != nil {
+		return x.Sign
+	}
+	return nil
+}
+
 var File_msg_proto protoreflect.FileDescriptor
 
 var file_msg_proto_rawDesc = []byte{
@@ -502,8 +565,14 @@ var file_msg_proto_rawDesc = []byte{
 	0x65, 0x73, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x77, 0x61, 0x6c, 0x6c, 0x65,
 	0x74, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x16, 0x0a, 0x06, 0x62, 0x6c, 0x6f, 0x63,
 	0x6b, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x06, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x73,
-	0x42, 0x08, 0x5a, 0x06, 0x2e, 0x2f, 0x3b, 0x72, 0x70, 0x63, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x22, 0x62, 0x0a, 0x0d, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x74, 0x61, 0x67, 0x5f, 0x72, 0x65,
+	0x71, 0x12, 0x24, 0x0a, 0x0d, 0x77, 0x61, 0x6c, 0x6c, 0x65, 0x74, 0x41, 0x64, 0x64, 0x72, 0x65,
+	0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x77, 0x61, 0x6c, 0x6c, 0x65, 0x74,
+	0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x17, 0x0a, 0x07, 0x73, 0x69, 0x7a, 0x65, 0x5f,
+	0x6d, 0x62, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x06, 0x73, 0x69, 0x7a, 0x65, 0x4d, 0x62,
+	0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x67, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04,
+	0x73, 0x69, 0x67, 0x6e, 0x42, 0x08, 0x5a, 0x06, 0x2e, 0x2f, 0x3b, 0x72, 0x70, 0x63, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -518,7 +587,7 @@ func file_msg_proto_rawDescGZIP() []byte {
 	return file_msg_proto_rawDescData
 }
 
-var file_msg_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_msg_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_msg_proto_goTypes = []interface{}{
 	(*ReqMsg)(nil),           // 0: rpc.ReqMsg
 	(*RespMsg)(nil),          // 1: rpc.RespMsg
@@ -526,6 +595,7 @@ var file_msg_proto_goTypes = []interface{}{
 	(*FileUploadInfo)(nil),   // 3: rpc.file_upload_info
 	(*FileDownloadInfo)(nil), // 4: rpc.file_download_info
 	(*FileDownloadReq)(nil),  // 5: rpc.file_download_req
+	(*SpaceTagReq)(nil),      // 6: rpc.space_tag_req
 }
 var file_msg_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -613,6 +683,18 @@ func file_msg_proto_init() {
 				return nil
 			}
 		}
+		file_msg_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SpaceTagReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -620,7 +702,7 @@ func file_msg_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_msg_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

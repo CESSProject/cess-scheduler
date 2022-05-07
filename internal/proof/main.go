@@ -35,8 +35,8 @@ func verifyVpa() {
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpaVpb(
-			configs.ChainModule_SegmentBook,
-			configs.ChainModule_SegmentBook_UnVerifiedA,
+			chain.State_SegmentBook,
+			chain.SegmentBook_UnVerifiedA,
 		)
 		if err != nil {
 			Err.Sugar().Errorf("%v", err)
@@ -80,7 +80,7 @@ func verifyVpa() {
 			}
 			err = chain.VerifyInVpaOrVpbOrVpd(
 				configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-				configs.ChainTx_SegmentBook_VerifyInVpa,
+				chain.ChainTx_SegmentBook_VerifyInVpa,
 				data[i].Peer_id,
 				data[i].Segment_id,
 				ok,
@@ -109,8 +109,8 @@ func verifyVpb() {
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpaVpb(
-			configs.ChainModule_SegmentBook,
-			configs.ChainModule_SegmentBook_UnVerifiedB,
+			chain.State_SegmentBook,
+			chain.SegmentBook_UnVerifiedB,
 		)
 		if err != nil {
 			Err.Sugar().Errorf("%v", err)
@@ -161,7 +161,7 @@ func verifyVpb() {
 
 			err = chain.VerifyInVpaOrVpbOrVpd(
 				configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-				configs.ChainTx_SegmentBook_VerifyInVpb,
+				chain.ChainTx_SegmentBook_VerifyInVpb,
 				data[i].Peer_id,
 				data[i].Segment_id,
 				ok,
@@ -186,8 +186,8 @@ func verifyVpc() {
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpc(
-			configs.ChainModule_SegmentBook,
-			configs.ChainModule_SegmentBook_UnVerifiedC,
+			chain.State_SegmentBook,
+			chain.SegmentBook_UnVerifiedC,
 		)
 		if err != nil {
 			Err.Sugar().Errorf("%v", err)
@@ -232,7 +232,7 @@ func verifyVpc() {
 
 			err = chain.VerifyInVpc(
 				configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-				configs.ChainTx_SegmentBook_VerifyInVpc,
+				chain.ChainTx_SegmentBook_VerifyInVpc,
 				data[i].Peer_id,
 				data[i].Segment_id,
 				data[i].Unsealed_cid,
@@ -259,8 +259,8 @@ func verifyVpd() {
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(20, 80)))
 		data, err = chain.GetUnverifiedVpd(
-			configs.ChainModule_SegmentBook,
-			configs.ChainModule_SegmentBook_UnVerifiedD,
+			chain.State_SegmentBook,
+			chain.SegmentBook_UnVerifiedD,
 		)
 		if err != nil {
 			Err.Sugar().Errorf("%v", err)
@@ -299,7 +299,7 @@ func verifyVpd() {
 			if ok || vpdfailcount[uint64(data[i].Segment_id)] >= uint8(3) {
 				err = chain.VerifyInVpaOrVpbOrVpd(
 					configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-					configs.ChainTx_SegmentBook_VerifyInVpd,
+					chain.ChainTx_SegmentBook_VerifyInVpd,
 					data[i].Peer_id,
 					data[i].Segment_id,
 					ok,

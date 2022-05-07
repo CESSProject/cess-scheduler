@@ -9,7 +9,6 @@ import (
 	"cess-scheduler/initlz"
 	"cess-scheduler/internal/chain"
 	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/proof"
 	"cess-scheduler/internal/rpc"
 	"cess-scheduler/tools"
 	"fmt"
@@ -148,7 +147,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	// init
 	initlz.SystemInit()
 
-	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
+	sd, err := chain.GetSchedulerInfoOnChain(chain.State_FileMap, chain.FileMap_SchedulerInfo)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -170,7 +169,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	}
 	// start-up
 	exit_interrupt()
-	proof.Chain_Main()
+	//proof.Chain_Main()
 
 	// rpc service
 	rpc.Rpc_Main()
@@ -222,12 +221,17 @@ func parseProfile() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
 		os.Exit(1)
 	}
-	//fmt.Println(configs.Confile)
+
+	_, err = os.Stat(configs.Confile.SchedulerInfo.DataDir)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
 }
 
 // Scheduler registration function
 func register() {
-	sd, err := chain.GetSchedulerInfoOnChain(configs.ChainModule_FileMap, configs.ChainModule_FileMap_SchedulerInfo)
+	sd, err := chain.GetSchedulerInfoOnChain(chain.State_FileMap, chain.FileMap_SchedulerInfo)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -265,7 +269,7 @@ func register() {
 
 	_, err = chain.RegisterToChain(
 		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-		configs.ChainTx_FileMap_Add_schedule,
+		chain.ChainTx_FileMap_Add_schedule,
 		configs.Confile.SchedulerInfo.StashAccountAddress,
 		res,
 	)

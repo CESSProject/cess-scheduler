@@ -15,6 +15,8 @@ import (
 type testService struct{}
 
 func (testService) HelloAction(body []byte) (proto.Message, error) {
+	fmt.Println(len(body))
+	fmt.Println(string(body[5242870:]))
 	return &RespBody{Msg: "test hello"}, nil
 }
 
@@ -36,6 +38,11 @@ func TestDialWebsocket(t *testing.T) {
 		Service: "test",
 		Method:  "hello",
 	}
+	b := make([]byte, 5*1024*1024)
+	for i := 0; i < len(b); i++ {
+		b[i] = 'a'
+	}
+	req.Body = b
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	resp, err := client.Call(ctx, req)
 	if err != nil {

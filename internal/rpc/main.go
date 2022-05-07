@@ -7,7 +7,7 @@ import (
 	"cess-scheduler/internal/encryption"
 	"cess-scheduler/internal/fileshards"
 	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/proof"
+	proof "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/tools"
 	"context"
 	"encoding/json"
@@ -80,6 +80,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
+
 	Out.Sugar().Infof("[%v]Receive client upload request:[%v][%v][%v]", t, b.FileId, b.Blocks, len(b.Data))
 	err = tools.CreatDirIfNotExist(configs.CacheFilePath)
 	if err == nil {
@@ -91,7 +92,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		trycount := 0
 		for {
-			fmeta, err = chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
+			fmeta, err = chain.GetFileMetaInfoOnChain(chain.State_FileBank, chain.FileMap_FileMetaInfo, b.FileId)
 			if err != nil {
 				trycount++
 				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -166,7 +167,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 	}
 	if fmeta.FileDupl == nil {
-		fmeta, err = chain.GetFileMetaInfoOnChain(configs.ChainModule_FileBank, configs.ChainModule_FileMap_FileMetaInfo, b.FileId)
+		fmeta, err = chain.GetFileMetaInfoOnChain(chain.State_FileBank, chain.FileMap_FileMetaInfo, b.FileId)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 500, Msg: "Network timeout, try again later!", Data: nil}, nil
@@ -313,6 +314,114 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
 }
 
+//
+func (WService) SpaceTagAction(body []byte) (proto.Message, error) {
+	var (
+		err error
+		t   int64
+		b   SpaceTagReq
+	)
+	t = time.Now().Unix()
+	Out.Sugar().Infof("[%v]Receive space tag request", t)
+	err = proto.Unmarshal(body, &b)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+	}
+
+	mdata, code, err := chain.GetMinerDataOnChain(b.WalletAddress)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		return &RespBody{Code: code, Msg: err.Error(), Data: nil}, nil
+	}
+	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+	}
+	ok := encryption.VerifySign([]byte(b.WalletAddress), b.Sign, pubkey)
+	if !ok {
+		Out.Sugar().Infof("[%v]Receive space tag request err: Invalid signature", t)
+		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
+	}
+
+	if b.SizeMb > 8 || b.SizeMb == 0 {
+		Out.Sugar().Infof("[%v]Receive space tag request err: SizeMb up to 8 and not 0", t)
+		return &RespBody{Code: 400, Msg: "SizeMb up to 8 and not 0", Data: nil}, nil
+	}
+
+	lins := b.SizeMb * 1024 * 1024 / 64
+	filename := fmt.Sprintf("C%d_%d", mdata.Peerid, time.Now().UnixNano())
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	defer os.Remove(filename)
+	defer f.Close()
+	var i uint32 = 0
+	for i = 0; i < lins; i++ {
+		f.WriteString(tools.GetRandomkey(64))
+		f.WriteString("\n")
+	}
+	hash, err := tools.CalcFileHash2(f)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	//Calculate file tags
+	var PoDR2commit proof.PoDR2Commit
+	var commitResponse proof.PoDR2CommitResponse
+	PoDR2commit.FilePath = filename
+	PoDR2commit.BlockSize = 1024 * 1024
+	segmentSize := 1024 * 1024 * 512
+	keypair := proof.Keygen()
+	commitResponseCh := PoDR2commit.PoDR2ProofCommit(keypair.Ssk, keypair.SharedParams, int64(segmentSize))
+	select {
+	case commitResponse = <-commitResponseCh:
+	}
+	if commitResponse.StatueMsg.StatusCode != proof.Success {
+		Out.Sugar().Infof("[%v]Receive space tag request err: PoDR2ProofCommit", t)
+		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
+	}
+
+	// up-chain meta info
+	var metainfo chain.SpacetagInfo
+	metainfo.File_id = []byte(filename)
+	metainfo.File_hash = []byte(hash)
+	wal, err := tools.DecodeToPub(b.WalletAddress)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	metainfo.Miner_address = types.NewAccountID(wal)
+	metainfo.Miner_id = mdata.Peerid
+
+	m, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	metainfo.Block_num = types.U64(n)
+	var file_blocks = make([]chain.FileBlock, n)
+	for i := uint64(1); i <= n; i++ {
+		file_blocks[i].Block_id = types.U64(i)
+		file_blocks[i].Size = types.U64(uint64(len(m[i-1])))
+	}
+	metainfo.File_block = file_blocks
+	_, err = chain.PutSpaceTagInfoToChain(
+		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
+		chain.ChainTx_SegmentBook_IntentSubmit,
+		metainfo,
+	)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+
+	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
+}
+
 // recvCallBack is used to process files uploaded by the client, such as encryption, slicing, etc.
 func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 	var (
@@ -376,8 +485,8 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 		trycount := 0
 		for {
 			mDatas, err = chain.GetAllMinerDataOnChain(
-				configs.ChainModule_Sminer,
-				configs.ChainModule_Sminer_AllMinerItems,
+				chain.State_Sminer,
+				chain.Sminer_AllMinerItems,
 			)
 			if err != nil {
 				trycount++
@@ -456,39 +565,39 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 					}
 					err = writeFile(string(mDatas[index].Ip), bob)
 					if err == nil {
-						shardaddr[k] = append(shardaddr[k], mDatas[index].Ip...)
-						mineraccount = append(mineraccount, mDatas[index].Peerid)
-						// calc para for file shards and up to chain
-						_, unsealedCIDs, _ := proof.GetPrePoRep(shards[k])
-						var uncid = make([][]byte, len(unsealedCIDs))
-						if unsealedCIDs != nil {
-							for m := 0; m < len(unsealedCIDs); m++ {
-								uncid[m] = make([]byte, 0)
-								uncid[m] = append(uncid[m], []byte(unsealedCIDs[m].String())...)
-							}
-						}
-						go func(ts int64, peerid uint64, unsealcid [][]byte, shardhash string) {
-							for {
-								errs := chain.IntentSubmitToChain(
-									configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-									configs.ChainTx_SegmentBook_IntentSubmit,
-									configs.SegMentType_Idle,
-									configs.SegMentType_Service,
-									peerid,
-									unsealcid,
-									[]byte(filepath.Base(shardhash)),
-								)
-								if errs == nil {
-									Out.Sugar().Infof("[%v][C%v] submit uncid success [%v]", ts, peerid, shardhash)
-									return
-								}
-								if time.Since(time.Unix(ts, 0)).Minutes() > 20.0 {
-									Err.Sugar().Errorf("[%v][%v][%v]submit uncid failed:%v", ts, peerid, shardhash, err)
-									return
-								}
-								time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
-							}
-						}(t, uint64(mDatas[index].Peerid), uncid, shards[k])
+						// shardaddr[k] = append(shardaddr[k], mDatas[index].Ip...)
+						// mineraccount = append(mineraccount, mDatas[index].Peerid)
+						// // calc para for file shards and up to chain
+						// _, unsealedCIDs, _ := proof.GetPrePoRep(shards[k])
+						// var uncid = make([][]byte, len(unsealedCIDs))
+						// if unsealedCIDs != nil {
+						// 	for m := 0; m < len(unsealedCIDs); m++ {
+						// 		uncid[m] = make([]byte, 0)
+						// 		uncid[m] = append(uncid[m], []byte(unsealedCIDs[m].String())...)
+						// 	}
+						// }
+						// go func(ts int64, peerid uint64, unsealcid [][]byte, shardhash string) {
+						// 	for {
+						// 		errs := chain.IntentSubmitToChain(
+						// 			configs.Confile.SchedulerInfo.ControllerAccountPhrase,
+						// 			chain.ChainTx_SegmentBook_IntentSubmit,
+						// 			configs.SegMentType_Idle,
+						// 			configs.SegMentType_Service,
+						// 			peerid,
+						// 			unsealcid,
+						// 			[]byte(filepath.Base(shardhash)),
+						// 		)
+						// 		if errs == nil {
+						// 			Out.Sugar().Infof("[%v][C%v] submit uncid success [%v]", ts, peerid, shardhash)
+						// 			return
+						// 		}
+						// 		if time.Since(time.Unix(ts, 0)).Minutes() > 20.0 {
+						// 			Err.Sugar().Errorf("[%v][%v][%v]submit uncid failed:%v", ts, peerid, shardhash, err)
+						// 			return
+						// 		}
+						// 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
+						// 	}
+						// }(t, uint64(mDatas[index].Peerid), uncid, shards[k])
 						break
 					} else {
 						failminer[uint64(mDatas[index].Peerid)] = true
@@ -511,7 +620,7 @@ func recvCallBack(t int64, fid, dir string, num int, bks uint8) {
 
 	// Upload the file meta information to the chain and write it to the cache
 	for {
-		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, configs.ChainTx_FileBank_PutMetaInfo, fid, filedump)
+		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, chain.ChainTx_FileBank_PutMetaInfo, fid, filedump)
 		if !ok || err != nil {
 			Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
