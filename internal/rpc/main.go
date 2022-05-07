@@ -80,6 +80,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
+
 	Out.Sugar().Infof("[%v]Receive client upload request:[%v][%v][%v]", t, b.FileId, b.Blocks, len(b.Data))
 	err = tools.CreatDirIfNotExist(configs.CacheFilePath)
 	if err == nil {
@@ -311,6 +312,66 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 0, Msg: "success", Data: protob}, nil
 	}
 	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
+}
+
+//
+func (WService) SpaceTagAction(body []byte) (proto.Message, error) {
+	var (
+		err error
+		t   int64
+		b   SpaceTagReq
+	)
+	t = time.Now().Unix()
+	Out.Sugar().Infof("[%v]Receive space tag request", t)
+	err = proto.Unmarshal(body, &b)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+	}
+
+	mdata, code, err := chain.GetMinerDataOnChain(b.WalletAddress)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		return &RespBody{Code: code, Msg: err.Error(), Data: nil}, nil
+	}
+	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+	}
+	ok := encryption.VerifySign([]byte(b.WalletAddress), b.Sign, pubkey)
+	if !ok {
+		Out.Sugar().Infof("[%v]Receive space tag request err: Invalid signature", t)
+		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
+	}
+
+	if b.SizeMb > 8 || b.SizeMb == 0 {
+		Out.Sugar().Infof("[%v]Receive space tag request err: SizeMb up to 8 and not 0", t)
+		return &RespBody{Code: 400, Msg: "SizeMb up to 8 and not 0", Data: nil}, nil
+	}
+
+	lins := b.SizeMb * 1024 * 1024 / 64
+	filename := fmt.Sprintf("C%d_%d.cess", mdata.Peerid, time.Now().UnixNano())
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	defer os.Remove(filename)
+	defer f.Close()
+	var i uint32 = 0
+	for i = 0; i < lins; i++ {
+		f.WriteString(tools.GetRandomkey(64))
+		f.WriteString("\n")
+	}
+	hash, err := tools.CalcFileHash2(f)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	hash = hash
+	//TODO: Calculate file tags
+	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
 }
 
 // recvCallBack is used to process files uploaded by the client, such as encryption, slicing, etc.

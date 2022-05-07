@@ -3,39 +3,19 @@ package configs
 // type and version
 const Version = "cess-scheduler_V0.4.0"
 
-// cess chain module
 const (
-	ChainModule_Sminer      = "Sminer"
-	ChainModule_SegmentBook = "SegmentBook"
-	ChainModule_FileBank    = "FileBank"
-	ChainModule_FileMap     = "FileMap"
-)
+	// base dir
+	BaseDir = "/usr/local/cess-scheduler"
 
-// cess chain module method
-const (
-	ChainModule_Sminer_AllMinerItems      = "AllMiner"
-	ChainModule_Sminer_MinerItems         = "MinerItems"
-	ChainModule_Sminer_SegInfo            = "SegInfo"
-	ChainModule_SegmentBook_ParamSet      = "ParamSet"
-	ChainModule_SegmentBook_ConProofInfoA = "ConProofInfoA"
-	ChainModule_SegmentBook_UnVerifiedA   = "UnVerifiedA"
-	ChainModule_SegmentBook_UnVerifiedB   = "UnVerifiedB"
-	ChainModule_SegmentBook_UnVerifiedC   = "UnVerifiedC"
-	ChainModule_SegmentBook_UnVerifiedD   = "UnVerifiedD"
-	ChainModule_FileMap_FileMetaInfo      = "File"
-	ChainModule_FileMap_SchedulerInfo     = "SchedulerMap"
-)
-
-// cess chain Transaction name
-const (
-	ChainTx_SegmentBook_VerifyInVpa  = "SegmentBook.verify_in_vpa"
-	ChainTx_SegmentBook_VerifyInVpb  = "SegmentBook.verify_in_vpb"
-	ChainTx_SegmentBook_VerifyInVpc  = "SegmentBook.verify_in_vpc"
-	ChainTx_SegmentBook_VerifyInVpd  = "SegmentBook.verify_in_vpd"
-	ChainTx_SegmentBook_IntentSubmit = "SegmentBook.intent_submit"
-	ChainTx_FileBank_Update          = "FileBank.update"
-	ChainTx_FileMap_Add_schedule     = "FileMap.registration_scheduler"
-	ChainTx_FileBank_PutMetaInfo     = "FileBank.update_dupl"
+	// log file dir
+	LogFilePath = BaseDir + "/log"
+	// file cache dir
+	CacheFilePath = BaseDir + "/cache"
+	// database dir
+	DbFilePath = BaseDir + "/db"
+	// keyfile dir
+	PrivateKeyfile = BaseDir + "/.s_privateKey.pem"
+	PublicKeyfile  = BaseDir + "/.s_publicKey.pem"
 )
 
 const (
@@ -57,9 +37,6 @@ const (
 )
 
 var (
-	LogFilePath    = "/var/cesscache/log"
-	CacheFilePath  = "/var/cesscache/cache"
-	DbFilePath     = "/var/cesscache/db"
 	MinSegMentSize = 8323072
 	RduShards      = 2
 	CurrentPath    = ""

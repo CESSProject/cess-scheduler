@@ -80,6 +80,15 @@ func CalcFileHash(fpath string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// Calculate the file hash value
+func CalcFileHash2(f *os.File) (string, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // Get a random integer in a specified range
 func RandomInRange(min, max int) int {
 	rand.Seed(time.Now().Unix())
