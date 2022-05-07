@@ -151,3 +151,16 @@ type SchedulerInfo struct {
 type CessChain_EtcdItems struct {
 	Ip types.Bytes `json:"ip"`
 }
+
+type SpacetagInfo struct {
+	File_id       types.Bytes
+	File_hash     types.Bytes
+	Miner_id      types.U64
+	Miner_address types.AccountID
+	Block_num     types.U64
+	File_block    []FileBlock
+}
+type FileBlock struct {
+	Block_id types.U64
+	Size     types.U64
+}

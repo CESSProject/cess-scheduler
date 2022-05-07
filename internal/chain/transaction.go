@@ -741,6 +741,145 @@ func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []File
 	}
 }
 
+// Update file meta information
+func PutSpaceTagInfoToChain(transactionPrK, TransactionName string, info SpacetagInfo) (bool, error) {
+	var (
+		err         error
+		accountInfo types.AccountInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
+	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
+	if err != nil {
+		return false, errors.Wrap(err, "KeyringPairFromSecret err")
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return false, errors.Wrap(err, "GetMetadataLatest err")
+	}
+
+	b, err := types.EncodeToBytes(info)
+	if err != nil {
+		return false, errors.Wrap(err, "EncodeToBytes err")
+	}
+	c, err := types.NewCall(meta, TransactionName, b)
+	if err != nil {
+		return false, errors.Wrap(err, "NewCall err")
+	}
+
+	ext := types.NewExtrinsic(c)
+	if err != nil {
+		return false, errors.Wrap(err, "NewExtrinsic err")
+	}
+
+	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
+	if err != nil {
+		return false, errors.Wrap(err, "GetBlockHash err")
+	}
+
+	rv, err := api.RPC.State.GetRuntimeVersionLatest()
+	if err != nil {
+		return false, errors.Wrap(err, "GetRuntimeVersionLatest err")
+	}
+
+	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
+	if err != nil {
+		return false, errors.Wrap(err, "CreateStorageKey System  Account err")
+	}
+
+	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
+	if err != nil {
+		return false, errors.Wrap(err, "CreateStorageKey System Events err")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
+	if err != nil {
+		return false, errors.Wrap(err, "GetStorageLatest err")
+	}
+	if !ok {
+		return false, errors.New("GetStorageLatest return value is empty")
+	}
+
+	o := types.SignatureOptions{
+		BlockHash:          genesisHash,
+		Era:                types.ExtrinsicEra{IsMortalEra: false},
+		GenesisHash:        genesisHash,
+		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
+		SpecVersion:        rv.SpecVersion,
+		Tip:                types.NewUCompactFromUInt(0),
+		TransactionVersion: rv.TransactionVersion,
+	}
+
+	// Sign the transaction
+	err = ext.Sign(keyring, o)
+	if err != nil {
+		return false, errors.Wrap(err, "Sign err")
+	}
+
+	// Do the transfer and track the actual status
+	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	if err != nil {
+		return false, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+	}
+	defer sub.Unsubscribe()
+	var head *types.Header
+	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsInBlock {
+				events := MyEventRecords{}
+				head, _ = api.RPC.Chain.GetHeader(status.AsInBlock)
+				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
+				if err != nil {
+					if head != nil {
+						return false, errors.Wrapf(err, "[%v]", head.Number)
+					} else {
+						return false, err
+					}
+				}
+				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
+				if err != nil {
+					if head != nil {
+						Out.Sugar().Infof("[%v]Decode event err:%v", head.Number, err)
+					} else {
+						Out.Sugar().Infof("Decode event err:%v", err)
+					}
+				}
+
+				// if events.FileBank_FileUpdate != nil {
+				// 	for i := 0; i < len(events.FileBank_FileUpdate); i++ {
+				// 		if string(events.FileBank_FileUpdate[i].Fileid) == string(fid) {
+				// 			return true, nil
+				// 		}
+				// 	}
+				// 	if head != nil {
+				// 		return false, errors.Errorf("[%v]events.FileBank_FileUpdate data err", head.Number)
+				// 	} else {
+				// 		return false, errors.New("events.FileBank_FileUpdate data err")
+				// 	}
+				// }
+				// if head != nil {
+				// 	return false, errors.Errorf("[%v]events.FileBank_FileUpdate not found", head.Number)
+				// } else {
+				// 	return false, errors.New("events.FileBank_FileUpdate not found")
+				// }
+			}
+		case err = <-sub.Err():
+			return false, err
+		case <-timeout:
+			return false, errors.Errorf("[%v] tx timeout", TransactionName)
+		}
+	}
+}
+
 type faucet struct {
 	Ans    answer `json:"Result"`
 	Status string `json:"Status"`

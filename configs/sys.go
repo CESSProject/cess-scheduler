@@ -13,9 +13,6 @@ const (
 	CacheFilePath = BaseDir + "/cache"
 	// database dir
 	DbFilePath = BaseDir + "/db"
-	// keyfile dir
-	PrivateKeyfile = BaseDir + "/.s_privateKey.pem"
-	PublicKeyfile  = BaseDir + "/.s_publicKey.pem"
 )
 
 const (
