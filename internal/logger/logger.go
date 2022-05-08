@@ -17,9 +17,9 @@ var (
 )
 
 func LoggerInit() {
-	_, err := os.Stat(configs.LogFilePath)
+	_, err := os.Stat(configs.LogFileDir)
 	if err != nil {
-		err = os.MkdirAll(configs.LogFilePath, os.ModeDir)
+		err = os.MkdirAll(configs.LogFileDir, os.ModeDir)
 		if err != nil {
 			fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 			os.Exit(1)
@@ -31,7 +31,7 @@ func LoggerInit() {
 
 // out log
 func initOutLogger() {
-	outlogpath := configs.LogFilePath + "/out.log"
+	outlogpath := configs.LogFileDir + "/out.log"
 	hook := lumberjack.Logger{
 		Filename:   outlogpath,
 		MaxSize:    50,
@@ -65,7 +65,7 @@ func initOutLogger() {
 
 // err log
 func initErrLogger() {
-	errlogpath := configs.LogFilePath + "/err.log"
+	errlogpath := configs.LogFileDir + "/err.log"
 	hook := lumberjack.Logger{
 		Filename:   errlogpath,
 		MaxSize:    10,

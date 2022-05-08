@@ -6,14 +6,15 @@ package cmd
 
 import (
 	"cess-scheduler/configs"
-	"cess-scheduler/initlz"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/logger"
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/internal/rpc"
 	"cess-scheduler/tools"
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -119,7 +120,7 @@ func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 // Scheduler registration
 func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
-	initlz.SystemInit()
+	chain.ChainInit()
 	register()
 }
 
@@ -144,10 +145,8 @@ func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	var reg bool
 	refreshProfile(cmd)
-	// init
-	initlz.SystemInit()
-
-	sd, err := chain.GetSchedulerInfoOnChain(chain.State_FileMap, chain.FileMap_SchedulerInfo)
+	chain.ChainInit()
+	sd, _, err := chain.GetSchedulerInfoOnChain()
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -155,7 +154,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.ControllerAccountPhrase, 0)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(-1)
+		os.Exit(1)
 	}
 	for _, v := range sd {
 		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
@@ -167,7 +166,29 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Unregistered.\n", 41)
 		os.Exit(1)
 	}
+
+	eip, err := tools.GetExternalIp()
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
+
+	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.Base58Encoding(eip))
+	f, err := os.Stat(baseDir)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' not found\n", 41, baseDir)
+		os.Exit(1)
+	}
+	if !f.IsDir() {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' is not a directory\n", 41, baseDir)
+		os.Exit(1)
+	}
+	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
+	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
+	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
+	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
 	// start-up
+	logger.LoggerInit()
 	exit_interrupt()
 	//proof.Chain_Main()
 
@@ -231,7 +252,7 @@ func parseProfile() {
 
 // Scheduler registration function
 func register() {
-	sd, err := chain.GetSchedulerInfoOnChain(chain.State_FileMap, chain.FileMap_SchedulerInfo)
+	sd, _, err := chain.GetSchedulerInfoOnChain()
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -254,18 +275,21 @@ func register() {
 		os.Exit(1)
 	}
 
-	if eip != configs.Confile.SchedulerInfo.ServiceAddr {
-		fmt.Printf("\x1b[%dm[err]\x1b[0mYou can use \"curl ifconfig.co\" to view the external network ip address\n", 41)
+	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.Base58Encoding(eip))
+	_, err = os.Stat(baseDir)
+	if err == nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' directory conflict\n", 41, baseDir)
 		os.Exit(1)
 	}
 
-	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
+	if configs.Confile.SchedulerInfo.ServiceAddr != "" {
+		if eip != configs.Confile.SchedulerInfo.ServiceAddr {
+			fmt.Printf("\x1b[%dm[err]\x1b[0mYou can use \"curl ifconfig.co\" to view the external network ip address\n", 41)
+			os.Exit(1)
+		}
+	}
 
-	Out.Sugar().Infof("Registration message:")
-	Out.Sugar().Infof("CessAddr:%v", configs.Confile.CessChain.ChainAddr)
-	Out.Sugar().Infof("ServiceAddr:%v", res)
-	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.Confile.SchedulerInfo.ControllerAccountPhrase)
-	Out.Sugar().Infof("StashAccountAddress:%v", configs.Confile.SchedulerInfo.StashAccountAddress)
+	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
 
 	_, err = chain.RegisterToChain(
 		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
@@ -274,13 +298,38 @@ func register() {
 		res,
 	)
 	if err != nil {
-		Out.Sugar().Infof("Registration failed......,err:%v", err)
-		Err.Sugar().Errorf("%v", err)
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed, Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
 	}
-	fmt.Println("success")
+	fmt.Printf("\x1b[%dm[ok]\x1b[0m Registration success\n", 42)
+
+	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
+	if err = tools.CreatDirIfNotExist(configs.LogFileDir); err != nil {
+		goto Err
+	}
+	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
+	if err = tools.CreatDirIfNotExist(configs.FileCacheDir); err != nil {
+		goto Err
+	}
+	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
+	if err = tools.CreatDirIfNotExist(configs.DbFileDir); err != nil {
+		goto Err
+	}
+	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
+	if err = tools.CreatDirIfNotExist(configs.SpaceCacheDir); err != nil {
+		goto Err
+	}
+	logger.LoggerInit()
+	Out.Sugar().Infof("Registration message:")
+	Out.Sugar().Infof("CessAddr:%v", configs.Confile.CessChain.ChainAddr)
+	Out.Sugar().Infof("ServiceAddr:%v", res)
+	Out.Sugar().Infof("DataDir:%v", configs.Confile.SchedulerInfo.DataDir)
+	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.Confile.SchedulerInfo.ControllerAccountPhrase)
+	Out.Sugar().Infof("StashAccountAddress:%v", configs.Confile.SchedulerInfo.StashAccountAddress)
 	os.Exit(0)
+Err:
+	fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+	os.Exit(1)
 }
 
 // Catch the system unexpected exit signal.

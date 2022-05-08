@@ -30,28 +30,28 @@ var C Cache
 func GetCache() (Cache, error) {
 	var err error
 	if C == nil {
-		_, err = os.Stat(configs.DbFilePath)
+		_, err = os.Stat(configs.DbFileDir)
 		if err != nil {
-			err = os.MkdirAll(configs.DbFilePath, os.ModeDir)
+			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
 			if err != nil {
 				return nil, err
 			}
 		}
-		C, err = newLevelDB(configs.DbFilePath, 0, 0, "cess")
+		C, err = newLevelDB(configs.DbFileDir, 0, 0, "cess")
 		if err != nil {
 			return nil, err
 		}
 		return C, nil
 	}
 	if err = C.Delete([]byte("NIL")); err != nil {
-		_, err = os.Stat(configs.DbFilePath)
+		_, err = os.Stat(configs.DbFileDir)
 		if err != nil {
-			err = os.MkdirAll(configs.DbFilePath, os.ModeDir)
+			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
 			if err != nil {
 				return nil, err
 			}
 		}
-		C, err = newLevelDB(configs.DbFilePath, 0, 0, "cess")
+		C, err = newLevelDB(configs.DbFileDir, 0, 0, "cess")
 		if err != nil {
 			return nil, err
 		}
