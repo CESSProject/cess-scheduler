@@ -3,23 +3,27 @@ package configs
 // type and version
 const Version = "cess-scheduler_V0.4.0"
 
-const (
-	// base dir
-	BaseDir = "/usr/local/cess-scheduler"
-
-	// log file dir
-	LogFilePath = BaseDir + "/log"
-	// file cache dir
-	CacheFilePath = BaseDir + "/cache"
-	// database dir
-	DbFilePath = BaseDir + "/db"
-)
-
+// rpc
 const (
 	RpcService_Scheduler      = "wservice"
 	RpcService_Miner          = "mservice"
 	RpcMethod_Miner_WriteFile = "writefile"
 	RpcMethod_Miner_ReadFile  = "readfile"
+)
+
+// return code
+const (
+	Code_200 = 200
+	Code_400 = 400
+	Code_403 = 403
+	Code_404 = 404
+	Code_500 = 500
+)
+
+// space file
+const (
+	LengthOfALine = 128
+	BlockSize     = 1024 * 1024
 )
 
 const (
@@ -38,4 +42,10 @@ var (
 	RduShards      = 2
 	CurrentPath    = ""
 	FilePostProof  = 6
+
+	//data dir
+	LogFileDir    = "log"
+	FileCacheDir  = "file"
+	DbFileDir     = "db"
+	SpaceCacheDir = "space"
 )

@@ -26,28 +26,10 @@ import (
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/golang/protobuf/proto"
+	"storj.io/common/base58"
 )
 
 type WService struct {
-}
-
-// Init.
-// Must be called before Rpc_Main function.
-func Rpc_Init() {
-	var err error
-	if err = tools.CreatDirIfNotExist(configs.CacheFilePath); err != nil {
-		goto Err
-	}
-	if err = tools.CreatDirIfNotExist(configs.LogFilePath); err != nil {
-		goto Err
-	}
-	if err = tools.CreatDirIfNotExist(configs.DbFilePath); err != nil {
-		goto Err
-	}
-	return
-Err:
-	fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-	os.Exit(1)
 }
 
 // Start tcp service.
@@ -82,9 +64,9 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	}
 
 	Out.Sugar().Infof("[%v]Receive client upload request:[%v][%v][%v]", t, b.FileId, b.Blocks, len(b.Data))
-	err = tools.CreatDirIfNotExist(configs.CacheFilePath)
+	err = tools.CreatDirIfNotExist(configs.FileCacheDir)
 	if err == nil {
-		cachepath = filepath.Join(configs.CacheFilePath, b.FileId)
+		cachepath = filepath.Join(configs.FileCacheDir, b.FileId)
 	} else {
 		cachepath = filepath.Join("./cesscache/cache", b.FileId)
 	}
@@ -184,7 +166,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	// 	return &RespBody{Code: 400, Msg: "No permission"}, nil
 	// }
 
-	path := filepath.Join(configs.CacheFilePath, b.FileId)
+	path := filepath.Join(configs.FileCacheDir, b.FileId)
 	_, err = os.Stat(path)
 	if err != nil {
 		os.MkdirAll(path, os.ModeDir)
@@ -314,74 +296,153 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
 }
 
+type RespSpacetagInfo struct {
+	FileId string         `json:"fileId"`
+	T      proof.FileTagT `json:"file_tag_t"`
+	Sigmas [][]byte       `json:"sigmas"`
+}
+type RespSpacefileInfo struct {
+	FileId     string `json:"fileId"`
+	BlockTotal uint32 `json:"blockTotal"`
+	BlockIndex uint32 `json:"blockIndex"`
+	BlockData  []byte `json:"blockData"`
+}
+
 //
-func (WService) SpaceTagAction(body []byte) (proto.Message, error) {
+func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	var (
 		err error
 		t   int64
 		b   SpaceTagReq
 	)
 	t = time.Now().Unix()
-	Out.Sugar().Infof("[%v]Receive space tag request", t)
+	Out.Sugar().Infof("[%v]Receive space request", t)
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 
 	mdata, code, err := chain.GetMinerDataOnChain(b.WalletAddress)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
 		return &RespBody{Code: code, Msg: err.Error(), Data: nil}, nil
 	}
 	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err:%v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 	ok := encryption.VerifySign([]byte(b.WalletAddress), b.Sign, pubkey)
 	if !ok {
-		Out.Sugar().Infof("[%v]Receive space tag request err: Invalid signature", t)
+		Out.Sugar().Infof("[%v]Receive space request err: Invalid signature", t)
 		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
 	}
 
+	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.WalletAddress)))
+	_, err = os.Stat(filebasedir)
+	if err != nil {
+		err = os.MkdirAll(filebasedir, os.ModeDir)
+		if err != nil {
+			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		}
+	}
+
+	filefullpath := filepath.Join(filebasedir, b.Fileid)
+	fi, err := os.Stat(filefullpath)
+	if err == nil {
+		var respfile RespSpacefileInfo
+		respfile.FileId = b.Fileid
+		respfile.BlockIndex = b.BlockIndex
+		f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
+		if err != nil {
+			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+			os.Remove(filefullpath)
+			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		}
+
+		blockTotal := fi.Size() / 2 / 1024 / 1024
+		respfile.BlockTotal = uint32(blockTotal)
+
+		if b.BlockIndex >= uint32(blockTotal) {
+			f.Close()
+			Out.Sugar().Infof("[%v]Receive space request err: Invalid block index", t)
+			return &RespBody{Code: 400, Msg: "Invalid block index", Data: nil}, nil
+		}
+		offset, err := f.Seek(int64(b.BlockIndex*2*1024*1024), 0)
+		if err != nil {
+			f.Close()
+			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		}
+		var buf = make([]byte, 2*1024*1024)
+		_, err = f.ReadAt(buf, offset)
+		if err != nil {
+			f.Close()
+			os.Remove(filefullpath)
+			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		}
+		respfile.BlockData = buf
+		respfile_b, err := json.Marshal(respfile)
+		if err != nil {
+			f.Close()
+			os.Remove(filefullpath)
+			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		}
+		f.Close()
+		if b.BlockIndex+1 == uint32(blockTotal) {
+			os.Remove(filefullpath)
+		}
+		return &RespBody{Code: 201, Msg: "Invalid block index", Data: respfile_b}, nil
+	}
+
 	if b.SizeMb > 8 || b.SizeMb == 0 {
-		Out.Sugar().Infof("[%v]Receive space tag request err: SizeMb up to 8 and not 0", t)
+		Out.Sugar().Infof("[%v]Receive space request err: SizeMb up to 8 and not 0", t)
 		return &RespBody{Code: 400, Msg: "SizeMb up to 8 and not 0", Data: nil}, nil
 	}
 
-	lins := b.SizeMb * 1024 * 1024 / 64
+	lines := b.SizeMb * 1024 * 1024 / configs.LengthOfALine
 	filename := fmt.Sprintf("C%d_%d", mdata.Peerid, time.Now().UnixNano())
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
+	filefullpath = filepath.Join(filebasedir, filename)
+	f, err := os.OpenFile(filefullpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	defer os.Remove(filename)
-	defer f.Close()
 	var i uint32 = 0
-	for i = 0; i < lins; i++ {
-		f.WriteString(tools.GetRandomkey(64))
+	for i = 0; i < lines; i++ {
+		f.WriteString(tools.RandStr(configs.LengthOfALine - 1))
 		f.WriteString("\n")
 	}
-	hash, err := tools.CalcFileHash2(f)
+	err = f.Sync()
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		f.Close()
+		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	//Calculate file tags
+	f.Close()
+	hash, err := tools.CalcFileHash(filefullpath)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	// calculate file tag info
 	var PoDR2commit proof.PoDR2Commit
 	var commitResponse proof.PoDR2CommitResponse
 	PoDR2commit.FilePath = filename
-	PoDR2commit.BlockSize = 1024 * 1024
-	segmentSize := 1024 * 1024 * 512
+	PoDR2commit.BlockSize = configs.BlockSize
+	segmentSize := configs.BlockSize * 512
 	keypair := proof.Keygen()
 	commitResponseCh := PoDR2commit.PoDR2ProofCommit(keypair.Ssk, keypair.SharedParams, int64(segmentSize))
 	select {
 	case commitResponse = <-commitResponseCh:
 	}
 	if commitResponse.StatueMsg.StatusCode != proof.Success {
-		Out.Sugar().Infof("[%v]Receive space tag request err: PoDR2ProofCommit", t)
+		Out.Sugar().Infof("[%v]Receive space request err: PoDR2ProofCommit", t)
 		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
 	}
 
@@ -391,7 +452,7 @@ func (WService) SpaceTagAction(body []byte) (proto.Message, error) {
 	metainfo.File_hash = []byte(hash)
 	wal, err := tools.DecodeToPub(b.WalletAddress)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	metainfo.Miner_address = types.NewAccountID(wal)
@@ -399,7 +460,7 @@ func (WService) SpaceTagAction(body []byte) (proto.Message, error) {
 
 	m, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	metainfo.Block_num = types.U64(n)
@@ -415,11 +476,20 @@ func (WService) SpaceTagAction(body []byte) (proto.Message, error) {
 		metainfo,
 	)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space tag request err: %v", t, err)
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
-	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
+	var resp RespSpacetagInfo
+	resp.FileId = filename
+	resp.T = commitResponse.T
+	resp.Sigmas = commitResponse.Sigmas
+	resp_b, err := json.Marshal(resp)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
+	return &RespBody{Code: 202, Msg: "success", Data: resp_b}, nil
 }
 
 // recvCallBack is used to process files uploaded by the client, such as encryption, slicing, etc.

@@ -16,7 +16,7 @@ var (
 	r     *gsrpc.SubstrateAPI
 )
 
-func Chain_Init() {
+func ChainInit() {
 	var err error
 	wlock = new(sync.Mutex)
 	r, err = gsrpc.NewSubstrateAPI(configs.Confile.CessChain.ChainAddr)

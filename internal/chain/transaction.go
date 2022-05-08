@@ -845,6 +845,7 @@ func PutSpaceTagInfoToChain(transactionPrK, TransactionName string, info Spaceta
 						return false, err
 					}
 				}
+				//types.EventRecordsRaw(key).DecodeEventRecords(meta, &events)
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
 					if head != nil {

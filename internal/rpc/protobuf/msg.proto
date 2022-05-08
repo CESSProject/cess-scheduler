@@ -49,6 +49,8 @@ message file_download_req{
 
 message space_tag_req{
   string walletAddress=1;
-  uint32 size_mb=2;
-  bytes  sign=3;
+  string fileid =2;
+  uint32 blockIndex=3;
+  uint32 size_mb=4;
+  bytes  sign=5;
 }

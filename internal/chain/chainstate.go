@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"cess-scheduler/configs"
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
 	"net/http"
@@ -212,7 +213,7 @@ func GetFileMetaInfoOnChain(chainModule, chainModuleMethod, fileid string) (File
 }
 
 // Query Scheduler info
-func GetSchedulerInfoOnChain(chainModule, chainModuleMethod string) ([]SchedulerInfo, error) {
+func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 	var (
 		err   error
 		mdata = make([]SchedulerInfo, 0)
@@ -222,22 +223,25 @@ func GetSchedulerInfoOnChain(chainModule, chainModuleMethod string) ([]Scheduler
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", chainModule, chainModuleMethod, err)
+			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_FileMap, FileMap_SchedulerInfo, err)
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", State_FileMap, FileMap_SchedulerInfo)
 	}
 
-	key, err := types.CreateStorageKey(meta, chainModule, chainModuleMethod)
+	key, err := types.CreateStorageKey(meta, State_FileMap, FileMap_SchedulerInfo)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", State_FileMap, FileMap_SchedulerInfo)
 	}
 
-	_, err = api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", State_FileMap, FileMap_SchedulerInfo)
 	}
-	return mdata, nil
+	if !ok {
+		return mdata, configs.Code_400, errors.Errorf("[%v.%v:value is empty]", State_FileMap, FileMap_SchedulerInfo)
+	}
+	return mdata, configs.Code_200, nil
 }

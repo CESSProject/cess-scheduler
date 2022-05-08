@@ -36,13 +36,13 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1
-	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
+	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
 	golang.org/x/net v0.0.0-20211208012354-db4efeb81f4b // indirect
-	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	golang.org/x/tools v0.1.9 // indirect
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/ini.v1 v1.66.3 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
+	storj.io/common v0.0.0-20220428121409-b5784811121e
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.26.0
