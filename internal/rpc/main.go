@@ -132,7 +132,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	Out.Sugar().Infof("[%v]Receive download request", t)
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
+		Out.Sugar().Infof("[%v]Receive download request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 	//Query file meta information
@@ -435,9 +435,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	var commitResponse proof.PoDR2CommitResponse
 	PoDR2commit.FilePath = filename
 	PoDR2commit.BlockSize = configs.BlockSize
-	segmentSize := configs.BlockSize * 512
-	keypair := proof.Keygen()
-	commitResponseCh := PoDR2commit.PoDR2ProofCommit(keypair.Ssk, keypair.SharedParams, int64(segmentSize))
+	commitResponseCh := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 	select {
 	case commitResponse = <-commitResponseCh:
 	}
@@ -447,32 +445,33 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	// up-chain meta info
-	var metainfo chain.SpacetagInfo
-	metainfo.File_id = []byte(filename)
-	metainfo.File_hash = []byte(hash)
+	var metainfo chain.SpaceFileInfo
+	metainfo.FileId = []byte(filename)
+	metainfo.FileHash = []byte(hash)
+	metainfo.FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
 	wal, err := tools.DecodeToPub(b.WalletAddress)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	metainfo.Miner_address = types.NewAccountID(wal)
-	metainfo.Miner_id = mdata.Peerid
+	metainfo.Acc = types.NewAccountID(wal)
+	metainfo.MinerId = mdata.Peerid
 
 	m, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	metainfo.Block_num = types.U64(n)
-	var file_blocks = make([]chain.FileBlock, n)
+	metainfo.BlockNum = types.U32(n)
+	var file_blocks = make([]chain.BlockInfo, n)
 	for i := uint64(1); i <= n; i++ {
-		file_blocks[i].Block_id = types.U64(i)
-		file_blocks[i].Size = types.U64(uint64(len(m[i-1])))
+		file_blocks[i].BlockIndex = types.U32(i)
+		file_blocks[i].BlockSize = types.U32(uint32(len(m[i-1])))
+		file_blocks[i].ScanBlockSize = types.U32(uint32(configs.ScanBlockSize))
 	}
-	metainfo.File_block = file_blocks
+	metainfo.BlockInfo = file_blocks
 	_, err = chain.PutSpaceTagInfoToChain(
 		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
-		chain.ChainTx_SegmentBook_IntentSubmit,
 		metainfo,
 	)
 	if err != nil {

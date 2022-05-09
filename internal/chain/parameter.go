@@ -44,6 +44,7 @@ const (
 	ChainTx_FileBank_PutMetaInfo     = "FileBank.update_dupl"
 	ChainTx_FileBank_Upload          = "FileBank.upload"
 	ChainTx_FileBank_HttpDeleteFile  = "FileBank.http_delete"
+	ChainTx_FileBank_FillerMap       = "FileBank.FillerMap"
 )
 
 type Chain_MinerItems struct {
@@ -152,15 +153,17 @@ type CessChain_EtcdItems struct {
 	Ip types.Bytes `json:"ip"`
 }
 
-type SpacetagInfo struct {
-	File_id       types.Bytes
-	File_hash     types.Bytes
-	Miner_id      types.U64
-	Miner_address types.AccountID
-	Block_num     types.U64
-	File_block    []FileBlock
+type SpaceFileInfo struct {
+	MinerId   types.U64
+	FileSize  types.U64
+	BlockNum  types.U32
+	Acc       types.AccountID
+	BlockInfo []BlockInfo
+	FileId    types.Bytes
+	FileHash  types.Bytes
 }
-type FileBlock struct {
-	Block_id types.U64
-	Size     types.U64
+type BlockInfo struct {
+	BlockIndex    types.U32
+	BlockSize     types.U32
+	ScanBlockSize types.U32
 }

@@ -742,7 +742,7 @@ func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []File
 }
 
 // Update file meta information
-func PutSpaceTagInfoToChain(transactionPrK, TransactionName string, info SpacetagInfo) (bool, error) {
+func PutSpaceTagInfoToChain(transactionPrK string, info SpaceFileInfo) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -769,7 +769,7 @@ func PutSpaceTagInfoToChain(transactionPrK, TransactionName string, info Spaceta
 	if err != nil {
 		return false, errors.Wrap(err, "EncodeToBytes err")
 	}
-	c, err := types.NewCall(meta, TransactionName, b)
+	c, err := types.NewCall(meta, ChainTx_FileBank_FillerMap, b)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -876,7 +876,7 @@ func PutSpaceTagInfoToChain(transactionPrK, TransactionName string, info Spaceta
 		case err = <-sub.Err():
 			return false, err
 		case <-timeout:
-			return false, errors.Errorf("[%v] tx timeout", TransactionName)
+			return false, errors.Errorf("[%v] tx timeout", ChainTx_FileBank_FillerMap)
 		}
 	}
 }

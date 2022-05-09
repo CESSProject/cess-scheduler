@@ -23,7 +23,8 @@ const (
 // space file
 const (
 	LengthOfALine = 128
-	BlockSize     = 1024 * 1024
+	BlockSize     = 1024 * 1024 //1MB
+	ScanBlockSize = 512 * 1024  //512KB
 )
 
 const (
