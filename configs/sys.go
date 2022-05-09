@@ -9,6 +9,7 @@ const (
 	RpcService_Miner          = "mservice"
 	RpcMethod_Miner_WriteFile = "writefile"
 	RpcMethod_Miner_ReadFile  = "readfile"
+	RpcFileBuffer             = 2 * 1024 * 1024
 )
 
 // return code

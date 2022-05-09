@@ -50,7 +50,7 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 }
 
 // Get all miner information on the cess chain
-func GetAllMinerDataOnChain(chainModule, chainModuleMethod string) ([]CessChain_AllMinerInfo, error) {
+func GetAllMinerDataOnChain() ([]CessChain_AllMinerInfo, int, error) {
 	var (
 		err   error
 		mdata []CessChain_AllMinerInfo
@@ -60,24 +60,27 @@ func GetAllMinerDataOnChain(chainModule, chainModuleMethod string) ([]CessChain_
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", chainModule, chainModuleMethod, err)
+			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_AllMinerItems, err)
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	key, err := types.CreateStorageKey(meta, chainModule, chainModuleMethod)
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_AllMinerItems)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	_, err = api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
-	return mdata, nil
+	if !ok {
+		return mdata, configs.Code_403, errors.New("No miners for storage")
+	}
+	return mdata, configs.Code_200, nil
 }
 
 // Get unverified vpa or vpb on the cess chain
@@ -174,7 +177,7 @@ func GetUnverifiedVpd(chainModule, chainModuleMethod string) ([]UnVerifiedVpd, e
 }
 
 // Query file meta info
-func GetFileMetaInfoOnChain(chainModule, chainModuleMethod, fileid string) (FileMetaInfo, error) {
+func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 	var (
 		err   error
 		mdata FileMetaInfo
@@ -184,32 +187,32 @@ func GetFileMetaInfoOnChain(chainModule, chainModuleMethod, fileid string) (File
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", chainModule, chainModuleMethod, err)
+			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_FileBank, FileMap_FileMetaInfo, err)
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
 	b, err := types.EncodeToBytes(fileid)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:EncodeToBytes]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_400, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
-	key, err := types.CreateStorageKey(meta, chainModule, chainModuleMethod, types.NewBytes(b))
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileMap_FileMetaInfo, types.NewBytes(b))
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
-		return mdata, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", chainModule, chainModuleMethod)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, errors.Errorf("[%v not folund]", fileid)
+		return mdata, configs.Code_400, errors.Errorf("[%v not folund]", fileid)
 	}
-	return mdata, nil
+	return mdata, configs.Code_200, nil
 }
 
 // Query Scheduler info
