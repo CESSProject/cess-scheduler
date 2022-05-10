@@ -607,7 +607,7 @@ func IntentSubmitToChain(identifyAccountPhrase, TransactionName string, segsizet
 }
 
 // Update file meta information
-func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []FileDuplicateInfo) (bool, error) {
+func PutMetaInfoToChain(transactionPrK, fid string, info []FileDuplicateInfo) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -630,7 +630,7 @@ func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []File
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, types.Bytes([]byte(fid)), info)
+	c, err := types.NewCall(meta, ChainTx_FileBank_PutMetaInfo, types.Bytes([]byte(fid)), info)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -736,7 +736,7 @@ func PutMetaInfoToChain(transactionPrK, TransactionName, fid string, info []File
 		case err = <-sub.Err():
 			return false, err
 		case <-timeout:
-			return false, errors.Errorf("[%v] tx timeout", TransactionName)
+			return false, errors.Errorf("[%v] tx timeout", ChainTx_FileBank_PutMetaInfo)
 		}
 	}
 }

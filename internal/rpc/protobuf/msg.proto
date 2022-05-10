@@ -56,10 +56,19 @@ message space_tag_req{
 }
 
 message PutFileToBucket {
-  uint32   blockTotal = 3;
-  uint32   blockIndex=4;
-  uint32   blockSize=5;
-  string  fileId = 1;
-  string  fileHash = 2;
-  bytes   blockData=6;
+  uint32 blockTotal = 1;
+  uint32 blockIndex=2;
+  uint32 blockSize=3;
+  string fileId = 4;
+  string fileHash = 5;
+  bytes  blockData=6;
+}
+
+message PutTagToBucket {
+  string   fileId = 1;
+  bytes    name = 2;
+	int64    n =3;
+	repeated bytes u =4;
+  bytes    signature =5;
+  repeated bytes sigmas=6;
 }
