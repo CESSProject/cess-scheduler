@@ -124,11 +124,12 @@ type FileMetaInfo struct {
 
 type FileDuplicateInfo struct {
 	MinerId   types.U64
-	BlockNum  types.U32       `json:"blockNum"`
-	Acc       types.AccountID `json:"acc"`
-	DuplId    types.Bytes     `json:"dupl_id"`
-	RandKey   types.Bytes     `json:"rand_key"`
-	BlockInfo []BlockInfo     `json:"blockInfo"`
+	BlockNum  types.U32
+	Acc       types.AccountID
+	MinerIp   types.Bytes
+	DuplId    types.Bytes
+	RandKey   types.Bytes
+	BlockInfo []BlockInfo
 }
 
 // type FileDuplicateInfo struct {
