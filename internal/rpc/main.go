@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 
 	. "cess-scheduler/internal/rpc/protobuf"
+	rpc "cess-scheduler/internal/rpc/protobuf"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/golang/protobuf/proto"
@@ -1032,15 +1033,16 @@ func readFile(dst string, path, fid, walletaddr string) error {
 	return errors.New("receiving file failed, please try again...... ")
 }
 
-// recvCallBack is used to process files uploaded by the client, such as encryption, slicing, etc.
+// processingfile is used to process all copies of the file and the corresponding tag information
 func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []string) {
 	var (
 		err  error
 		code int
 		// file meta information
 		filedump = make([]chain.FileDuplicateInfo, len(duplnamelist))
+		mips     = make([]string, len(duplnamelist))
 	)
-	//Query Miner and transport
+	// query all miner
 	var mDatas []chain.CessChain_AllMinerInfo
 	trycount := 0
 	for {
@@ -1069,8 +1071,6 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 			Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
 			continue
 		}
-		defer f.Close()
-		// up-chain meta info
 		blockTotal := fi.Size() / configs.RpcFileBuffer
 		if fi.Size()%configs.RpcFileBuffer > 0 {
 			blockTotal += 1
@@ -1139,68 +1139,90 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 				}
 			}
 		}
+		f.Close()
 		filedump[i].DuplId = types.Bytes([]byte(duplname))
 		filedump[i].RandKey = types.Bytes([]byte(filepath.Base(duplkeynamelist[i])))
 		filedump[i].MinerId = mDatas[index].Peerid
-		// TODO: Query miner information by id
-		//filedump[i].Acc =
+		mips[i] = string(mDatas[index].Ip)
+		// Query miner information by id
+		var mdetails chain.Chain_MinerDetails
+		for {
+			mdetails, _, err = chain.GetMinerDetailsById(uint64(mDatas[index].Peerid))
+			if err != nil {
+				Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+				continue
+			}
+			break
+		}
+		filedump[i].Acc = mdetails.Address
 		filedump[i].BlockNum = types.U32(uint32(blockTotal))
 		filedump[i].BlockInfo = blockinfo
+	}
 
-		// calculate file tag info
+	// Upload the file meta information to the chain and write it to the cache
+	for {
+		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, fid, filedump)
+		if !ok || err != nil {
+			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+			continue
+		}
+		Out.Sugar().Infof("[%v][%v]File metainfo up chain success", t, fid)
+		c, err := cache.GetCache()
+		if err != nil {
+			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+		} else {
+			b, err := json.Marshal(filedump)
+			if err != nil {
+				Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			} else {
+				err = c.Put([]byte(fid), b)
+				if err != nil {
+					Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+				} else {
+					Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
+				}
+			}
+		}
+	}
+
+	// calculate file tag info
+	for i := 0; i < len(filedump); i++ {
 		var PoDR2commit proof.PoDR2Commit
 		var commitResponse proof.PoDR2CommitResponse
-		PoDR2commit.FilePath = duplnamelist[i]
+		PoDR2commit.FilePath = string(filedump[i].DuplId)
 		PoDR2commit.BlockSize = configs.BlockSize
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 		if err != nil {
-			Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
+			Err.Sugar().Errorf("[%v][%v][%v]", t, filedump[i], err)
 			continue
 		}
 		select {
 		case commitResponse = <-commitResponseCh:
 		}
 		if commitResponse.StatueMsg.StatusCode != proof.Success {
-			Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
+			Err.Sugar().Errorf("[%v][%v][%v]", t, filedump[i], err)
 			continue
 		}
-		var resp RespSpacetagInfo
-		resp.FileId = duplname
-		resp.T = commitResponse.T
+		var resp rpc.PutTagToBucket
+		resp.FileId = string(filedump[i].DuplId)
+		resp.Name = commitResponse.T.Name
+		resp.N = commitResponse.T.N
+		resp.U = commitResponse.T.U
+		resp.Signature = commitResponse.T.Signature
 		resp.Sigmas = commitResponse.Sigmas
-		resp_b, err := json.Marshal(resp)
+		resp_proto, err := proto.Marshal(&resp)
 		if err != nil {
 			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 			continue
 		}
 
-	}
-
-	// Upload the file meta information to the chain and write it to the cache
-	for {
-		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, chain.ChainTx_FileBank_PutMetaInfo, fid, filedump)
-		if !ok || err != nil {
-			Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+		err = writeData(mips[i], configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
+		if err != nil {
+			Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 			continue
 		}
-		Out.Sugar().Infof("[%v][%v]File metainfo up chain success", t, completefile)
-		c, err := cache.GetCache()
-		if err != nil {
-			Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
-		} else {
-			b, err := json.Marshal(filedump)
-			if err != nil {
-				Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
-			} else {
-				err = c.Put([]byte(fid), b)
-				if err != nil {
-					Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
-				} else {
-					Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, completefile)
-				}
-			}
-		}
-		return
 	}
 }

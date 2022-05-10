@@ -30,6 +30,7 @@ const (
 	FileBank_UserFilelistInfo = "UserHoldFileList"
 	Sminer_PurchasedSpace     = "PurchasedSpace"
 	Sminer_TotalSpace         = "AvailableSpace"
+	Sminer_MinerDetails       = "MinerDetails"
 )
 
 // cess chain Transaction name
@@ -175,4 +176,16 @@ type BlockInfo struct {
 	BlockIndex    types.U32
 	BlockSize     types.U32
 	ScanBlockSize types.U32
+}
+
+type Chain_MinerDetails struct {
+	Address                           types.AccountID
+	Beneficiary                       types.AccountID
+	Temp_power                        types.U128
+	Power                             types.U128
+	Space                             types.U128
+	Total_reward                      types.U128
+	Total_rewards_currently_available types.U128
+	Totald_not_receive                types.U128
+	Collaterals                       types.U128
 }

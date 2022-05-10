@@ -5,11 +5,12 @@ const Version = "cess-scheduler_V0.4.0"
 
 // rpc
 const (
-	RpcService_Scheduler      = "wservice"
-	RpcService_Miner          = "mservice"
-	RpcMethod_Miner_WriteFile = "writefile"
-	RpcMethod_Miner_ReadFile  = "readfile"
-	RpcFileBuffer             = 2 * 1024 * 1024
+	RpcService_Scheduler         = "wservice"
+	RpcService_Miner             = "mservice"
+	RpcMethod_Miner_WriteFile    = "writefile"
+	RpcMethod_Miner_ReadFile     = "readfile"
+	RpcMethod_Miner_WriteFileTag = "writefiletag"
+	RpcFileBuffer                = 2 * 1024 * 1024
 )
 
 // return code
