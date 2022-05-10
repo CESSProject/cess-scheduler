@@ -54,3 +54,12 @@ message space_tag_req{
   uint32 size_mb=4;
   bytes  sign=5;
 }
+
+message PutFileToBucket {
+  uint32   blockTotal = 3;
+  uint32   blockIndex=4;
+  uint32   blockSize=5;
+  string  fileId = 1;
+  string  fileHash = 2;
+  bytes   blockData=6;
+}

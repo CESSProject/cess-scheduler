@@ -9,6 +9,7 @@ const (
 	RpcService_Miner          = "mservice"
 	RpcMethod_Miner_WriteFile = "writefile"
 	RpcMethod_Miner_ReadFile  = "readfile"
+	RpcFileBuffer             = 2 * 1024 * 1024
 )
 
 // return code
@@ -23,7 +24,8 @@ const (
 // space file
 const (
 	LengthOfALine = 128
-	BlockSize     = 1024 * 1024
+	BlockSize     = 1024 * 1024 //1MB
+	ScanBlockSize = 512 * 1024  //512KB
 )
 
 const (

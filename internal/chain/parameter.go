@@ -44,6 +44,7 @@ const (
 	ChainTx_FileBank_PutMetaInfo     = "FileBank.update_dupl"
 	ChainTx_FileBank_Upload          = "FileBank.upload"
 	ChainTx_FileBank_HttpDeleteFile  = "FileBank.http_delete"
+	ChainTx_FileBank_FillerMap       = "FileBank.FillerMap"
 )
 
 type Chain_MinerItems struct {
@@ -121,26 +122,35 @@ type FileMetaInfo struct {
 }
 
 type FileDuplicateInfo struct {
-	DuplId    types.Bytes     `json:"dupl_id"`    //Backup id
-	RandKey   types.Bytes     `json:"rand_key"`   //Random key
-	SliceNum  types.U16       `json:"slice_num"`  //Number of slices
-	FileSlice []FileSliceInfo `json:"file_slice"` //Slice information list
+	MinerId   types.U64
+	BlockNum  types.U32       `json:"blockNum"`
+	Acc       types.AccountID `json:"acc"`
+	DuplId    types.Bytes     `json:"dupl_id"`
+	RandKey   types.Bytes     `json:"rand_key"`
+	BlockInfo []BlockInfo     `json:"blockInfo"`
 }
 
-type FileSliceInfo struct {
-	SliceId   types.Bytes   `json:"slice_id"`   //Slice id
-	SliceSize types.U32     `json:"slice_size"` //Slice size
-	SliceHash types.Bytes   `json:"slice_hash"` //Slice hash
-	FileShard FileShardInfo `json:"file_shard"` //Shard information
-}
+// type FileDuplicateInfo struct {
+// 	DuplId    types.Bytes     `json:"dupl_id"`    //Backup id
+// 	RandKey   types.Bytes     `json:"rand_key"`   //Random key
+// 	SliceNum  types.U16       `json:"slice_num"`  //Number of slices
+// 	FileSlice []FileSliceInfo `json:"file_slice"` //Slice information list
+// }
 
-type FileShardInfo struct {
-	DataShardNum  types.U8      `json:"data_shard_num"`  //Number of data shard
-	RedunShardNum types.U8      `json:"redun_shard_num"` //Number of redundant shard
-	ShardHash     []types.Bytes `json:"shard_hash"`      //Shard hash list
-	ShardAddr     []types.Bytes `json:"shard_addr"`      //Store miner service addr list
-	Peerid        []types.U64   `json:"wallet_addr"`     //Store miner wallet addr list
-}
+// type FileSliceInfo struct {
+// 	SliceId   types.Bytes   `json:"slice_id"`   //Slice id
+// 	SliceSize types.U32     `json:"slice_size"` //Slice size
+// 	SliceHash types.Bytes   `json:"slice_hash"` //Slice hash
+// 	FileShard FileShardInfo `json:"file_shard"` //Shard information
+// }
+
+// type FileShardInfo struct {
+// 	DataShardNum  types.U8      `json:"data_shard_num"`  //Number of data shard
+// 	RedunShardNum types.U8      `json:"redun_shard_num"` //Number of redundant shard
+// 	ShardHash     []types.Bytes `json:"shard_hash"`      //Shard hash list
+// 	ShardAddr     []types.Bytes `json:"shard_addr"`      //Store miner service addr list
+// 	Peerid        []types.U64   `json:"wallet_addr"`     //Store miner wallet addr list
+// }
 
 type SchedulerInfo struct {
 	Ip             types.Bytes
@@ -152,15 +162,17 @@ type CessChain_EtcdItems struct {
 	Ip types.Bytes `json:"ip"`
 }
 
-type SpacetagInfo struct {
-	File_id       types.Bytes
-	File_hash     types.Bytes
-	Miner_id      types.U64
-	Miner_address types.AccountID
-	Block_num     types.U64
-	File_block    []FileBlock
+type SpaceFileInfo struct {
+	MinerId   types.U64
+	FileSize  types.U64
+	BlockNum  types.U32
+	Acc       types.AccountID
+	BlockInfo []BlockInfo
+	FileId    types.Bytes
+	FileHash  types.Bytes
 }
-type FileBlock struct {
-	Block_id types.U64
-	Size     types.U64
+type BlockInfo struct {
+	BlockIndex    types.U32
+	BlockSize     types.U32
+	ScanBlockSize types.U32
 }
