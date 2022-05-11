@@ -57,14 +57,14 @@ type PoDR2Verify struct {
 	Sigma  []byte     `json:"sigmas"`
 }
 type FileTagT struct {
-	T0
-	Signature []byte
+	T0        `json:"t0"`
+	Signature []byte `json:"signature"`
 }
 
 type T0 struct {
-	Name []byte
-	N    int64
-	U    [][]byte
+	Name []byte   `json:"name"`
+	N    int64    `json:"n"`
+	U    [][]byte `json:"u"`
 }
 
 type QElement struct {
