@@ -36,6 +36,18 @@ type Event_PPDNoOnTimeSubmit struct {
 	Topics    []types.Hash
 }
 
+type Event_ChallengeProof struct {
+	Phase  types.Phase
+	PeerId types.U64
+	Topics []types.Hash
+}
+
+type Event_VerifyProof struct {
+	Phase  types.Phase
+	PeerId types.U64
+	Topics []types.Hash
+}
+
 //------------------------Sminer---------------------------------
 type Event_Registered struct {
 	Phase      types.Phase
@@ -221,6 +233,8 @@ type MyEventRecords struct {
 	SegmentBook_VPDVerified       []Event_VPABCD_Submit_Verify
 	SegmentBook_PPBNoOnTimeSubmit []Event_PPBNoOnTimeSubmit
 	SegmentBook_PPDNoOnTimeSubmit []Event_PPDNoOnTimeSubmit
+	SegmentBook_ChallengeProof    []Event_ChallengeProof
+	SegmentBook_VerifyProof       []Event_VerifyProof
 	//Sminer
 	Sminer_Registered         []Event_Registered
 	Sminer_TimedTask          []Event_TimedTask

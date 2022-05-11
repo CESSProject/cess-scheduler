@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
@@ -225,4 +226,35 @@ func RandStr(n int) string {
 		remain--
 	}
 	return sb.String()
+}
+
+func CalcHash(data []byte) (string, error) {
+	if len(data) <= 0 {
+		return "", errors.New("data is nil")
+	}
+	h := sha256.New()
+	_, err := h.Write(data)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func GetStringWithoutNumbers(in string) string {
+	var resu string
+	resu = RemoveX(in, strconv.Itoa(0))
+	for i := 1; i < 10; i++ {
+		resu = RemoveX(resu, strconv.Itoa(i))
+	}
+	return resu
+}
+
+func RemoveX(str string, x string) string {
+	var res string
+	for i := 0; i < len(str); i++ {
+		if string(str[i]) != x {
+			res = res + string(str[i])
+		}
+	}
+	return res
 }

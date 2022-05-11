@@ -6,6 +6,7 @@ import (
 	"cess-scheduler/tools"
 	"net/http"
 
+	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
@@ -285,4 +286,78 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 		return mdata, configs.Code_400, errors.Errorf("[%v.%v:value is empty]", State_FileMap, FileMap_SchedulerInfo)
 	}
 	return mdata, configs.Code_200, nil
+}
+
+//
+func GetSchedulerPukFromChain() (Chain_SchedulerPuk, int, error) {
+	var (
+		err  error
+		data Chain_SchedulerPuk
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	key, err := types.CreateStorageKey(meta, State_FileMap, FileMap_SchedulerPuk)
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return data, configs.Code_404, errors.New("public key not found")
+	}
+	return data, configs.Code_200, nil
+}
+
+//
+func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
+	var (
+		err  error
+		data []Chain_Proofs
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
+
+	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	if err != nil {
+		return data, configs.Code_400, errors.Wrap(err, "[KeyringPairFromSecret]")
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	key, err := types.CreateStorageKey(meta, State_SegmentBook, SegmentBook_UnVerifyProof, keyring.PublicKey)
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return data, configs.Code_404, errors.New("public key not found")
+	}
+	return data, configs.Code_200, nil
 }
