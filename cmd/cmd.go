@@ -173,7 +173,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.GetStringWithoutNumbers(hashs))
+	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
 	f, err := os.Stat(baseDir)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' not found\n", 41, baseDir)
@@ -281,7 +281,7 @@ func register() {
 		os.Exit(1)
 	}
 
-	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.GetStringWithoutNumbers(hashs))
+	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
 	_, err = os.Stat(baseDir)
 	if err == nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' directory conflict\n", 41, baseDir)
@@ -327,7 +327,7 @@ func register() {
 	}
 	logger.LoggerInit()
 	Out.Sugar().Infof("Registration message:")
-	Out.Sugar().Infof("CessAddr:%v", configs.Confile.CessChain.ChainAddr)
+	Out.Sugar().Infof("ChainAddr:%v", configs.Confile.CessChain.ChainAddr)
 	Out.Sugar().Infof("ServiceAddr:%v", res)
 	Out.Sugar().Infof("DataDir:%v", configs.Confile.SchedulerInfo.DataDir)
 	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.Confile.SchedulerInfo.ControllerAccountPhrase)

@@ -22,6 +22,10 @@ const (
 	Code_500 = 500
 )
 
+const (
+	BaseDir = "scheduler"
+)
+
 // space file
 const (
 	LengthOfALine = 128

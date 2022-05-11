@@ -125,6 +125,7 @@ type FileMetaInfo struct {
 type FileDuplicateInfo struct {
 	MinerId   types.U64
 	BlockNum  types.U32
+	ScanSize  types.U32
 	Acc       types.AccountID
 	MinerIp   types.Bytes
 	DuplId    types.Bytes
@@ -168,15 +169,15 @@ type SpaceFileInfo struct {
 	MinerId   types.U64
 	FileSize  types.U64
 	BlockNum  types.U32
+	ScanSize  types.U32
 	Acc       types.AccountID
 	BlockInfo []BlockInfo
 	FileId    types.Bytes
 	FileHash  types.Bytes
 }
 type BlockInfo struct {
-	BlockIndex    types.U32
-	BlockSize     types.U32
-	ScanBlockSize types.U32
+	BlockIndex types.U32
+	BlockSize  types.U32
 }
 
 type Chain_MinerDetails struct {

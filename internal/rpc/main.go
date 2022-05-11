@@ -241,27 +241,27 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 	//Query file meta information
-	c, err := cache.GetCache()
-	if err != nil {
-		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
-	} else {
-		cachedata, err := c.Get([]byte(b.FileId))
-		if err == nil {
-			err = json.Unmarshal(cachedata, &fmeta.FileDupl)
-			if err != nil {
-				Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
-			}
-		}
-	}
+	// c, err := cache.GetCache()
+	// if err != nil {
+	// 	Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
+	// } else {
+	// 	cachedata, err := c.Get([]byte(b.FileId))
+	// 	if err == nil {
+	// 		err = json.Unmarshal(cachedata, &fmeta.FileDupl)
+	// 		if err != nil {
+	// 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
+	// 		}
+	// 	}
+	// }
 	if fmeta.FileDupl == nil {
 		fmeta, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
-			return &RespBody{Code: int32(code), Msg: "Network timeout, try again later!", Data: nil}, nil
+			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 		}
 		if string(fmeta.FileState) != "active" {
-			Err.Sugar().Errorf("[%v]No permission", b.FileId)
-			return &RespBody{Code: 403, Msg: "No permission"}, nil
+			Err.Sugar().Errorf("[%v]Download prohibited", b.FileId)
+			return &RespBody{Code: 403, Msg: "Download prohibited"}, nil
 		}
 	}
 	// Determine whether the user has download permission
@@ -361,7 +361,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 	// download dupl
 	for i := 0; i < len(fmeta.FileDupl); i++ {
-		err = readFile(string(fmeta.FileDupl[i].MinerIp), path, filepath.Base(string(fmeta.FileDupl[i].DuplId)), b.WalletAddress)
+		err = readFile(string(fmeta.FileDupl[i].MinerIp), path, string(fmeta.FileDupl[i].DuplId), b.WalletAddress)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v]%v", t, string(fmeta.FileDupl[i].DuplId), err)
 			continue
@@ -618,11 +618,11 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	metainfo.BlockNum = types.U32(n)
+	metainfo.ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	var file_blocks = make([]chain.BlockInfo, n)
 	for i := uint64(1); i <= n; i++ {
 		file_blocks[i].BlockIndex = types.U32(i)
 		file_blocks[i].BlockSize = types.U32(PoDR2commit.BlockSize)
-		file_blocks[i].ScanBlockSize = types.U32(uint32(configs.ScanBlockSize))
 	}
 	metainfo.BlockInfo = file_blocks
 	_, err = chain.PutSpaceTagInfoToChain(
@@ -934,7 +934,6 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 						mip = string(mDatas[index].Ip)
 						blockinfo[j].BlockIndex = types.U32(uint32(j))
 						blockinfo[j].BlockSize = types.U32(uint32(n))
-						blockinfo[j].ScanBlockSize = types.U32(configs.ScanBlockSize)
 						break
 					} else {
 						failminer[uint64(mDatas[index].Peerid)] = true
@@ -951,7 +950,6 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 					}
 					blockinfo[j].BlockIndex = types.U32(uint32(j))
 					blockinfo[j].BlockSize = types.U32(uint32(n))
-					blockinfo[j].ScanBlockSize = types.U32(configs.ScanBlockSize)
 					break
 				}
 			}
@@ -961,6 +959,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		filedump[i].RandKey = types.Bytes([]byte(filepath.Base(duplkeynamelist[i])))
 		filedump[i].MinerId = mDatas[index].Peerid
 		filedump[i].MinerIp = mDatas[index].Ip
+		filedump[i].ScanSize = types.U32(configs.ScanBlockSize)
 		mips[i] = string(mDatas[index].Ip)
 		// Query miner information by id
 		var mdetails chain.Chain_MinerDetails
