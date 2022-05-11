@@ -31,6 +31,8 @@ const (
 	Sminer_PurchasedSpace     = "PurchasedSpace"
 	Sminer_TotalSpace         = "AvailableSpace"
 	Sminer_MinerDetails       = "MinerDetails"
+	FileMap_SchedulerPuk      = "SchedulerPuk"
+	SegmentBook_UnVerifyProof = "UnVerifyProof"
 )
 
 // cess chain Transaction name
@@ -46,6 +48,7 @@ const (
 	ChainTx_FileBank_Upload          = "FileBank.upload"
 	ChainTx_FileBank_HttpDeleteFile  = "FileBank.http_delete"
 	ChainTx_FileBank_FillerMap       = "FileBank.FillerMap"
+	SegmentBook_VerifyProof          = "SegmentBook.verify_proof"
 )
 
 type Chain_MinerItems struct {
@@ -190,4 +193,26 @@ type Chain_MinerDetails struct {
 	Total_rewards_currently_available types.U128
 	Totald_not_receive                types.U128
 	Collaterals                       types.U128
+}
+
+type Chain_SchedulerPuk struct {
+	Spk           types.Bytes
+	Shared_params types.Bytes
+	Shared_g      types.Bytes
+}
+
+type Chain_Proofs struct {
+	Miner_id       types.U64
+	Challenge_info ChallengeInfo
+	Mu             []types.Bytes
+	Sigma          types.Bytes
+}
+
+type ChallengeInfo struct {
+	File_size    types.U64
+	Segment_size types.U64
+	File_type    types.U8
+	Block_list   []types.U32
+	File_id      types.Bytes
+	Random       []types.Bytes
 }

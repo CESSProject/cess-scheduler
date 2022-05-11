@@ -20,6 +20,7 @@ const (
 	Code_403 = 403
 	Code_404 = 404
 	Code_500 = 500
+	Code_600 = 600
 )
 
 const (
