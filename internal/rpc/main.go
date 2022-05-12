@@ -105,21 +105,11 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		// 	return &RespBody{Code: 400, Msg: "file hash error", Data: nil}, nil
 		// }
 	} else {
-		filename0 := filepath.Join(cachepath, b.FileId+".d0")
-		filename1 := filepath.Join(cachepath, b.FileId+".d1")
-		filename2 := filepath.Join(cachepath, b.FileId+".d2")
-		filenamecess := filepath.Join(cachepath, b.FileId+".cess")
-		if _, err = os.Stat(filename0); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
-		}
-		if _, err = os.Stat(filename1); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
-		}
-		if _, err = os.Stat(filename2); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
-		}
-		if _, err = os.Stat(filenamecess); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
+		for j := uint8(0); j < configs.Backups_Max; j++ {
+			filename_dupl := filepath.Join(cachepath, b.FileId+".d"+strconv.Itoa(int(j)))
+			if _, err = os.Stat(filename_dupl); err == nil {
+				return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
+			}
 		}
 	}
 
@@ -153,12 +143,12 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			os.Remove(path)
 		}
 
-		backupNum := uint8(3)
+		backupNum := configs.Backups_Min
 		if backupNum < uint8(fmeta.Backups) {
 			backupNum = uint8(fmeta.Backups)
 		}
-		if backupNum > uint8(6) {
-			backupNum = uint8(6)
+		if backupNum > configs.Backups_Max {
+			backupNum = configs.Backups_Max
 		}
 		buf, err := os.ReadFile(completefile)
 		if err != nil {
@@ -265,15 +255,16 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 	}
 	// Determine whether the user has download permission
-	// a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
-	// if err != nil {
-	// 	Err.Sugar().Errorf("[%v]%v", b.FileId, err)
-	// 	return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
-	// }
-	// if a.AsAccountID != fmeta.UserAddr {
-	// 	Err.Sugar().Errorf("[%v]No permission", b.FileId)
-	// 	return &RespBody{Code: 400, Msg: "No permission"}, nil
-	// }
+	a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
+	if err != nil {
+		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+		return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
+	}
+
+	if a.AsAccountID != fmeta.UserAddr {
+		Err.Sugar().Errorf("[%v]No permission", b.FileId)
+		return &RespBody{Code: 400, Msg: "No permission"}, nil
+	}
 
 	path := filepath.Join(configs.FileCacheDir, b.FileId)
 	_, err = os.Stat(path)
@@ -361,7 +352,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 	// download dupl
 	for i := 0; i < len(fmeta.FileDupl); i++ {
-		err = readFile(string(fmeta.FileDupl[i].MinerIp), path, string(fmeta.FileDupl[i].DuplId), b.WalletAddress)
+		err = ReadFile(string(fmeta.FileDupl[i].MinerIp), path, string(fmeta.FileDupl[i].DuplId), b.WalletAddress)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v]%v", t, string(fmeta.FileDupl[i].DuplId), err)
 			continue
@@ -600,31 +591,31 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	// up-chain meta info
-	var metainfo chain.SpaceFileInfo
-	metainfo.FileId = []byte(filename)
-	metainfo.FileHash = []byte(hash)
-	metainfo.FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
+	var metainfo = make([]chain.SpaceFileInfo, 1)
+	metainfo[0].FileId = []byte(filename)
+	metainfo[0].FileHash = []byte(hash)
+	metainfo[0].FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
 	wal, err := tools.DecodeToPub(b.WalletAddress)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	metainfo.Acc = types.NewAccountID(wal)
-	metainfo.MinerId = mdata.Peerid
+	metainfo[0].Acc = types.NewAccountID(wal)
+	metainfo[0].MinerId = mdata.Peerid
 
 	_, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	metainfo.BlockNum = types.U32(n)
-	metainfo.ScanSize = types.U32(uint32(configs.ScanBlockSize))
+	metainfo[0].BlockNum = types.U32(n)
+	metainfo[0].ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	var file_blocks = make([]chain.BlockInfo, n)
 	for i := uint64(1); i <= n; i++ {
 		file_blocks[i].BlockIndex = types.U32(i)
 		file_blocks[i].BlockSize = types.U32(PoDR2commit.BlockSize)
 	}
-	metainfo.BlockInfo = file_blocks
+	metainfo[0].BlockInfo = file_blocks
 	_, err = chain.PutSpaceTagInfoToChain(
 		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 		metainfo,
@@ -675,7 +666,7 @@ func combinationFile(fid, dir string, num int32) (string, error) {
 }
 
 //
-func writeData(dst string, service, method string, body []byte) error {
+func WriteData(dst string, service, method string, body []byte) ([]byte, error) {
 	dstip := "ws://" + tools.Base58Decoding(dst)
 	dstip = strings.Replace(dstip, " ", "", -1)
 	req := &ReqMsg{
@@ -685,30 +676,30 @@ func writeData(dst string, service, method string, body []byte) error {
 	}
 	client, err := DialWebsocket(context.Background(), dstip, "")
 	if err != nil {
-		return errors.Wrap(err, "DialWebsocket:")
+		return nil, errors.Wrap(err, "DialWebsocket:")
 	}
 	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	resp, err := client.Call(ctx, req)
 	if err != nil {
-		return errors.Wrap(err, "Call err:")
+		return nil, errors.Wrap(err, "Call err:")
 	}
 
 	var b RespBody
 	err = proto.Unmarshal(resp.Body, &b)
 	if err != nil {
-		return errors.Wrap(err, "Unmarshal:")
+		return nil, errors.Wrap(err, "Unmarshal:")
 	}
 	if b.Code == 200 {
-		return nil
+		return b.Data, nil
 	}
 	errstr := fmt.Sprintf("%d", b.Code)
-	return errors.New("return code:" + errstr)
+	return nil, errors.New("return code:" + errstr)
 }
 
 //
-func readFile(dst string, path, fid, walletaddr string) error {
+func ReadFile(dst string, path, fid, walletaddr string) error {
 	dstip := "ws://" + tools.Base58Decoding(dst)
 	dstip = strings.Replace(dstip, " ", "", -1)
 	reqbody := FileDownloadReq{
@@ -864,7 +855,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 	trycount := 0
 	for {
 		mDatas, code, err = chain.GetAllMinerDataOnChain()
-		if err != nil && code != configs.Code_403 {
+		if err != nil && code != configs.Code_404 {
 			trycount++
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 		} else {
@@ -929,7 +920,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 					if ok {
 						continue
 					}
-					err = writeData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
+					_, err = WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 					if err == nil {
 						mip = string(mDatas[index].Ip)
 						blockinfo[j].BlockIndex = types.U32(uint32(j))
@@ -941,7 +932,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 					}
 				} else {
-					err = writeData(mip, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
+					_, err = WriteData(mip, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 					if err != nil {
 						failminer[uint64(mDatas[index].Peerid)] = true
 						Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
@@ -956,7 +947,10 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		}
 		f.Close()
 		filedump[i].DuplId = types.Bytes([]byte(duplname))
-		filedump[i].RandKey = types.Bytes([]byte(filepath.Base(duplkeynamelist[i])))
+		key := filepath.Base(duplkeynamelist[i])
+		sufffex := filepath.Ext(key)
+		strings.TrimSuffix(key, sufffex)
+		filedump[i].RandKey = types.Bytes([]byte(strings.TrimSuffix(key, sufffex)))
 		filedump[i].MinerId = mDatas[index].Peerid
 		filedump[i].MinerIp = mDatas[index].Ip
 		filedump[i].ScanSize = types.U32(configs.ScanBlockSize)
@@ -1036,7 +1030,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 			continue
 		}
 
-		err = writeData(mips[i], configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
+		_, err = WriteData(mips[i], configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v][%v]%v", t, mips[i], duplnamelist[i], err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))

@@ -361,3 +361,56 @@ func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
 	}
 	return data, configs.Code_200, nil
 }
+
+//
+func GetAddressByPrk(prk string) (string, error) {
+	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	if err != nil {
+		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
+	}
+	acc, err := tools.Encode(keyring.PublicKey, tools.SubstratePrefix)
+	if err != nil {
+		return "", errors.Wrap(err, "[Encode]")
+	}
+	return acc, nil
+}
+
+//
+func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
+	var (
+		err  error
+		data []types.Bytes
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+	}()
+
+	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	if err != nil {
+		return data, configs.Code_400, errors.Wrap(err, "[KeyringPairFromSecret]")
+	}
+
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_FileRecovery, keyring.PublicKey)
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
+	if err != nil {
+		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return data, configs.Code_404, errors.New("public key not found")
+	}
+	return data, configs.Code_200, nil
+}
