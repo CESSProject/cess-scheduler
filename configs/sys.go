@@ -30,9 +30,11 @@ const (
 
 // space file
 const (
-	LengthOfALine = 128
-	BlockSize     = 1024 * 1024 //1MB
-	ScanBlockSize = 512 * 1024  //512KB
+	LengthOfALine       = 128
+	BlockSize           = 1024 * 1024 //1MB
+	ScanBlockSize       = 512 * 1024  //512KB
+	Backups_Min   uint8 = 3
+	Backups_Max   uint8 = 6
 )
 
 const (

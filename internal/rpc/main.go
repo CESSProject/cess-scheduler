@@ -105,21 +105,11 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		// 	return &RespBody{Code: 400, Msg: "file hash error", Data: nil}, nil
 		// }
 	} else {
-		filename0 := filepath.Join(cachepath, b.FileId+".d0")
-		filename1 := filepath.Join(cachepath, b.FileId+".d1")
-		filename2 := filepath.Join(cachepath, b.FileId+".d2")
-		filenamecess := filepath.Join(cachepath, b.FileId+".cess")
-		if _, err = os.Stat(filename0); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
-		}
-		if _, err = os.Stat(filename1); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
-		}
-		if _, err = os.Stat(filename2); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
-		}
-		if _, err = os.Stat(filenamecess); err == nil {
-			return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
+		for j := uint8(0); j < configs.Backups_Max; j++ {
+			filename_dupl := filepath.Join(cachepath, b.FileId+".d"+strconv.Itoa(int(j)))
+			if _, err = os.Stat(filename_dupl); err == nil {
+				return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
+			}
 		}
 	}
 
@@ -153,12 +143,12 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			os.Remove(path)
 		}
 
-		backupNum := uint8(3)
+		backupNum := configs.Backups_Min
 		if backupNum < uint8(fmeta.Backups) {
 			backupNum = uint8(fmeta.Backups)
 		}
-		if backupNum > uint8(6) {
-			backupNum = uint8(6)
+		if backupNum > configs.Backups_Max {
+			backupNum = configs.Backups_Max
 		}
 		buf, err := os.ReadFile(completefile)
 		if err != nil {
@@ -265,15 +255,16 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 	}
 	// Determine whether the user has download permission
-	// a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
-	// if err != nil {
-	// 	Err.Sugar().Errorf("[%v]%v", b.FileId, err)
-	// 	return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
-	// }
-	// if a.AsAccountID != fmeta.UserAddr {
-	// 	Err.Sugar().Errorf("[%v]No permission", b.FileId)
-	// 	return &RespBody{Code: 400, Msg: "No permission"}, nil
-	// }
+	a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
+	if err != nil {
+		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+		return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
+	}
+
+	if a.AsAccountID != fmeta.UserAddr {
+		Err.Sugar().Errorf("[%v]No permission", b.FileId)
+		return &RespBody{Code: 400, Msg: "No permission"}, nil
+	}
 
 	path := filepath.Join(configs.FileCacheDir, b.FileId)
 	_, err = os.Stat(path)
@@ -361,7 +352,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 	// download dupl
 	for i := 0; i < len(fmeta.FileDupl); i++ {
-		err = readFile(string(fmeta.FileDupl[i].MinerIp), path, string(fmeta.FileDupl[i].DuplId), b.WalletAddress)
+		err = ReadFile(string(fmeta.FileDupl[i].MinerIp), path, string(fmeta.FileDupl[i].DuplId), b.WalletAddress)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v]%v", t, string(fmeta.FileDupl[i].DuplId), err)
 			continue
@@ -708,7 +699,7 @@ func WriteData(dst string, service, method string, body []byte) ([]byte, error) 
 }
 
 //
-func readFile(dst string, path, fid, walletaddr string) error {
+func ReadFile(dst string, path, fid, walletaddr string) error {
 	dstip := "ws://" + tools.Base58Decoding(dst)
 	dstip = strings.Replace(dstip, " ", "", -1)
 	reqbody := FileDownloadReq{
@@ -864,7 +855,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 	trycount := 0
 	for {
 		mDatas, code, err = chain.GetAllMinerDataOnChain()
-		if err != nil && code != configs.Code_403 {
+		if err != nil && code != configs.Code_404 {
 			trycount++
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 		} else {
@@ -956,7 +947,10 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		}
 		f.Close()
 		filedump[i].DuplId = types.Bytes([]byte(duplname))
-		filedump[i].RandKey = types.Bytes([]byte(filepath.Base(duplkeynamelist[i])))
+		key := filepath.Base(duplkeynamelist[i])
+		sufffex := filepath.Ext(key)
+		strings.TrimSuffix(key, sufffex)
+		filedump[i].RandKey = types.Bytes([]byte(strings.TrimSuffix(key, sufffex)))
 		filedump[i].MinerId = mDatas[index].Peerid
 		filedump[i].MinerIp = mDatas[index].Ip
 		filedump[i].ScanSize = types.U32(configs.ScanBlockSize)

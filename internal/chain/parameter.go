@@ -33,6 +33,7 @@ const (
 	Sminer_MinerDetails       = "MinerDetails"
 	FileMap_SchedulerPuk      = "SchedulerPuk"
 	SegmentBook_UnVerifyProof = "UnVerifyProof"
+	FileBank_FileRecovery     = "FileRecovery"
 )
 
 // cess chain Transaction name
@@ -49,6 +50,7 @@ const (
 	ChainTx_FileBank_HttpDeleteFile  = "FileBank.http_delete"
 	ChainTx_FileBank_FillerMap       = "FileBank.FillerMap"
 	SegmentBook_VerifyProof          = "SegmentBook.verify_proof"
+	FileBank_ClearRecoveredFile      = "FileBank.recover_file"
 )
 
 type Chain_MinerItems struct {
