@@ -361,3 +361,16 @@ func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
 	}
 	return data, configs.Code_200, nil
 }
+
+//
+func GetAddressByPrk(prk string) (string, error) {
+	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	if err != nil {
+		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
+	}
+	acc, err := tools.Encode(keyring.PublicKey, tools.SubstratePrefix)
+	if err != nil {
+		return "", errors.Wrap(err, "[Encode]")
+	}
+	return acc, nil
+}

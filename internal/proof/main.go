@@ -5,12 +5,22 @@ import (
 	"cess-scheduler/internal/chain"
 	. "cess-scheduler/internal/logger"
 	api "cess-scheduler/internal/proof/apiv1"
+	"cess-scheduler/internal/rpc"
+	p "cess-scheduler/internal/rpc/protobuf"
 	"cess-scheduler/tools"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
+
+type TagInfo struct {
+	T      api.FileTagT `json:"file_tag_t"`
+	Sigmas [][]byte     `json:"sigmas"`
+}
 
 // Enable the verification proof module
 func Chain_Main() {
@@ -345,6 +355,34 @@ func processingProof() {
 				tmp[int(proofs[i].Challenge_info.Block_list[j])] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
 			}
 
+			var reqtag p.ReadTagReq
+			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
+			reqtag.Acc, err = chain.GetAddressByPrk(configs.Confile.SchedulerInfo.ControllerAccountPhrase)
+			if err != nil {
+				Out.Sugar().Infof("%v", err)
+				continue
+			}
+			req_proto, err := proto.Marshal(&reqtag)
+			if err != nil {
+				Out.Sugar().Infof("%v", err)
+				continue
+			}
+			minerDetails, _, err := chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
+			if err != nil {
+				Out.Sugar().Infof("%v", err)
+				continue
+			}
+			respData, err := rpc.WriteData(string(minerDetails.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
+			if err != nil {
+				Out.Sugar().Infof("%v", err)
+				continue
+			}
+			var tag TagInfo
+			err = json.Unmarshal(respData, &tag)
+			if err != nil {
+				Out.Sugar().Infof("%v", err)
+				continue
+			}
 			qSlice, err := api.PoDR2ChallengeGenerateFromChain(tmp, string(puk.Shared_params))
 			if err != nil {
 				Err.Sugar().Errorf("%v", err)
@@ -355,9 +393,8 @@ func processingProof() {
 				poDR2verify.MU[i] = append(poDR2verify.MU[i], proofs[i].Mu[i]...)
 			}
 			poDR2verify.Sigma = proofs[i].Sigma
-
+			poDR2verify.T = tag.T
 			result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-
 			chain.PutProofResult(configs.Confile.SchedulerInfo.ControllerAccountPhrase, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
 		}
 	}

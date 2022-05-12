@@ -742,7 +742,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, info []FileDuplicateInfo) (b
 }
 
 // Update file meta information
-func PutSpaceTagInfoToChain(transactionPrK string, info SpaceFileInfo) (bool, error) {
+func PutSpaceTagInfoToChain(transactionPrK string, info []SpaceFileInfo) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -765,11 +765,11 @@ func PutSpaceTagInfoToChain(transactionPrK string, info SpaceFileInfo) (bool, er
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	b, err := types.EncodeToBytes(info)
-	if err != nil {
-		return false, errors.Wrap(err, "EncodeToBytes err")
-	}
-	c, err := types.NewCall(meta, ChainTx_FileBank_FillerMap, b)
+	// b, err := types.EncodeToBytes(info)
+	// if err != nil {
+	// 	return false, errors.Wrap(err, "EncodeToBytes err")
+	// }
+	c, err := types.NewCall(meta, ChainTx_FileBank_FillerMap, info)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -855,23 +855,23 @@ func PutSpaceTagInfoToChain(transactionPrK string, info SpaceFileInfo) (bool, er
 					}
 				}
 
-				// if events.FileBank_FileUpdate != nil {
-				// 	for i := 0; i < len(events.FileBank_FileUpdate); i++ {
-				// 		if string(events.FileBank_FileUpdate[i].Fileid) == string(fid) {
-				// 			return true, nil
-				// 		}
-				// 	}
-				// 	if head != nil {
-				// 		return false, errors.Errorf("[%v]events.FileBank_FileUpdate data err", head.Number)
-				// 	} else {
-				// 		return false, errors.New("events.FileBank_FileUpdate data err")
-				// 	}
-				// }
-				// if head != nil {
-				// 	return false, errors.Errorf("[%v]events.FileBank_FileUpdate not found", head.Number)
-				// } else {
-				// 	return false, errors.New("events.FileBank_FileUpdate not found")
-				// }
+				if events.FileBank_FillerUpload != nil {
+					for i := 0; i < len(events.FileBank_FillerUpload); i++ {
+						if events.FileBank_FillerUpload[i].Acc == types.NewAccountID(keyring.PublicKey) {
+							return true, nil
+						}
+					}
+					if head != nil {
+						return false, errors.Errorf("[%v]events.FileBank_FillerUpload data err", head.Number)
+					} else {
+						return false, errors.New("events.FileBank_FillerUpload data err")
+					}
+				}
+				if head != nil {
+					return false, errors.Errorf("[%v]events.FileBank_FillerUpload not found", head.Number)
+				} else {
+					return false, errors.New("events.FileBank_FillerUpload not found")
+				}
 			}
 		case err = <-sub.Err():
 			return false, err

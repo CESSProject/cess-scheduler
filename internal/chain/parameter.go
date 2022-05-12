@@ -186,7 +186,7 @@ type BlockInfo struct {
 type Chain_MinerDetails struct {
 	Address                           types.AccountID
 	Beneficiary                       types.AccountID
-	Temp_power                        types.U128
+	Ip                                types.Bytes
 	Power                             types.U128
 	Space                             types.U128
 	Total_reward                      types.U128

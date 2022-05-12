@@ -10,6 +10,7 @@ const (
 	RpcMethod_Miner_WriteFile    = "writefile"
 	RpcMethod_Miner_ReadFile     = "readfile"
 	RpcMethod_Miner_WriteFileTag = "writefiletag"
+	RpcMethod_Miner_ReadFileTag  = "readfiletag"
 	RpcFileBuffer                = 2 * 1024 * 1024
 )
 

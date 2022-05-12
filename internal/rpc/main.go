@@ -600,31 +600,31 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	// up-chain meta info
-	var metainfo chain.SpaceFileInfo
-	metainfo.FileId = []byte(filename)
-	metainfo.FileHash = []byte(hash)
-	metainfo.FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
+	var metainfo = make([]chain.SpaceFileInfo, 1)
+	metainfo[0].FileId = []byte(filename)
+	metainfo[0].FileHash = []byte(hash)
+	metainfo[0].FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
 	wal, err := tools.DecodeToPub(b.WalletAddress)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	metainfo.Acc = types.NewAccountID(wal)
-	metainfo.MinerId = mdata.Peerid
+	metainfo[0].Acc = types.NewAccountID(wal)
+	metainfo[0].MinerId = mdata.Peerid
 
 	_, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	metainfo.BlockNum = types.U32(n)
-	metainfo.ScanSize = types.U32(uint32(configs.ScanBlockSize))
+	metainfo[0].BlockNum = types.U32(n)
+	metainfo[0].ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	var file_blocks = make([]chain.BlockInfo, n)
 	for i := uint64(1); i <= n; i++ {
 		file_blocks[i].BlockIndex = types.U32(i)
 		file_blocks[i].BlockSize = types.U32(PoDR2commit.BlockSize)
 	}
-	metainfo.BlockInfo = file_blocks
+	metainfo[0].BlockInfo = file_blocks
 	_, err = chain.PutSpaceTagInfoToChain(
 		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
 		metainfo,
@@ -675,7 +675,7 @@ func combinationFile(fid, dir string, num int32) (string, error) {
 }
 
 //
-func writeData(dst string, service, method string, body []byte) error {
+func WriteData(dst string, service, method string, body []byte) ([]byte, error) {
 	dstip := "ws://" + tools.Base58Decoding(dst)
 	dstip = strings.Replace(dstip, " ", "", -1)
 	req := &ReqMsg{
@@ -685,26 +685,26 @@ func writeData(dst string, service, method string, body []byte) error {
 	}
 	client, err := DialWebsocket(context.Background(), dstip, "")
 	if err != nil {
-		return errors.Wrap(err, "DialWebsocket:")
+		return nil, errors.Wrap(err, "DialWebsocket:")
 	}
 	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	resp, err := client.Call(ctx, req)
 	if err != nil {
-		return errors.Wrap(err, "Call err:")
+		return nil, errors.Wrap(err, "Call err:")
 	}
 
 	var b RespBody
 	err = proto.Unmarshal(resp.Body, &b)
 	if err != nil {
-		return errors.Wrap(err, "Unmarshal:")
+		return nil, errors.Wrap(err, "Unmarshal:")
 	}
 	if b.Code == 200 {
-		return nil
+		return b.Data, nil
 	}
 	errstr := fmt.Sprintf("%d", b.Code)
-	return errors.New("return code:" + errstr)
+	return nil, errors.New("return code:" + errstr)
 }
 
 //
@@ -929,7 +929,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 					if ok {
 						continue
 					}
-					err = writeData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
+					_, err = WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 					if err == nil {
 						mip = string(mDatas[index].Ip)
 						blockinfo[j].BlockIndex = types.U32(uint32(j))
@@ -941,7 +941,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 					}
 				} else {
-					err = writeData(mip, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
+					_, err = WriteData(mip, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 					if err != nil {
 						failminer[uint64(mDatas[index].Peerid)] = true
 						Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
@@ -1036,7 +1036,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 			continue
 		}
 
-		err = writeData(mips[i], configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
+		_, err = WriteData(mips[i], configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v][%v]%v", t, mips[i], duplnamelist[i], err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
