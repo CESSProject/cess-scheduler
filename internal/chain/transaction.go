@@ -45,12 +45,12 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	// bytes, err := tools.DecodeToPub(stash_acc)
-	// if err != nil {
-	// 	return false, errors.Wrap(err, "DecodeToPub")
-	// }
+	bytes, err := tools.DecodeToPub(stash_acc)
+	if err != nil {
+		return false, errors.Wrap(err, "DecodeToPub")
+	}
 
-	c, err := types.NewCall(meta, TransactionName, 0, types.Bytes([]byte(ipAddr)))
+	c, err := types.NewCall(meta, TransactionName, types.Bytes(bytes), types.Bytes([]byte(ipAddr)))
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
