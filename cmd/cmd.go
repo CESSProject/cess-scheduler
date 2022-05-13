@@ -152,7 +152,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
 	}
-	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.ControllerAccountPhrase, 0)
+	keyring, err := signature.KeyringPairFromSecret(configs.C.CtrlPrk, 0)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -168,13 +168,13 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	hashs, err := tools.CalcHash([]byte(configs.Confile.SchedulerInfo.ControllerAccountPhrase))
+	hashs, err := tools.CalcHash([]byte(configs.C.CtrlPrk))
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
 
-	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
+	baseDir := filepath.Join(configs.C.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
 	f, err := os.Stat(baseDir)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' not found\n", 41, baseDir)
@@ -238,13 +238,13 @@ func parseProfile() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file type error\n", 41, confFilePath)
 		os.Exit(1)
 	}
-	err = viper.Unmarshal(configs.Confile)
+	err = viper.Unmarshal(configs.C)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
 		os.Exit(1)
 	}
 
-	_, err = os.Stat(configs.Confile.SchedulerInfo.DataDir)
+	_, err = os.Stat(configs.C.DataDir)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
@@ -253,12 +253,14 @@ func parseProfile() {
 
 // Scheduler registration function
 func register() {
-	sd, _, err := chain.GetSchedulerInfoOnChain()
+	sd, code, err := chain.GetSchedulerInfoOnChain()
 	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(1)
+		if code != configs.Code_404 {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+			os.Exit(1)
+		}
 	}
-	keyring, err := signature.KeyringPairFromSecret(configs.Confile.SchedulerInfo.ControllerAccountPhrase, 0)
+	keyring, err := signature.KeyringPairFromSecret(configs.C.CtrlPrk, 0)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -276,32 +278,32 @@ func register() {
 		os.Exit(1)
 	}
 
-	hashs, err := tools.CalcHash([]byte(configs.Confile.SchedulerInfo.ControllerAccountPhrase))
+	hashs, err := tools.CalcHash([]byte(configs.C.CtrlPrk))
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
 
-	baseDir := filepath.Join(configs.Confile.SchedulerInfo.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
+	baseDir := filepath.Join(configs.C.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
 	_, err = os.Stat(baseDir)
 	if err == nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' directory conflict\n", 41, baseDir)
 		os.Exit(1)
 	}
 
-	if configs.Confile.SchedulerInfo.ServiceAddr != "" {
-		if eip != configs.Confile.SchedulerInfo.ServiceAddr {
+	if configs.C.ServiceAddr != "" {
+		if eip != configs.C.ServiceAddr {
 			fmt.Printf("\x1b[%dm[err]\x1b[0mYou can use \"curl ifconfig.co\" to view the external network ip address\n", 41)
 			os.Exit(1)
 		}
 	}
 
-	res := tools.Base58Encoding(configs.Confile.SchedulerInfo.ServiceAddr + ":" + configs.Confile.SchedulerInfo.ServicePort)
+	res := tools.Base58Encoding(configs.C.ServiceAddr + ":" + configs.C.ServicePort)
 
 	_, err = chain.RegisterToChain(
-		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
+		configs.C.CtrlPrk,
 		chain.ChainTx_FileMap_Add_schedule,
-		configs.Confile.SchedulerInfo.StashAccountAddress,
+		configs.C.StashAcc,
 		res,
 	)
 	if err != nil {
@@ -328,11 +330,11 @@ func register() {
 	}
 	logger.LoggerInit()
 	Out.Sugar().Infof("Registration message:")
-	Out.Sugar().Infof("ChainAddr:%v", configs.Confile.CessChain.ChainAddr)
+	Out.Sugar().Infof("ChainAddr:%v", configs.C.RpcAddr)
 	Out.Sugar().Infof("ServiceAddr:%v", res)
-	Out.Sugar().Infof("DataDir:%v", configs.Confile.SchedulerInfo.DataDir)
-	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.Confile.SchedulerInfo.ControllerAccountPhrase)
-	Out.Sugar().Infof("StashAccountAddress:%v", configs.Confile.SchedulerInfo.StashAccountAddress)
+	Out.Sugar().Infof("DataDir:%v", configs.C.DataDir)
+	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.C.CtrlPrk)
+	Out.Sugar().Infof("StashAccountAddress:%v", configs.C.StashAcc)
 	os.Exit(0)
 Err:
 	fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
