@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -883,7 +884,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		if fi.Size()%configs.RpcFileBuffer > 0 {
 			blockTotal += 1
 		}
-		var blockinfo = make([]chain.BlockInfo, blockTotal)
+
 		var failminer = make(map[uint64]bool, 0)
 		var index int = 0
 		var mip = ""
@@ -923,8 +924,6 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 					_, err = WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 					if err == nil {
 						mip = string(mDatas[index].Ip)
-						blockinfo[j].BlockIndex = types.U32(uint32(j))
-						blockinfo[j].BlockSize = types.U32(uint32(n))
 						break
 					} else {
 						failminer[uint64(mDatas[index].Peerid)] = true
@@ -939,8 +938,6 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 						continue
 					}
-					blockinfo[j].BlockIndex = types.U32(uint32(j))
-					blockinfo[j].BlockSize = types.U32(uint32(n))
 					break
 				}
 			}
@@ -953,7 +950,8 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		filedump[i].RandKey = types.Bytes([]byte(strings.TrimSuffix(key, sufffex)))
 		filedump[i].MinerId = mDatas[index].Peerid
 		filedump[i].MinerIp = mDatas[index].Ip
-		filedump[i].ScanSize = types.U32(configs.ScanBlockSize)
+		bs, sbs := CalcFileBlockSizeAndScanSize(fi.Size())
+		filedump[i].ScanSize = types.U32(sbs)
 		mips[i] = string(mDatas[index].Ip)
 		// Query miner information by id
 		var mdetails chain.Chain_MinerDetails
@@ -967,7 +965,15 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 			break
 		}
 		filedump[i].Acc = mdetails.Address
-		filedump[i].BlockNum = types.U32(uint32(blockTotal))
+
+		matrix, _, n, err := tools.Split(f, bs)
+
+		filedump[i].BlockNum = types.U32(uint32(n))
+		var blockinfo = make([]chain.BlockInfo, n)
+		for x := uint64(0); x < n; x++ {
+			blockinfo[x].BlockIndex = types.U32(uint32(x))
+			blockinfo[x].BlockSize = types.U32(uint32(len(matrix[x])))
+		}
 		filedump[i].BlockInfo = blockinfo
 	}
 
@@ -976,8 +982,14 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		var PoDR2commit proof.PoDR2Commit
 		var commitResponse proof.PoDR2CommitResponse
 		PoDR2commit.FilePath = duplnamelist[i]
-		PoDR2commit.BlockSize = configs.BlockSize
-		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
+		fs, err := os.Stat(duplnamelist[i])
+		if err != nil {
+			Err.Sugar().Errorf("[%v][%v][%v]", t, duplnamelist[i], err)
+			continue
+		}
+		bs, sbs := CalcFileBlockSizeAndScanSize(fs.Size())
+		PoDR2commit.BlockSize = bs
+		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), sbs)
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v][%v]", t, filedump[i], err)
 			continue
@@ -1039,6 +1051,20 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 	}
 }
 
-func CalcFileBlockSizeAndScanSize(fsize uint64) (uint32, uint32) {
-	return 0, 0
+func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
+	var (
+		blockSize     int64
+		scanBlockSize int64
+	)
+	if fsize < configs.ByteSize_1Kb {
+		return fsize, fsize
+	}
+	if fsize > math.MaxUint32 {
+		blockSize = math.MaxUint32
+		scanBlockSize = blockSize / 8
+		return blockSize, scanBlockSize
+	}
+	blockSize = fsize / 16
+	scanBlockSize = blockSize / 8
+	return blockSize, scanBlockSize
 }
