@@ -38,7 +38,8 @@ const (
 )
 
 const (
-	SegMentSize_1M            = 1048576
+	ByteSize_1Mb              = 1024 * 1024
+	ByteSize_1Kb              = 1024
 	TimeToWaitEvents_S        = 20
 	SegMentType_Idle    uint8 = 1
 	SegMentType_Service uint8 = 2
