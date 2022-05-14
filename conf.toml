@@ -1,15 +1,12 @@
-[CessChain]
-# CESS chain address
-ChainAddr = ""
-
-[SchedulerInfo]
-# The IP address of the machine's public network used by the scheduler program.
-ServiceAddr    = ""
+# The rpc address of the chain node
+RpcAddr     = ""
+# The IP address of the machine's public network used by the scheduler program
+ServiceAddr = ""
 # Port number monitored by the scheduler program
-ServicePort    = ""
-# data storage directory
-DataDir        = ""
-# Phrase words or seeds for controller accounts.
-ControllerAccountPhrase = ""
-# Stash account address.
-StashAccountAddress     = ""
+ServicePort = ""
+# Data storage directory
+DataDir     = ""
+# Phrase or seed of the controller account
+CtrlPrk     = ""
+# The address of stash account
+StashAcc    = ""

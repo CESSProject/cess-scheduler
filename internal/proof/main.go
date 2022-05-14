@@ -351,7 +351,7 @@ func processingProof() {
 	}
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-		proofs, code, err = chain.GetProofsFromChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase)
+		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
 			if code != configs.Code_404 {
 				Err.Sugar().Errorf("[%v] %v", err)
@@ -366,7 +366,7 @@ func processingProof() {
 
 			var reqtag p.ReadTagReq
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
-			reqtag.Acc, err = chain.GetAddressByPrk(configs.Confile.SchedulerInfo.ControllerAccountPhrase)
+			reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
 			if err != nil {
 				Out.Sugar().Infof("%v", err)
 				continue
@@ -404,7 +404,7 @@ func processingProof() {
 			poDR2verify.Sigma = proofs[i].Sigma
 			poDR2verify.T = tag.T
 			result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-			chain.PutProofResult(configs.Confile.SchedulerInfo.ControllerAccountPhrase, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+			chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
 		}
 	}
 }
@@ -422,7 +422,7 @@ func processingRecoveryFiles() {
 	)
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.Confile.SchedulerInfo.ControllerAccountPhrase)
+		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
 		if err != nil {
 			Err.Sugar().Errorf("%v", err)
 			continue
@@ -570,7 +570,7 @@ func processingRecoveryFiles() {
 					filedump[0].BlockInfo = blockinfo
 					// Upload the file meta information to the chain and write it to the cache
 					for {
-						_, err = chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, fileid, filedump)
+						_, err = chain.PutMetaInfoToChain(configs.C.CtrlPrk, fileid, filedump)
 						if err != nil {
 							Err.Sugar().Errorf("[%v][%v]", fileid, err)
 							time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -631,7 +631,7 @@ func processingRecoveryFiles() {
 						break
 					}
 
-					_, err = chain.ClearRecoveredFileNoChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, recoverylist[i])
+					_, err = chain.ClearRecoveredFileNoChain(configs.C.CtrlPrk, recoverylist[i])
 					if err != nil {
 						Err.Sugar().Errorf("[%v]%v", fileid, err)
 						break
@@ -856,7 +856,7 @@ func processingRecoveryFiles() {
 				filedump[0].BlockInfo = blockinfo
 				// Upload the file meta information to the chain and write it to the cache
 				for {
-					_, err = chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, fileid, filedump)
+					_, err = chain.PutMetaInfoToChain(configs.C.CtrlPrk, fileid, filedump)
 					if err != nil {
 						Err.Sugar().Errorf("[%v][%v]", fileid, err)
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -916,7 +916,7 @@ func processingRecoveryFiles() {
 					Err.Sugar().Errorf("[%v]%v", fileid, err)
 					break
 				}
-				_, err = chain.ClearRecoveredFileNoChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, recoverylist[i])
+				_, err = chain.ClearRecoveredFileNoChain(configs.C.CtrlPrk, recoverylist[i])
 				if err != nil {
 					Err.Sugar().Errorf("[%v]%v", fileid, err)
 					break

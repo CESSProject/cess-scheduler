@@ -38,7 +38,7 @@ type WService struct {
 func Rpc_Main() {
 	srv := NewServer()
 	srv.Register(configs.RpcService_Scheduler, WService{})
-	err := http.ListenAndServe(":"+configs.Confile.SchedulerInfo.ServicePort, srv.WebsocketHandler([]string{"*"}))
+	err := http.ListenAndServe(":"+configs.C.ServicePort, srv.WebsocketHandler([]string{"*"}))
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
@@ -617,7 +617,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 	metainfo[0].BlockInfo = file_blocks
 	_, err = chain.PutSpaceTagInfoToChain(
-		configs.Confile.SchedulerInfo.ControllerAccountPhrase,
+		configs.C.CtrlPrk,
 		metainfo,
 	)
 	if err != nil {
@@ -971,39 +971,11 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		filedump[i].BlockInfo = blockinfo
 	}
 
-	// Upload the file meta information to the chain and write it to the cache
-	for {
-		ok, err := chain.PutMetaInfoToChain(configs.Confile.SchedulerInfo.ControllerAccountPhrase, fid, filedump)
-		if !ok || err != nil {
-			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
-			continue
-		}
-		Out.Sugar().Infof("[%v][%v]File metainfo up chain success", t, fid)
-		c, err := cache.GetCache()
-		if err != nil {
-			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-		} else {
-			b, err := json.Marshal(filedump)
-			if err != nil {
-				Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-			} else {
-				err = c.Put([]byte(fid), b)
-				if err != nil {
-					Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-				} else {
-					Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
-				}
-			}
-		}
-		break
-	}
-
 	// calculate file tag info
 	for i := 0; i < len(filedump); i++ {
 		var PoDR2commit proof.PoDR2Commit
 		var commitResponse proof.PoDR2CommitResponse
-		PoDR2commit.FilePath = string(filedump[i].DuplId)
+		PoDR2commit.FilePath = duplnamelist[i]
 		PoDR2commit.BlockSize = configs.BlockSize
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 		if err != nil {
@@ -1037,4 +1009,36 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 			continue
 		}
 	}
+
+	// Upload the file meta information to the chain and write it to the cache
+	for {
+		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
+		if !ok || err != nil {
+			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+			continue
+		}
+		Out.Sugar().Infof("[%v][%v]File metainfo up chain success", t, fid)
+		c, err := cache.GetCache()
+		if err != nil {
+			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+		} else {
+			b, err := json.Marshal(filedump)
+			if err != nil {
+				Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			} else {
+				err = c.Put([]byte(fid), b)
+				if err != nil {
+					Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+				} else {
+					Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
+				}
+			}
+		}
+		break
+	}
+}
+
+func CalcFileBlockSizeAndScanSize(fsize uint64) (uint32, uint32) {
+	return 0, 0
 }

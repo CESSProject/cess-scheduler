@@ -21,7 +21,7 @@ type CessInfo struct {
 	ChainModuleMethod      string
 }
 
-func RegisterToChain(transactionPrK, TransactionName, controll_wallet, ipAddr string) (bool, error) {
+func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -45,12 +45,12 @@ func RegisterToChain(transactionPrK, TransactionName, controll_wallet, ipAddr st
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	bytes, err := tools.DecodeToPub(controll_wallet)
+	bytes, err := tools.DecodeToPub(stash_acc)
 	if err != nil {
 		return false, errors.Wrap(err, "DecodeToPub")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, types.NewAccountID(bytes), types.NewBytes([]byte(ipAddr)))
+	c, err := types.NewCall(meta, TransactionName, types.Bytes(bytes), types.Bytes([]byte(ipAddr)))
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}

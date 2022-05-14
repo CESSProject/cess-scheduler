@@ -283,7 +283,7 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", State_FileMap, FileMap_SchedulerInfo)
 	}
 	if !ok {
-		return mdata, configs.Code_400, errors.Errorf("[%v.%v:value is empty]", State_FileMap, FileMap_SchedulerInfo)
+		return mdata, configs.Code_404, errors.Errorf("[%v.%v:value is empty]", State_FileMap, FileMap_SchedulerInfo)
 	}
 	return mdata, configs.Code_200, nil
 }
