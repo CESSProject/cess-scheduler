@@ -44,13 +44,16 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	if err != nil {
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
-
+	// ip, err := types.EncodeToBytes(ipAddr)
+	// if err != nil {
+	// 	return false, errors.Wrap(err, "EncodeToBytes")
+	// }
 	bytes, err := tools.DecodeToPub(stash_acc)
 	if err != nil {
 		return false, errors.Wrap(err, "DecodeToPub")
 	}
 
-	c, err := types.NewCall(meta, TransactionName, types.Bytes(bytes), types.Bytes([]byte(ipAddr)))
+	c, err := types.NewCall(meta, TransactionName, types.NewAccountID(bytes), types.Bytes([]byte(ipAddr)))
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -742,7 +745,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, info []FileDuplicateInfo) (b
 }
 
 // Update file meta information
-func PutSpaceTagInfoToChain(transactionPrK string, info []SpaceFileInfo) (bool, error) {
+func PutSpaceTagInfoToChain(transactionPrK string, mid types.U64, info []SpaceFileInfo) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -765,11 +768,11 @@ func PutSpaceTagInfoToChain(transactionPrK string, info []SpaceFileInfo) (bool, 
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	// b, err := types.EncodeToBytes(info)
+	// b, err := types.EncodeToBytes(mid)
 	// if err != nil {
 	// 	return false, errors.Wrap(err, "EncodeToBytes err")
 	// }
-	c, err := types.NewCall(meta, ChainTx_FileBank_FillerMap, info)
+	c, err := types.NewCall(meta, ChainTx_FileBank_UploadFiller, mid, info)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
@@ -876,7 +879,7 @@ func PutSpaceTagInfoToChain(transactionPrK string, info []SpaceFileInfo) (bool, 
 		case err = <-sub.Err():
 			return false, err
 		case <-timeout:
-			return false, errors.Errorf("[%v] tx timeout", ChainTx_FileBank_FillerMap)
+			return false, errors.Errorf("[%v] tx timeout", ChainTx_FileBank_UploadFiller)
 		}
 	}
 }

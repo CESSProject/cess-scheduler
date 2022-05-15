@@ -48,19 +48,22 @@ const (
 	ChainTx_FileBank_PutMetaInfo     = "FileBank.update_dupl"
 	ChainTx_FileBank_Upload          = "FileBank.upload"
 	ChainTx_FileBank_HttpDeleteFile  = "FileBank.http_delete"
-	ChainTx_FileBank_FillerMap       = "FileBank.FillerMap"
+	ChainTx_FileBank_UploadFiller    = "FileBank.upload_filler"
 	SegmentBook_VerifyProof          = "SegmentBook.verify_proof"
 	FileBank_ClearRecoveredFile      = "FileBank.recover_file"
 )
 
 type Chain_MinerItems struct {
-	Peerid      types.U64       `json:"peerid"`
-	Beneficiary types.AccountID `json:"beneficiary"`
-	Ip          types.U32       `json:"ip"`
-	Collaterals types.U128      `json:"collaterals"`
-	Earnings    types.U128      `json:"earnings"`
-	Locked      types.U128      `json:"locked"`
-	Publickey   types.Bytes     `json:"publickey"`
+	Peerid      types.U64
+	Beneficiary types.AccountID
+	Ip          types.Bytes
+	Collaterals types.U128
+	Earnings    types.U128
+	Locked      types.U128
+	State       types.Bytes
+	Power       types.U128
+	Space       types.U128
+	Publickey   types.Bytes
 }
 
 type CessChain_AllMinerInfo struct {
