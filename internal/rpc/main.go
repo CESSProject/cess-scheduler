@@ -27,7 +27,7 @@ import (
 	rpc "cess-scheduler/internal/rpc/protobuf"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"storj.io/common/base58"
 )
 
@@ -38,8 +38,12 @@ type WService struct {
 // If an error occurs, it will exit immediately.
 func Rpc_Main() {
 	srv := NewServer()
-	srv.Register(configs.RpcService_Scheduler, WService{})
-	err := http.ListenAndServe(":"+configs.C.ServicePort, srv.WebsocketHandler([]string{"*"}))
+	err := srv.Register(configs.RpcService_Scheduler, WService{})
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
+	err = http.ListenAndServe(":"+configs.C.ServicePort, srv.WebsocketHandler([]string{"*"}))
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
@@ -256,13 +260,18 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		}
 	}
 	// Determine whether the user has download permission
-	a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
+	// a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
+	// if err != nil {
+	// 	Err.Sugar().Errorf("[%v]%v", b.FileId, err)
+	// 	return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
+	// }
+	addr_chain, err := tools.Encode(fmeta.UserAddr[:], tools.SubstratePrefix)
 	if err != nil {
 		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 		return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
 	}
 
-	if a.AsAccountID != fmeta.UserAddr {
+	if b.WalletAddress != addr_chain {
 		Err.Sugar().Errorf("[%v]No permission", b.FileId)
 		return &RespBody{Code: 400, Msg: "No permission"}, nil
 	}
@@ -492,56 +501,57 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		}
 	}
 
-	filefullpath := filepath.Join(filebasedir, b.Fileid)
-	fi, err := os.Stat(filefullpath)
-	if err == nil {
-		var respfile RespSpacefileInfo
-		respfile.FileId = b.Fileid
-		respfile.BlockIndex = b.BlockIndex
-		f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
-		if err != nil {
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			os.Remove(filefullpath)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
+	if b.Fileid != "" {
+		filefullpath := filepath.Join(filebasedir, b.Fileid)
+		fi, err := os.Stat(filefullpath)
+		if err == nil {
+			var respfile RespSpacefileInfo
+			respfile.FileId = b.Fileid
+			respfile.BlockIndex = b.BlockIndex
+			f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
+			if err != nil {
+				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+				os.Remove(filefullpath)
+				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			}
 
-		blockTotal := fi.Size() / 2 / 1024 / 1024
-		respfile.BlockTotal = uint32(blockTotal)
+			blockTotal := fi.Size() / 2 / 1024 / 1024
+			respfile.BlockTotal = uint32(blockTotal)
 
-		if b.BlockIndex >= uint32(blockTotal) {
+			if b.BlockIndex >= uint32(blockTotal) {
+				f.Close()
+				Out.Sugar().Infof("[%v]Receive space request err: Invalid block index", t)
+				return &RespBody{Code: 400, Msg: "Invalid block index", Data: nil}, nil
+			}
+			offset, err := f.Seek(int64(b.BlockIndex*2*1024*1024), 0)
+			if err != nil {
+				f.Close()
+				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			}
+			var buf = make([]byte, 2*1024*1024)
+			_, err = f.ReadAt(buf, offset)
+			if err != nil {
+				f.Close()
+				os.Remove(filefullpath)
+				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			}
+			respfile.BlockData = buf
+			respfile_b, err := json.Marshal(respfile)
+			if err != nil {
+				f.Close()
+				os.Remove(filefullpath)
+				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			}
 			f.Close()
-			Out.Sugar().Infof("[%v]Receive space request err: Invalid block index", t)
-			return &RespBody{Code: 400, Msg: "Invalid block index", Data: nil}, nil
+			if b.BlockIndex+1 == uint32(blockTotal) {
+				os.Remove(filefullpath)
+			}
+			return &RespBody{Code: 201, Msg: "Invalid block index", Data: respfile_b}, nil
 		}
-		offset, err := f.Seek(int64(b.BlockIndex*2*1024*1024), 0)
-		if err != nil {
-			f.Close()
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		var buf = make([]byte, 2*1024*1024)
-		_, err = f.ReadAt(buf, offset)
-		if err != nil {
-			f.Close()
-			os.Remove(filefullpath)
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		respfile.BlockData = buf
-		respfile_b, err := json.Marshal(respfile)
-		if err != nil {
-			f.Close()
-			os.Remove(filefullpath)
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		f.Close()
-		if b.BlockIndex+1 == uint32(blockTotal) {
-			os.Remove(filefullpath)
-		}
-		return &RespBody{Code: 201, Msg: "Invalid block index", Data: respfile_b}, nil
 	}
-
 	if b.SizeMb > 8 || b.SizeMb == 0 {
 		Out.Sugar().Infof("[%v]Receive space request err: SizeMb up to 8 and not 0", t)
 		return &RespBody{Code: 400, Msg: "SizeMb up to 8 and not 0", Data: nil}, nil
@@ -549,7 +559,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 	lines := b.SizeMb * 1024 * 1024 / configs.LengthOfALine
 	filename := fmt.Sprintf("C%d_%d", mdata.Peerid, time.Now().UnixNano())
-	filefullpath = filepath.Join(filebasedir, filename)
+	filefullpath := filepath.Join(filebasedir, filename)
 	f, err := os.OpenFile(filefullpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
@@ -567,19 +577,21 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-	f.Close()
+
 	hash, err := tools.CalcFileHash(filefullpath)
 	if err != nil {
+		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	// calculate file tag info
 	var PoDR2commit proof.PoDR2Commit
 	var commitResponse proof.PoDR2CommitResponse
-	PoDR2commit.FilePath = filename
+	PoDR2commit.FilePath = filefullpath
 	PoDR2commit.BlockSize = configs.BlockSize
 	commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 	if err != nil {
+		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
@@ -587,6 +599,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	case commitResponse = <-commitResponseCh:
 	}
 	if commitResponse.StatueMsg.StatusCode != proof.Success {
+		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: PoDR2ProofCommit", t)
 		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
 	}
@@ -598,6 +611,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	metainfo[0].FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
 	wal, err := tools.DecodeToPub(b.WalletAddress)
 	if err != nil {
+		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
@@ -609,16 +623,18 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
+	f.Close()
 	metainfo[0].BlockNum = types.U32(n)
 	metainfo[0].ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	var file_blocks = make([]chain.BlockInfo, n)
 	for i := uint64(1); i <= n; i++ {
-		file_blocks[i].BlockIndex = types.U32(i)
-		file_blocks[i].BlockSize = types.U32(PoDR2commit.BlockSize)
+		file_blocks[i-1].BlockIndex = types.U32(i)
+		file_blocks[i-1].BlockSize = types.U32(PoDR2commit.BlockSize)
 	}
 	metainfo[0].BlockInfo = file_blocks
 	_, err = chain.PutSpaceTagInfoToChain(
 		configs.C.CtrlPrk,
+		mdata.Peerid,
 		metainfo,
 	)
 	if err != nil {
@@ -942,7 +958,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 				}
 			}
 		}
-		f.Close()
+
 		filedump[i].DuplId = types.Bytes([]byte(duplname))
 		key := filepath.Base(duplkeynamelist[i])
 		sufffex := filepath.Ext(key)
@@ -967,7 +983,7 @@ func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []st
 		filedump[i].Acc = mdetails.Address
 
 		matrix, _, n, err := tools.Split(f, bs)
-
+		f.Close()
 		filedump[i].BlockNum = types.U32(uint32(n))
 		var blockinfo = make([]chain.BlockInfo, n)
 		for x := uint64(0); x < n; x++ {

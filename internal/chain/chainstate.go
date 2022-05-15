@@ -34,8 +34,11 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 	if err != nil {
 		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:DecodeToPub]", State_Sminer, Sminer_MinerItems)
 	}
-
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, pub)
+	b, err := types.EncodeToBytes(types.NewAccountID(pub))
+	if err != nil {
+		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:EncodeToBytes]", State_Sminer, Sminer_MinerItems)
+	}
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
 	if err != nil {
 		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", State_Sminer, Sminer_MinerItems)
 	}
