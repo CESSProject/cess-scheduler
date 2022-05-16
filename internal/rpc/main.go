@@ -5,7 +5,6 @@ import (
 	"cess-scheduler/internal/cache"
 	"cess-scheduler/internal/chain"
 	"cess-scheduler/internal/encryption"
-	"cess-scheduler/internal/fileshards"
 	. "cess-scheduler/internal/logger"
 	proof "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/tools"
@@ -330,7 +329,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 		}
-		slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(fuser)))
+		slicesize, lastslicesize, num, err := cutDataRule(uint64(len(fuser)))
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
@@ -415,7 +414,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 		}
-		slicesize, lastslicesize, num, err := fileshards.CutDataRule(uint64(len(fuser)))
+		slicesize, lastslicesize, num, err := cutDataRule(uint64(len(fuser)))
 		if err != nil {
 			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Blocks, err)
 			return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
@@ -517,7 +516,6 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 			blockTotal := fi.Size() / 2 / 1024 / 1024
 			respfile.BlockTotal = uint32(blockTotal)
-
 			if b.BlockIndex >= uint32(blockTotal) {
 				f.Close()
 				Out.Sugar().Infof("[%v]Receive space request err: Invalid block index", t)
@@ -577,7 +575,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
-
+	f.Close()
 	hash, err := tools.CalcFileHash(filefullpath)
 	if err != nil {
 		f.Close()
@@ -591,7 +589,6 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	PoDR2commit.BlockSize = configs.BlockSize
 	commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 	if err != nil {
-		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
@@ -599,7 +596,6 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	case commitResponse = <-commitResponseCh:
 	}
 	if commitResponse.StatueMsg.StatusCode != proof.Success {
-		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: PoDR2ProofCommit", t)
 		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
 	}
@@ -609,17 +605,27 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	metainfo[0].FileId = []byte(filename)
 	metainfo[0].FileHash = []byte(hash)
 	metainfo[0].FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
-	wal, err := tools.DecodeToPub(b.WalletAddress, tools.ChainCessTestPrefix)
+	var pre []byte
+	if configs.NewTestAddr {
+		pre = tools.ChainCessTestPrefix
+	} else {
+		pre = tools.SubstratePrefix
+	}
+	wal, err := tools.DecodeToPub(b.WalletAddress, pre)
 	if err != nil {
-		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	metainfo[0].Acc = types.NewAccountID(wal)
 	metainfo[0].MinerId = mdata.Peerid
-
+	f, err = os.Open(filefullpath)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+	}
 	_, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
 	if err != nil {
+		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
@@ -1083,4 +1089,14 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 	blockSize = fsize / 16
 	scanBlockSize = blockSize / 8
 	return blockSize, scanBlockSize
+}
+
+func cutDataRule(size uint64) (uint64, uint64, uint8, error) {
+	if size <= 0 {
+		return 0, 0, 0, errors.New("file size is 0")
+	}
+	num := size / configs.RpcFileBuffer
+	slicesize := size / (num + 1)
+	tailsize := size - slicesize*(num+1)
+	return uint64(slicesize), uint64(slicesize + tailsize), uint8(num) + 1, nil
 }

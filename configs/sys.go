@@ -24,37 +24,20 @@ const (
 	Code_600 = 600
 )
 
+//
 const (
-	BaseDir = "scheduler"
-)
-
-// space file
-const (
-	LengthOfALine       = 128
-	BlockSize           = 1024 * 1024 //1MB
-	ScanBlockSize       = 512 * 1024  //512KB
-	Backups_Min   uint8 = 3
-	Backups_Max   uint8 = 6
-)
-
-const (
-	ByteSize_1Mb              = 1024 * 1024
-	ByteSize_1Kb              = 1024
-	TimeToWaitEvents_S        = 20
-	SegMentType_Idle    uint8 = 1
-	SegMentType_Service uint8 = 2
-	SegMentType_8M      uint8 = 1
-	SegMentType_8M_S          = "1"
-	SegMentType_512M    uint8 = 2
-	SegMentType_512M_S        = "2"
+	LengthOfALine            = 128
+	BlockSize                = 1024 * 1024 //1MB
+	ScanBlockSize            = 512 * 1024  //512KB
+	ByteSize_1Kb             = 1024
+	TimeToWaitEvents_S       = 20
+	Backups_Min        uint8 = 3
+	Backups_Max        uint8 = 6
+	BaseDir                  = "scheduler"
+	NewTestAddr              = true
 )
 
 var (
-	MinSegMentSize = 8323072
-	RduShards      = 2
-	CurrentPath    = ""
-	FilePostProof  = 6
-
 	//data dir
 	LogFileDir    = "log"
 	FileCacheDir  = "file"
