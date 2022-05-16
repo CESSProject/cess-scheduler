@@ -144,50 +144,10 @@ func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
 
 // start service
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
-	var reg bool
 	refreshProfile(cmd)
 	chain.ChainInit()
-	sd, _, err := chain.GetSchedulerInfoOnChain()
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(1)
-	}
-	keyring, err := signature.KeyringPairFromSecret(configs.C.CtrlPrk, 0)
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(1)
-	}
-	for _, v := range sd {
-		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
-			reg = true
-		}
-	}
+	register_if()
 
-	if !reg {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Unregistered.\n", 41)
-		os.Exit(1)
-	}
-
-	hashs, err := tools.CalcHash([]byte(configs.C.CtrlPrk))
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
-
-	baseDir := filepath.Join(configs.C.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
-	f, err := os.Stat(baseDir)
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' not found\n", 41, baseDir)
-		os.Exit(1)
-	}
-	if !f.IsDir() {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' is not a directory\n", 41, baseDir)
-		os.Exit(1)
-	}
-	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
-	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
-	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
-	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
 	// start-up
 	logger.LoggerInit()
 	exit_interrupt()
@@ -271,7 +231,58 @@ func register() {
 			os.Exit(0)
 		}
 	}
+	rgst()
+	os.Exit(0)
+}
 
+func register_if() {
+	var reg bool
+	sd, code, err := chain.GetSchedulerInfoOnChain()
+	if err != nil {
+		if code == configs.Code_404 {
+			rgst()
+			return
+		}
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+		os.Exit(1)
+	}
+	keyring, err := signature.KeyringPairFromSecret(configs.C.CtrlPrk, 0)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
+		os.Exit(1)
+	}
+	for _, v := range sd {
+		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
+			reg = true
+		}
+	}
+	if !reg {
+		rgst()
+		return
+	}
+	hashs, err := tools.CalcHash([]byte(configs.C.CtrlPrk))
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
+
+	baseDir := filepath.Join(configs.C.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
+	f, err := os.Stat(baseDir)
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' not found\n", 41, baseDir)
+		os.Exit(1)
+	}
+	if !f.IsDir() {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' is not a directory\n", 41, baseDir)
+		os.Exit(1)
+	}
+	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
+	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
+	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
+	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
+}
+
+func rgst() {
 	eip, err := tools.GetExternalIp()
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
@@ -335,7 +346,7 @@ func register() {
 	Out.Sugar().Infof("DataDir:%v", configs.C.DataDir)
 	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.C.CtrlPrk)
 	Out.Sugar().Infof("StashAccountAddress:%v", configs.C.StashAcc)
-	os.Exit(0)
+	return
 Err:
 	fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 	os.Exit(1)

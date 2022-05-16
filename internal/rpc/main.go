@@ -609,7 +609,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	metainfo[0].FileId = []byte(filename)
 	metainfo[0].FileHash = []byte(hash)
 	metainfo[0].FileSize = types.U64(uint64(b.SizeMb * 1024 * 1024))
-	wal, err := tools.DecodeToPub(b.WalletAddress)
+	wal, err := tools.DecodeToPub(b.WalletAddress, tools.ChainCessTestPrefix)
 	if err != nil {
 		f.Close()
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
