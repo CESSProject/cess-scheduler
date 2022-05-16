@@ -25,7 +25,7 @@ import (
 
 const (
 	Name        = "cess-scheduler"
-	Description = "An implementation of the CESS scheduler for consensus nodes."
+	Description = "Implementation of Scheduling Service for Consensus Nodes"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -46,7 +46,6 @@ func Execute() {
 
 // init
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configs.ConfigFilePath, "config", "c", "", "Custom profile")
 	rootCmd.AddCommand(
 		Command_Default(),
 		Command_Version(),
@@ -54,6 +53,7 @@ func init() {
 		Command_Obtain(),
 		Command_Run(),
 	)
+	rootCmd.PersistentFlags().StringVarP(&configs.ConfigFilePath, "config", "c", "", "Custom profile")
 }
 
 func Command_Version() *cobra.Command {
@@ -79,7 +79,7 @@ func Command_Default() *cobra.Command {
 func Command_Register() *cobra.Command {
 	cc := &cobra.Command{
 		Use:                   "register",
-		Short:                 "Register miner information to cess chain",
+		Short:                 "Register scheduler information to the chain",
 		Run:                   Command_Register_Runfunc,
 		DisableFlagsInUseLine: true,
 	}
