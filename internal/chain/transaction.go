@@ -48,7 +48,7 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	// if err != nil {
 	// 	return false, errors.Wrap(err, "EncodeToBytes")
 	// }
-	bytes, err := tools.DecodeToPub(stash_acc)
+	bytes, err := tools.DecodeToPub(stash_acc, tools.ChainCessTestPrefix)
 	if err != nil {
 		return false, errors.Wrap(err, "DecodeToPub")
 	}

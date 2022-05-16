@@ -30,10 +30,11 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", State_Sminer, Sminer_MinerItems)
 	}
 
-	pub, err := tools.DecodeToPub(addr)
+	pub, err := tools.DecodeToPub(addr, tools.ChainCessTestPrefix)
 	if err != nil {
 		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:DecodeToPub]", State_Sminer, Sminer_MinerItems)
 	}
+
 	b, err := types.EncodeToBytes(types.NewAccountID(pub))
 	if err != nil {
 		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:EncodeToBytes]", State_Sminer, Sminer_MinerItems)
