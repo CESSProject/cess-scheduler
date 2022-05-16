@@ -29,8 +29,13 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 	if err != nil {
 		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", State_Sminer, Sminer_MinerItems)
 	}
-
-	pub, err := tools.DecodeToPub(addr, tools.ChainCessTestPrefix)
+	var pre []byte
+	if configs.NewTestAddr {
+		pre = tools.ChainCessTestPrefix
+	} else {
+		pre = tools.SubstratePrefix
+	}
+	pub, err := tools.DecodeToPub(addr, pre)
 	if err != nil {
 		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:DecodeToPub]", State_Sminer, Sminer_MinerItems)
 	}
