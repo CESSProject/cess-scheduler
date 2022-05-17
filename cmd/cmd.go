@@ -21,6 +21,7 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"storj.io/common/base58"
 )
 
 const (
@@ -309,7 +310,7 @@ func rgst() {
 		}
 	}
 
-	res := tools.Base58Encoding(configs.C.ServiceAddr + ":" + configs.C.ServicePort)
+	res := base58.Encode([]byte(configs.C.ServiceAddr + ":" + configs.C.ServicePort))
 
 	_, err = chain.RegisterToChain(
 		configs.C.CtrlPrk,

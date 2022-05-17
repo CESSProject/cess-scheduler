@@ -34,7 +34,7 @@ const (
 	Backups_Min        uint8 = 3
 	Backups_Max        uint8 = 6
 	BaseDir                  = "scheduler"
-	NewTestAddr              = true
+	NewTestAddr              = false
 )
 
 var (

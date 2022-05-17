@@ -55,12 +55,11 @@ func Rpc_Main() {
 func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	var (
 		err       error
-		t         int64
 		cachepath string
 		b         FileUploadInfo
 		fmeta     chain.FileMetaInfo
 	)
-	t = time.Now().Unix()
+	t := tools.RandomInRange(100000000, 999999999)
 	Out.Sugar().Infof("[%v]Receive upload request", t)
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
@@ -117,7 +116,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		}
 	}
 
-	filename := filepath.Join(cachepath, b.FileId+"_"+fmt.Sprintf("%d", b.BlockNum))
+	filename := filepath.Join(cachepath, b.FileId+"_"+fmt.Sprintf("%d", b.Blocks))
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
 		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.FileHash, err)
@@ -165,9 +164,9 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		for i := uint8(0); i < backupNum; {
 			// Generate 32-bit random key for aes encryption
 			key := tools.GetRandomkey(32)
-			key_base58 := tools.Base58Encoding(key)
+			key_base58 := base58.Encode([]byte(key))
 			// Aes ctr mode encryption
-			encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58[:16]))
+			encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58)[:16])
 			if err != nil {
 				Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
 				continue
@@ -197,7 +196,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 				continue
 			}
 			duplf.Close()
-			duplkey := key_base58 + ".k" + strconv.Itoa(int(i))
+			duplkey := string(key_base58) + ".k" + strconv.Itoa(int(i))
 			duplkeyFallpath := filepath.Join(cachepath, duplkey)
 			_, err = os.Create(duplkeyFallpath)
 			if err != nil {
@@ -222,12 +221,11 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	var (
 		err   error
-		t     int64
 		code  int
 		b     FileDownloadReq
 		fmeta chain.FileMetaInfo
 	)
-	t = time.Now().Unix()
+	t := tools.RandomInRange(100000000, 999999999)
 	Out.Sugar().Infof("[%v]Receive download request", t)
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
@@ -296,7 +294,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 				}
 				//aes decryption
 				ivkey := string(fmeta.FileDupl[i].RandKey)[:16]
-				bkey := tools.Base58Decoding(string(fmeta.FileDupl[i].RandKey))
+				bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
 				decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), []byte(ivkey))
 				if err != nil {
 					Err.Sugar().Errorf("[%v][%v]%v", t, duplname, err)
@@ -382,8 +380,8 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			}
 			//aes decryption
 			ivkey := string(fmeta.FileDupl[i].RandKey)[:16]
-			bkey := tools.Base58Decoding(string(fmeta.FileDupl[i].RandKey))
-			decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), []byte(ivkey))
+			bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
+			decrypted, err := encryption.AesCtrDecrypt(buf, bkey, []byte(ivkey))
 			if err != nil {
 				Err.Sugar().Errorf("[%v][%v]%v", t, duplname, err)
 				os.Remove(duplname)
@@ -463,10 +461,9 @@ type RespSpacefileInfo struct {
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	var (
 		err error
-		t   int64
 		b   SpaceTagReq
 	)
-	t = time.Now().Unix()
+	t := tools.RandomInRange(100000000, 999999999)
 	Out.Sugar().Infof("[%v]Receive space request", t)
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
@@ -690,7 +687,7 @@ func combinationFile(fid, dir string, num int32) (string, error) {
 
 //
 func WriteData(dst string, service, method string, body []byte) ([]byte, error) {
-	dstip := "ws://" + tools.Base58Decoding(dst)
+	dstip := "ws://" + string(base58.Decode(dst))
 	dstip = strings.Replace(dstip, " ", "", -1)
 	req := &ReqMsg{
 		Service: service,
@@ -723,7 +720,7 @@ func WriteData(dst string, service, method string, body []byte) ([]byte, error) 
 
 //
 func ReadFile(dst string, path, fid, walletaddr string) error {
-	dstip := "ws://" + tools.Base58Decoding(dst)
+	dstip := "ws://" + string(base58.Decode(dst))
 	dstip = strings.Replace(dstip, " ", "", -1)
 	reqbody := FileDownloadReq{
 		FileId:        fid,
@@ -865,7 +862,7 @@ func ReadFile(dst string, path, fid, walletaddr string) error {
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func processingfile(t int64, fid, dir string, duplnamelist, duplkeynamelist []string) {
+func processingfile(t int, fid, dir string, duplnamelist, duplkeynamelist []string) {
 	var (
 		err  error
 		code int

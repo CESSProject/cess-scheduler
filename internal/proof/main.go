@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"storj.io/common/base58"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -375,7 +376,7 @@ func processingRecoveryFiles() {
 						}
 						//aes decryption
 						ivkey := string(fmeta.FileDupl[k].RandKey)[:16]
-						bkey := tools.Base58Decoding(string(fmeta.FileDupl[k].RandKey))
+						bkey := base58.Decode(string(fmeta.FileDupl[k].RandKey))
 						decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), []byte(ivkey))
 						if err != nil {
 							Err.Sugar().Errorf("[%v]%v", fileFullPath, err)
@@ -414,7 +415,7 @@ func processingRecoveryFiles() {
 
 			// Generate 32-bit random key for aes encryption
 			key := tools.GetRandomkey(32)
-			key_base58 := tools.Base58Encoding(key)
+			key_base58 := base58.Encode([]byte(key))
 			// Aes ctr mode encryption
 			encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58[:16]))
 			if err != nil {
