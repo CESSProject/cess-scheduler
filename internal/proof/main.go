@@ -50,15 +50,17 @@ func processingProof() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
+
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
+		proofs, code, err = chain.GetProofsFromChain(configs.C.StashAcc)
 		if err != nil {
 			if code != configs.Code_404 {
-				Err.Sugar().Errorf("[%v] %v", err)
+				Err.Sugar().Errorf("%v", err)
 			}
 			continue
 		}
+
 		for i := 0; i < len(proofs); i++ {
 			tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
 			for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
@@ -69,43 +71,62 @@ func processingProof() {
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			minerDetails, _, err := chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			respData, err := rpc.WriteData(string(minerDetails.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			var tag TagInfo
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			qSlice, err := api.PoDR2ChallengeGenerateFromChain(tmp, string(puk.Shared_params))
 			if err != nil {
-				Err.Sugar().Errorf("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
+
 			poDR2verify.QSlice = qSlice
+			poDR2verify.MU = make([][]byte, len(proofs[i].Mu))
 			for j := 0; j < len(proofs[i].Mu); j++ {
-				poDR2verify.MU[i] = append(poDR2verify.MU[i], proofs[i].Mu[i]...)
+				poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
 			}
 			poDR2verify.Sigma = proofs[i].Sigma
 			poDR2verify.T = tag.T
 			result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-			chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+
+			code = 0
+			ts := time.Now().Unix()
+			for code != int(configs.Code_200) && code != int(configs.Code_600) {
+				code, err = chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+				if err == nil {
+					Out.Sugar().Infof("[%v] Proof result submitted successfully", uint64(proofs[i].Miner_id))
+					break
+				}
+				if time.Since(time.Unix(ts, 0)).Minutes() > 10.0 {
+					Err.Sugar().Errorf("[%v] %v", uint64(proofs[i].Miner_id), err)
+					break
+				}
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
+			}
+			if err != nil {
+				Err.Sugar().Errorf("[%v] %v", uint64(proofs[i].Miner_id), err)
+			}
 		}
 	}
 }
