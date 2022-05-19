@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -83,11 +82,11 @@ func task_ValidateProof(ch chan bool) {
 		}
 
 		for i := 0; i < len(proofs); i++ {
-			tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
-			for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
-				index, _ := tools.BytesToInteger(proofs[i].Challenge_info.Block_list[j])
-				tmp[int(index)] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
-			}
+			// tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
+			// for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
+			// 	index, _ := tools.BytesToInteger(proofs[i].Challenge_info.Block_list[j])
+			// 	tmp[int(index)] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
+			// }
 
 			var reqtag p.ReadTagReq
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
@@ -117,7 +116,7 @@ func task_ValidateProof(ch chan bool) {
 				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
-			qSlice, err := api.PoDR2ChallengeGenerateFromChain(tmp, string(puk.Shared_params))
+			qSlice, err := api.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
 			if err != nil {
 				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
