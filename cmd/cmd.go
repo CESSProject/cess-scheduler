@@ -152,7 +152,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	// start-up
 	logger.LoggerInit()
 	exit_interrupt()
-	proof.Chain_Main()
+	go proof.Chain_Main()
 
 	// rpc service
 	rpc.Rpc_Main()

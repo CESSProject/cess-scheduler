@@ -50,16 +50,16 @@ func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segm
 	T.Signature = t_0_signature.Bytes()
 	res.T = T
 	res.Sigmas = make([][]byte, n)
-	g1wait := make(chan struct{}, n)
+	//g1wait := make(chan struct{}, n)
 	for i := int64(0); i < int64(n); i++ {
-		go func(i int64) {
-			res.Sigmas[i] = GenerateAuthenticator(i, s, res.T.T0, matrix[i], privateKey, pairing, segmentSize)
-			g1wait <- struct{}{}
-		}(i)
+		//go func(i int64) {
+		res.Sigmas[i] = GenerateAuthenticator(i, s, res.T.T0, matrix[i], privateKey, pairing, segmentSize)
+		//g1wait <- struct{}{}
+		//}(i)
 	}
-	for i := uint64(0); i < n; i++ {
-		<-g1wait
-	}
+	// for i := uint64(0); i < n; i++ {
+	// 	<-g1wait
+	// }
 	res.StatueMsg.StatusCode = Success
 	res.StatueMsg.Msg = "PoDR2ProofCommit success"
 	responseCh <- res

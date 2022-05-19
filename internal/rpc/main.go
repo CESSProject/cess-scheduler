@@ -262,7 +262,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	// 	Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 	// 	return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
 	// }
-	addr_chain, err := tools.Encode(fmeta.UserAddr[:], tools.SubstratePrefix)
+	addr_chain, err := tools.Encode(fmeta.UserAddr[:], tools.ChainCessTestPrefix)
 	if err != nil {
 		Err.Sugar().Errorf("[%v]%v", b.FileId, err)
 		return &RespBody{Code: 400, Msg: "invalid wallet address"}, nil
@@ -631,7 +631,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	metainfo[0].ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	var file_blocks = make([]chain.BlockInfo, n)
 	for i := uint64(1); i <= n; i++ {
-		file_blocks[i-1].BlockIndex = types.U32(i)
+		file_blocks[i-1].BlockIndex, _ = tools.IntegerToBytes(uint32(i))
 		file_blocks[i-1].BlockSize = types.U32(PoDR2commit.BlockSize)
 	}
 	metainfo[0].BlockInfo = file_blocks
@@ -989,9 +989,9 @@ func processingfile(t int, fid, dir string, duplnamelist, duplkeynamelist []stri
 		f.Close()
 		filedump[i].BlockNum = types.U32(uint32(n))
 		var blockinfo = make([]chain.BlockInfo, n)
-		for x := uint64(0); x < n; x++ {
-			blockinfo[x].BlockIndex = types.U32(uint32(x))
-			blockinfo[x].BlockSize = types.U32(uint32(len(matrix[x])))
+		for x := uint64(1); x <= n; x++ {
+			blockinfo[x-1].BlockIndex, _ = tools.IntegerToBytes(uint32(x))
+			blockinfo[x-1].BlockSize = types.U32(uint32(len(matrix[x-1])))
 		}
 		filedump[i].BlockInfo = blockinfo
 	}

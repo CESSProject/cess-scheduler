@@ -107,7 +107,7 @@ type SpaceFileInfo struct {
 	FileHash  types.Bytes
 }
 type BlockInfo struct {
-	BlockIndex types.U32
+	BlockIndex types.Bytes
 	BlockSize  types.U32
 }
 
@@ -138,9 +138,9 @@ type Chain_Proofs struct {
 
 type ChallengeInfo struct {
 	File_size    types.U64
-	Segment_size types.U64
+	Segment_size types.U32
 	File_type    types.U8
-	Block_list   []types.U32
+	Block_list   []types.Bytes
 	File_id      types.Bytes
 	Random       []types.Bytes
 }

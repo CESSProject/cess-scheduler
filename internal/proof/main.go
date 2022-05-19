@@ -33,11 +33,23 @@ type TagInfo struct {
 
 // Enable the verification proof module
 func Chain_Main() {
-	go processingProof()
-	go processingRecoveryFiles()
+	var (
+		channel_1 = make(chan bool, 1)
+		channel_2 = make(chan bool, 1)
+	)
+	go task_ValidateProof(channel_1)
+	go task_RecoveryFiles(channel_2)
+	for {
+		select {
+		case <-channel_1:
+			go task_ValidateProof(channel_1)
+		case <-channel_2:
+			go task_RecoveryFiles(channel_2)
+		}
+	}
 }
 
-func processingProof() {
+func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
 		code        int
@@ -45,6 +57,15 @@ func processingProof() {
 		poDR2verify api.PoDR2Verify
 		proofs      []chain.Chain_Proofs
 	)
+	defer func() {
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+		ch <- true
+	}()
+	Out.Info(">>>Start task_ValidateProof task<<<")
+
 	puk, _, err = chain.GetSchedulerPukFromChain()
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
@@ -53,7 +74,7 @@ func processingProof() {
 
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-		proofs, code, err = chain.GetProofsFromChain(configs.C.StashAcc)
+		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
 			if code != configs.Code_404 {
 				Err.Sugar().Errorf("%v", err)
@@ -64,7 +85,8 @@ func processingProof() {
 		for i := 0; i < len(proofs); i++ {
 			tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
 			for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
-				tmp[int(proofs[i].Challenge_info.Block_list[j])] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
+				index, _ := tools.BytesToInteger(proofs[i].Challenge_info.Block_list[j])
+				tmp[int(index)] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
 			}
 
 			var reqtag p.ReadTagReq
@@ -131,7 +153,7 @@ func processingProof() {
 	}
 }
 
-func processingRecoveryFiles() {
+func task_RecoveryFiles(ch chan bool) {
 	var (
 		recoverFlag  bool
 		index        int
@@ -142,11 +164,18 @@ func processingRecoveryFiles() {
 		fileFullPath string
 		mDatas       []chain.CessChain_AllMinerInfo
 	)
+	defer func() {
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+		ch <- true
+	}()
+	Out.Info(">>>Start task_RecoveryFiles task<<<")
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
 		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
 		if err != nil {
-			Err.Sugar().Errorf("%v", err)
 			continue
 		}
 		for i := 0; i < len(recoverylist); i++ {
@@ -247,7 +276,7 @@ func processingRecoveryFiles() {
 								_, err = rpc.WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 								if err == nil {
 									mip = string(mDatas[index].Ip)
-									blockinfo[j].BlockIndex = types.U32(uint32(j))
+									blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 									blockinfo[j].BlockSize = types.U32(uint32(n))
 									break
 								} else {
@@ -263,7 +292,7 @@ func processingRecoveryFiles() {
 									time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 									continue
 								}
-								blockinfo[j].BlockIndex = types.U32(uint32(j))
+								blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 								blockinfo[j].BlockSize = types.U32(uint32(n))
 								break
 							}
@@ -533,7 +562,7 @@ func processingRecoveryFiles() {
 							_, err = rpc.WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 							if err == nil {
 								mip = string(mDatas[index].Ip)
-								blockinfo[j].BlockIndex = types.U32(uint32(j))
+								blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 								blockinfo[j].BlockSize = types.U32(uint32(n))
 								break
 							} else {
@@ -549,7 +578,7 @@ func processingRecoveryFiles() {
 								time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 								continue
 							}
-							blockinfo[j].BlockIndex = types.U32(uint32(j))
+							blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 							blockinfo[j].BlockSize = types.U32(uint32(n))
 							break
 						}
