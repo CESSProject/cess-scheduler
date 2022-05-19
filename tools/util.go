@@ -73,6 +73,14 @@ func IntegerToBytes(n interface{}) ([]byte, error) {
 	}
 }
 
+// Bytes to Integer
+func BytesToInteger(n []byte) (int32, error) {
+	var x int32
+	bytesBuffer := bytes.NewBuffer(n)
+	err := binary.Read(bytesBuffer, binary.LittleEndian, &x)
+	return x, err
+}
+
 // Calculate the file hash value
 func CalcFileHash(fpath string) (string, error) {
 	f, err := os.Open(fpath)

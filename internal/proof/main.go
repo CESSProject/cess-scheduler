@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,11 +32,23 @@ type TagInfo struct {
 
 // Enable the verification proof module
 func Chain_Main() {
-	go processingProof()
-	go processingRecoveryFiles()
+	var (
+		channel_1 = make(chan bool, 1)
+		channel_2 = make(chan bool, 1)
+	)
+	go task_ValidateProof(channel_1)
+	go task_RecoveryFiles(channel_2)
+	for {
+		select {
+		case <-channel_1:
+			go task_ValidateProof(channel_1)
+		case <-channel_2:
+			go task_RecoveryFiles(channel_2)
+		}
+	}
 }
 
-func processingProof() {
+func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
 		code        int
@@ -45,72 +56,103 @@ func processingProof() {
 		poDR2verify api.PoDR2Verify
 		proofs      []chain.Chain_Proofs
 	)
+	defer func() {
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+		ch <- true
+	}()
+	Out.Info(">>>Start task_ValidateProof task<<<")
+
 	puk, _, err = chain.GetSchedulerPukFromChain()
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
+
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
 		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
 			if code != configs.Code_404 {
-				Err.Sugar().Errorf("[%v] %v", err)
+				Err.Sugar().Errorf("%v", err)
 			}
 			continue
 		}
+
 		for i := 0; i < len(proofs); i++ {
-			tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
-			for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
-				tmp[int(proofs[i].Challenge_info.Block_list[j])] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
-			}
+			// tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
+			// for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
+			// 	index, _ := tools.BytesToInteger(proofs[i].Challenge_info.Block_list[j])
+			// 	tmp[int(index)] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
+			// }
 
 			var reqtag p.ReadTagReq
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			minerDetails, _, err := chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			respData, err := rpc.WriteData(string(minerDetails.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
 			var tag TagInfo
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				Out.Sugar().Infof("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
-			qSlice, err := api.PoDR2ChallengeGenerateFromChain(tmp, string(puk.Shared_params))
+			qSlice, err := api.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
 			if err != nil {
-				Err.Sugar().Errorf("%v", err)
+				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
+
 			poDR2verify.QSlice = qSlice
+			poDR2verify.MU = make([][]byte, len(proofs[i].Mu))
 			for j := 0; j < len(proofs[i].Mu); j++ {
-				poDR2verify.MU[i] = append(poDR2verify.MU[i], proofs[i].Mu[i]...)
+				poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
 			}
 			poDR2verify.Sigma = proofs[i].Sigma
 			poDR2verify.T = tag.T
 			result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-			chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+
+			code = 0
+			ts := time.Now().Unix()
+			for code != int(configs.Code_200) && code != int(configs.Code_600) {
+				code, err = chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+				if err == nil {
+					Out.Sugar().Infof("[%v] Proof result submitted successfully", uint64(proofs[i].Miner_id))
+					break
+				}
+				if time.Since(time.Unix(ts, 0)).Minutes() > 10.0 {
+					Err.Sugar().Errorf("[%v] %v", uint64(proofs[i].Miner_id), err)
+					break
+				}
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
+			}
+			if err != nil {
+				Err.Sugar().Errorf("[%v] %v", uint64(proofs[i].Miner_id), err)
+			}
 		}
 	}
 }
 
-func processingRecoveryFiles() {
+func task_RecoveryFiles(ch chan bool) {
 	var (
 		recoverFlag  bool
 		index        int
@@ -121,11 +163,18 @@ func processingRecoveryFiles() {
 		fileFullPath string
 		mDatas       []chain.CessChain_AllMinerInfo
 	)
+	defer func() {
+		err := recover()
+		if err != nil {
+			Err.Sugar().Errorf("[panic]: %v", err)
+		}
+		ch <- true
+	}()
+	Out.Info(">>>Start task_RecoveryFiles task<<<")
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
 		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
 		if err != nil {
-			Err.Sugar().Errorf("%v", err)
 			continue
 		}
 		for i := 0; i < len(recoverylist); i++ {
@@ -226,7 +275,7 @@ func processingRecoveryFiles() {
 								_, err = rpc.WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 								if err == nil {
 									mip = string(mDatas[index].Ip)
-									blockinfo[j].BlockIndex = types.U32(uint32(j))
+									blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 									blockinfo[j].BlockSize = types.U32(uint32(n))
 									break
 								} else {
@@ -242,7 +291,7 @@ func processingRecoveryFiles() {
 									time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 									continue
 								}
-								blockinfo[j].BlockIndex = types.U32(uint32(j))
+								blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 								blockinfo[j].BlockSize = types.U32(uint32(n))
 								break
 							}
@@ -512,7 +561,7 @@ func processingRecoveryFiles() {
 							_, err = rpc.WriteData(string(mDatas[index].Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 							if err == nil {
 								mip = string(mDatas[index].Ip)
-								blockinfo[j].BlockIndex = types.U32(uint32(j))
+								blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 								blockinfo[j].BlockSize = types.U32(uint32(n))
 								break
 							} else {
@@ -528,7 +577,7 @@ func processingRecoveryFiles() {
 								time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 								continue
 							}
-							blockinfo[j].BlockIndex = types.U32(uint32(j))
+							blockinfo[j].BlockIndex, _ = tools.IntegerToBytes(uint32(j))
 							blockinfo[j].BlockSize = types.U32(uint32(n))
 							break
 						}

@@ -11,10 +11,10 @@ const (
 	RpcMethod_Miner_ReadFile     = "readfile"
 	RpcMethod_Miner_WriteFileTag = "writefiletag"
 	RpcMethod_Miner_ReadFileTag  = "readfiletag"
-	RpcFileBuffer                = 2 * 1024 * 1024
+	RpcFileBuffer                = 2 * 1024 * 1024 //2MB
 )
 
-// return code
+// return state code
 const (
 	Code_200 = 200
 	Code_400 = 400
@@ -29,12 +29,12 @@ const (
 	LengthOfALine            = 128
 	BlockSize                = 1024 * 1024 //1MB
 	ScanBlockSize            = 512 * 1024  //512KB
-	ByteSize_1Kb             = 1024
+	ByteSize_1Kb             = 1024        //1KB
 	TimeToWaitEvents_S       = 20
 	Backups_Min        uint8 = 3
 	Backups_Max        uint8 = 6
 	BaseDir                  = "scheduler"
-	NewTestAddr              = false
+	NewTestAddr              = true
 )
 
 var (

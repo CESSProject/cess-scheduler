@@ -284,7 +284,13 @@ func GetAddressByPrk(prk string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
 	}
-	acc, err := tools.Encode(keyring.PublicKey, tools.SubstratePrefix)
+	var pre []byte
+	if configs.NewTestAddr {
+		pre = tools.ChainCessTestPrefix
+	} else {
+		pre = tools.SubstratePrefix
+	}
+	acc, err := tools.Encode(keyring.PublicKey, pre)
 	if err != nil {
 		return "", errors.Wrap(err, "[Encode]")
 	}
