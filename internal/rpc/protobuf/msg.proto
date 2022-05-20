@@ -47,12 +47,25 @@ message file_download_req{
   int32   block_index = 3;
 }
 
-message space_tag_req{
-  string walletAddress = 1;
+message space_file_req{
+  string acc = 1;
   string fileid = 2;
-  uint32 blockIndex = 3;
-  uint32 size_mb = 4;
+  uint32 size_mb = 3;
+  uint32 blockIndex = 4;
   bytes  sign = 5;
+}
+
+message space_tag_req{
+  string acc = 1;
+  string fileid = 2;
+  bytes  sign = 3;
+}
+
+message file_back_req{
+  string acc = 1;
+  string fileid = 2;
+  string filehash = 3;
+  bytes  sign = 4;
 }
 
 message PutFileToBucket {

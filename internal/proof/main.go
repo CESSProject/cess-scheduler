@@ -82,12 +82,6 @@ func task_ValidateProof(ch chan bool) {
 		}
 
 		for i := 0; i < len(proofs); i++ {
-			// tmp := make(map[int]*big.Int, len(proofs[i].Challenge_info.Block_list))
-			// for j := 0; j < len(proofs[i].Challenge_info.Block_list); j++ {
-			// 	index, _ := tools.BytesToInteger(proofs[i].Challenge_info.Block_list[j])
-			// 	tmp[int(index)] = new(big.Int).SetBytes(proofs[i].Challenge_info.Random[j])
-			// }
-
 			var reqtag p.ReadTagReq
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
@@ -136,17 +130,14 @@ func task_ValidateProof(ch chan bool) {
 			for code != int(configs.Code_200) && code != int(configs.Code_600) {
 				code, err = chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
 				if err == nil {
-					Out.Sugar().Infof("[%v] Proof result submitted successfully", uint64(proofs[i].Miner_id))
+					Out.Sugar().Infof("[%v][%v]Proof result submitted successfully", uint64(proofs[i].Miner_id), result)
 					break
 				}
 				if time.Since(time.Unix(ts, 0)).Minutes() > 10.0 {
-					Err.Sugar().Errorf("[%v] %v", uint64(proofs[i].Miner_id), err)
+					Err.Sugar().Errorf("[%v][%v]Proof result submitted failed:%v", uint64(proofs[i].Miner_id), result, err)
 					break
 				}
 				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
-			}
-			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", uint64(proofs[i].Miner_id), err)
 			}
 		}
 	}
