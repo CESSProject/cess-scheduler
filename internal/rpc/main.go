@@ -476,7 +476,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: code, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 	}
 	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
 	if err != nil {
@@ -638,7 +638,7 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: code, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 	}
 	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
 	if err != nil {
@@ -700,53 +700,6 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive space request err: PoDR2ProofCommit", t)
 		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
 	}
-	// // up-chain meta info
-	// var metainfo = make([]chain.SpaceFileInfo, 1)
-	// metainfo[0].FileId = []byte(b.Fileid)
-	// metainfo[0].FileHash = []byte(hash)
-	// metainfo[0].FileSize = types.U64(uint64(fi.Size()))
-	// var pre []byte
-	// if configs.NewTestAddr {
-	// 	pre = tools.ChainCessTestPrefix
-	// } else {
-	// 	pre = tools.SubstratePrefix
-	// }
-	// wal, err := tools.DecodeToPub(b.Acc, pre)
-	// if err != nil {
-	// 	Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-	// 	return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-	// }
-	// metainfo[0].Acc = types.NewAccountID(wal)
-	// metainfo[0].MinerId = mdata.Peerid
-	// f, err := os.Open(filefullpath)
-	// if err != nil {
-	// 	Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-	// 	return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-	// }
-	// _, _, n, err := tools.Split(f, PoDR2commit.BlockSize)
-	// if err != nil {
-	// 	f.Close()
-	// 	Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-	// 	return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-	// }
-	// f.Close()
-	// metainfo[0].BlockNum = types.U32(n)
-	// metainfo[0].ScanSize = types.U32(uint32(configs.ScanBlockSize))
-	// var file_blocks = make([]chain.BlockInfo, n)
-	// for i := uint64(1); i <= n; i++ {
-	// 	file_blocks[i-1].BlockIndex, _ = tools.IntegerToBytes(uint32(i))
-	// 	file_blocks[i-1].BlockSize = types.U32(PoDR2commit.BlockSize)
-	// }
-	// metainfo[0].BlockInfo = file_blocks
-	// _, err = chain.PutSpaceTagInfoToChain(
-	// 	configs.C.CtrlPrk,
-	// 	mdata.Peerid,
-	// 	metainfo,
-	// )
-	// if err != nil {
-	// 	Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-	// 	return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-	// }
 
 	var resp RespSpacetagInfo
 	resp.FileId = b.Fileid
@@ -760,6 +713,7 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
+//
 func (WService) FilebackAction(body []byte) (proto.Message, error) {
 	var (
 		err error
@@ -775,7 +729,7 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: code, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 	}
 	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
 	if err != nil {
@@ -841,18 +795,14 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 	}
 	metainfo[0].BlockInfo = file_blocks
 
-	_, err = chain.PutSpaceTagInfoToChain(
+	txhash, code, err := chain.PutSpaceTagInfoToChain(
 		configs.C.CtrlPrk,
 		mdata.Peerid,
 		metainfo,
 	)
-	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-	}
 	os.Remove(filefullpath)
-	Out.Sugar().Infof("[T:%v][%v]File meta on chain suc", t, b.Fileid)
-	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
+	Out.Sugar().Infof("[T:%v][%v][%v]File meta on chain", t, b.Fileid, txhash)
+	return &RespBody{Code: int32(code), Msg: "Check status code", Data: []byte(txhash)}, nil
 }
 
 // Combine the file segments uploaded by the client into a complete file.
