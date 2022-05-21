@@ -4,7 +4,6 @@ import (
 	"cess-scheduler/configs"
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
-	"net/http"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -12,7 +11,7 @@ import (
 )
 
 // Get miner information on the chain
-func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
+func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 	var (
 		err   error
 		mdata Chain_MinerItems
@@ -22,12 +21,12 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 		releaseSubstrateApi()
 		err := recover()
 		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_MinerItems, err)
+			Err.Sugar().Errorf("[panic] %v", err)
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", State_Sminer, Sminer_MinerItems)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 	var pre []byte
 	if configs.NewTestAddr {
@@ -37,26 +36,26 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int32, error) {
 	}
 	pub, err := tools.DecodeToPub(addr, pre)
 	if err != nil {
-		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:DecodeToPub]", State_Sminer, Sminer_MinerItems)
+		return mdata, configs.Code_500, errors.Wrap(err, "[DecodeToPub]")
 	}
 
 	b, err := types.EncodeToBytes(types.NewAccountID(pub))
 	if err != nil {
-		return mdata, http.StatusBadRequest, errors.Wrapf(err, "[%v.%v:EncodeToBytes]", State_Sminer, Sminer_MinerItems)
+		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
 	}
 	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
 	if err != nil {
-		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", State_Sminer, Sminer_MinerItems)
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
-		return mdata, http.StatusInternalServerError, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", State_Sminer, Sminer_MinerItems)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, http.StatusNotFound, errors.Errorf("[%v not found]", addr)
+		return mdata, configs.Code_404, errors.New("[value is empty]")
 	}
-	return mdata, http.StatusOK, nil
+	return mdata, configs.Code_200, nil
 }
 
 // Get all miner information on the cess chain
