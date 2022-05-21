@@ -199,6 +199,9 @@ func Split(file *os.File, s int64) (M [][]byte, S int64, N uint64, err error) {
 		return nil, 0, 0, err
 	}
 	size := fileInfo.Size()
+	if size/s == 0 {
+		return nil, 0, 0, errors.New("filesize invalid")
+	}
 	n := uint64(math.Ceil(float64(size / s)))
 	if n == 0 {
 		n = 1
