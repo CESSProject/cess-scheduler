@@ -4,6 +4,7 @@ import (
 	"cess-scheduler/configs"
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
+	"encoding/binary"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -111,11 +112,9 @@ func GetMinerDetailsById(id uint64) (Chain_MinerDetails, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	b, err := types.EncodeToBytes(id)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
-	}
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerDetails, b)
+	eraIndexSerialized := make([]byte, 8)
+	binary.LittleEndian.PutUint64(eraIndexSerialized, id)
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerDetails, types.NewBytes(eraIndexSerialized))
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
@@ -164,7 +163,7 @@ func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_400, errors.Errorf("[%v not folund]", fileid)
+		return mdata, configs.Code_404, errors.Errorf("[%v not folund]", fileid)
 	}
 	return mdata, configs.Code_200, nil
 }

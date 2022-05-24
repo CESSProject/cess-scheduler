@@ -114,13 +114,12 @@ type BlockInfo struct {
 type Chain_MinerDetails struct {
 	Address                           types.AccountID
 	Beneficiary                       types.AccountID
-	Ip                                types.Bytes
+	ServiceAddr                       types.Bytes
 	Power                             types.U128
 	Space                             types.U128
 	Total_reward                      types.U128
 	Total_rewards_currently_available types.U128
 	Totald_not_receive                types.U128
-	Collaterals                       types.U128
 }
 
 type Chain_SchedulerPuk struct {

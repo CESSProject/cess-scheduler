@@ -61,28 +61,28 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		fmeta     chain.FileMetaInfo
 	)
 	t := tools.RandomInRange(100000000, 999999999)
-	Out.Sugar().Infof("[%v]Receive upload request", t)
+	Out.Sugar().Infof("+++> Upload [T:%v]", t)
+
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
+		Out.Sugar().Infof("[T:%v] Unmarshal err: %v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 
-	Out.Sugar().Infof("[%v]Receive client upload request:[%v][%v][%v]", t, b.FileId, b.BlockTotal, len(b.Data))
 	err = tools.CreatDirIfNotExist(configs.FileCacheDir)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive upload request err:%v", t, err)
+		Out.Sugar().Infof("[T:%v] [%v] CreatDirIfNotExist err: %v", t, b.FileId, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
 	fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
 	if err != nil {
-		Err.Sugar().Errorf("[%v][%v-%v]Failed to query file metadata.", t, b.FileId, b.FileHash)
+		if code == configs.Code_404 {
+			Out.Sugar().Infof("[T:%v] File not found on chain [%v]", t, b.FileId)
+			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+		}
+		Out.Sugar().Infof("[T:%v] [%v] GetFileMetaInfoOnChain err: %v", t, b.FileId, err)
 		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
-	}
-
-	if fmeta.FileDupl != nil {
-		return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
 	}
 
 	cachepath = filepath.Join(configs.FileCacheDir, b.FileId)
@@ -91,12 +91,12 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		if fmeta.FileSize > 0 {
 			err = os.MkdirAll(cachepath, os.ModeDir)
 			if err != nil {
-				Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Backups, err)
+				Out.Sugar().Infof("[T:%v] [%v] GetFileMetaInfoOnChain err: %v", t, b.FileId, err)
 				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
 		} else {
-			Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.Backups, err)
-			return &RespBody{Code: 400, Msg: "invalid file", Data: nil}, nil
+			Out.Sugar().Infof("[T:%v] [%v] Invalid file", t, b.FileId)
+			return &RespBody{Code: 400, Msg: "Invalid file", Data: nil}, nil
 		}
 		// if string(fmeta.FileHash) == b.FileHash {
 		// 	err = os.MkdirAll(cachepath, os.ModeDir)
@@ -112,7 +112,8 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		for j := uint8(0); j < configs.Backups_Max; j++ {
 			filename_dupl := filepath.Join(cachepath, b.FileId+".d"+strconv.Itoa(int(j)))
 			if _, err = os.Stat(filename_dupl); err == nil {
-				return &RespBody{Code: 400, Msg: "Your fileid already exists", Data: nil}, nil
+				Out.Sugar().Infof("[T:%v] [%v] duplicate fileid", t, b.FileId)
+				return &RespBody{Code: 400, Msg: "Duplicate fileid", Data: nil}, nil
 			}
 		}
 	}
@@ -120,17 +121,17 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	filename := filepath.Join(cachepath, b.FileId+"_"+fmt.Sprintf("%d", b.BlockIndex))
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
-		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.FileHash, err)
+		Out.Sugar().Infof("[T:%v] [%v] OpenFile-1 err: %v", t, filename, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	_, err = f.Write(b.Data)
 	if err != nil {
-		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.FileHash, err)
+		Out.Sugar().Infof("[T:%v] [%v] f.Write err: %v", t, filename, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	err = f.Sync()
 	if err != nil {
-		Err.Sugar().Errorf("[%v][%v-%v]%v", t, b.FileId, b.FileHash, err)
+		Out.Sugar().Infof("[T:%v] [%v] f.Sync err: %v", t, filename, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	f.Close()
@@ -138,11 +139,11 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		completefile, err := combinationFile(b.FileId, cachepath, b.BlockTotal)
 		if err != nil {
 			os.Remove(completefile)
-			Err.Sugar().Errorf("[%v]%v,%v,%v Incomplete chunking of file", t, b.FileId, b.BlockTotal, err)
+			Out.Sugar().Infof("[T:%v] [%v] Incomplete chunking of file", t, filename)
 			return &RespBody{Code: 400, Msg: "Incomplete chunking of file", Data: nil}, nil
 		}
 		// delete file segments
-		for i := 1; i <= int(b.BlockTotal); i++ {
+		for i := 0; i <= int(b.BlockTotal); i++ {
 			path := filepath.Join(cachepath, b.FileId+"_"+strconv.Itoa(int(i)))
 			os.Remove(path)
 		}
@@ -157,7 +158,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		buf, err := os.ReadFile(completefile)
 		if err != nil {
 			os.Remove(completefile)
-			Err.Sugar().Errorf("[%v]%v,%v,%v", t, b.FileId, b.BlockTotal, err)
+			Out.Sugar().Infof("[T:%v] [%v] ReadFile err: %v", t, completefile, err)
 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 		}
 		var duplnamelist = make([]string, 0)
@@ -169,7 +170,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			// Aes ctr mode encryption
 			encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58)[:16])
 			if err != nil {
-				Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
+				Out.Sugar().Infof("[T:%v] [%v] AesCtrEncrypt err: %v", t, completefile, err)
 				continue
 			}
 			duplname := b.FileId + ".d" + strconv.Itoa(int(i))
@@ -179,19 +180,19 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			duplFallpath := filepath.Join(cachepath, duplname)
 			duplf, err := os.OpenFile(duplFallpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 			if err != nil {
-				Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
+				Out.Sugar().Infof("[T:%v] [%v] OpenFile-2 err: %v", t, duplFallpath, err)
 				continue
 			}
 			_, err = duplf.Write(encrypted)
 			if err != nil {
-				Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
+				Out.Sugar().Infof("[T:%v] [%v] duplf.Write err: %v", t, duplFallpath, err)
 				duplf.Close()
 				os.Remove(duplFallpath)
 				continue
 			}
 			err = duplf.Sync()
 			if err != nil {
-				Err.Sugar().Errorf("[%v][%v][%v]", t, completefile, err)
+				Out.Sugar().Infof("[T:%v] [%v] duplf.Sync err: %v", t, duplFallpath, err)
 				duplf.Close()
 				os.Remove(duplFallpath)
 				continue
@@ -210,9 +211,9 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		}
 		os.Remove(completefile)
 		go processingfile(t, b.FileId, cachepath, duplnamelist, duplkeynamelist)
-		Out.Sugar().Infof("[%v][%v-%v-%v]success", t, b.FileId, b.BlockTotal, b.BlockIndex)
+		Out.Sugar().Infof("[T:%v] [%v] All %v chunks are uploaded successfully", t, b.FileId, b.BlockTotal)
 	}
-	Out.Sugar().Infof("[%v][%v-%v]success", t, b.FileId, b.BlockTotal)
+	Out.Sugar().Infof("[T:%v] [%v] The %v chunk uploaded successfully", t, b.FileId, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
 }
 
@@ -555,13 +556,13 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 			return &RespBody{Code: 200, Msg: "Invalid block index", Data: respfile_b}, nil
 		}
 	}
-	if b.SizeMb > 8 || b.SizeMb == 0 {
-		Out.Sugar().Infof("[%v]Receive space request err: SizeMb up to 8 and not 0", t)
-		return &RespBody{Code: 400, Msg: "SizeMb up to 8 and not 0", Data: nil}, nil
+	if b.SizeMb > 32 || b.SizeMb == 0 {
+		Out.Sugar().Infof("[%v]Receive space request err: SizeMb up to 32 and not 0", t)
+		return &RespBody{Code: 400, Msg: "SizeMb up to 32 and not 0", Data: nil}, nil
 	}
 
 	lines := b.SizeMb * 1024 * 1024 / configs.LengthOfALine
-	filename := fmt.Sprintf("C%d_%d", mdata.Peerid, time.Now().UnixNano())
+	filename := fmt.Sprintf("C%d_%d%d%d", mdata.Peerid, tools.RandomInRange(1000, 9999), time.Now().Unix(), tools.RandomInRange(1000, 9999))
 	filefullpath := filepath.Join(filebasedir, filename)
 	f, err := os.OpenFile(filefullpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
@@ -619,6 +620,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	f.Close()
+	fmt.Println("--> A new file: ", filefullpath)
 	return &RespBody{Code: 200, Msg: "success", Data: respfile_b}, nil
 }
 
@@ -710,6 +712,7 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
+	fmt.Println("--> File tag: ", b.Fileid)
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
@@ -802,6 +805,7 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 	)
 	os.Remove(filefullpath)
 	Out.Sugar().Infof("[T:%v][%v][%v]File meta on chain", t, b.Fileid, txhash)
+	fmt.Println("--> File meta on chain: ", b.Fileid, " ", code, " ", txhash)
 	return &RespBody{Code: int32(code), Msg: "Check status code", Data: []byte(txhash)}, nil
 }
 

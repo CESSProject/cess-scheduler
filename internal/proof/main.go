@@ -99,7 +99,7 @@ func task_ValidateProof(ch chan bool) {
 				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
-			respData, err := rpc.WriteData(string(minerDetails.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
+			respData, err := rpc.WriteData(string(minerDetails.ServiceAddr), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 			if err != nil {
 				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue

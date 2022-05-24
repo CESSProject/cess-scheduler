@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -182,13 +183,28 @@ func Post(url string, para interface{}) ([]byte, error) {
 
 // Get external network ip
 func GetExternalIp() (string, error) {
-	output, err := exec.Command("bash", "-c", "curl ifconfig.co").Output()
-	// output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
+	ctx1, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	output, err := exec.CommandContext(ctx1, "bash", "-c", "curl ifconfig.co").Output()
+	if err == nil {
+		result := strings.ReplaceAll(string(output), "\n", "")
+		return strings.ReplaceAll(result, " ", ""), nil
 	}
-	result := strings.Replace(string(output), "\n", "", -1)
-	return strings.Replace(result, " ", "", -1), nil
+
+	ctx2, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	output, err = exec.CommandContext(ctx2, "bash", "-c", "curl cip.cc | grep  IP | awk '{print $3;}'").Output()
+	if err == nil {
+		result := strings.ReplaceAll(string(output), "\n", "")
+		return strings.ReplaceAll(result, " ", ""), nil
+
+	}
+	ctx3, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	output, err = exec.CommandContext(ctx3, "bash", "-c", `curl ipinfo.io | grep \"ip\" | awk '{print $2;}'`).Output()
+	if err == nil {
+		result := strings.ReplaceAll(string(output), "\"", "")
+		result = strings.ReplaceAll(result, ",", "")
+		return strings.ReplaceAll(result, "\n", ""), nil
+	}
+	return "", errors.New("Please check your network status")
 }
 
 func Split(file *os.File, s int64) (M [][]byte, S int64, N uint64, err error) {
