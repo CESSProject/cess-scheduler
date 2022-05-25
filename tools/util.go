@@ -207,32 +207,31 @@ func GetExternalIp() (string, error) {
 	return "", errors.New("Please check your network status")
 }
 
-func Split(file *os.File, s int64) (M [][]byte, S int64, N uint64, err error) {
-	file.Seek(0, 0)
-
-	fileInfo, err := file.Stat()
+func Split(filefullpath string, blocksize, filesize int64) ([][]byte, uint64, error) {
+	file, err := os.Open(filefullpath)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
-	size := fileInfo.Size()
-	if size/s == 0 {
-		return nil, 0, 0, errors.New("filesize invalid")
+	defer file.Close()
+
+	if filesize/blocksize == 0 {
+		return nil, 0, errors.New("filesize invalid")
 	}
-	n := uint64(math.Ceil(float64(size / s)))
+	n := uint64(math.Ceil(float64(filesize / blocksize)))
 	if n == 0 {
 		n = 1
 	}
 	// matrix is indexed as m_ij, so the first dimension has n items and the second has s.
 	matrix := make([][]byte, n)
 	for i := uint64(0); i < n; i++ {
-		piece := make([]byte, s)
+		piece := make([]byte, blocksize)
 		_, err := file.Read(piece)
 		if err != nil {
-			return nil, 0, 0, err
+			return nil, 0, err
 		}
 		matrix[i] = piece
 	}
-	return matrix, s, n, nil
+	return matrix, n, nil
 }
 
 //

@@ -88,7 +88,7 @@ func GetAllMinerDataOnChain() ([]CessChain_AllMinerInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_403, errors.New("No miners for storage")
+		return mdata, configs.Code_404, errors.New("[value is empty]")
 	}
 	return mdata, configs.Code_200, nil
 }

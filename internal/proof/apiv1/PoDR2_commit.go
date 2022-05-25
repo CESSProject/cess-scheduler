@@ -22,16 +22,16 @@ func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segm
 	var res PoDR2CommitResponse
 	pairing, _ := pbc.NewPairingFromString(sharedParams)
 	privateKey := pairing.NewZr().SetBytes(ssk)
-	file, err := os.Open(commit.FilePath)
+	file, err := os.Stat(commit.FilePath)
 	if err != nil {
 		return nil, err
 	}
-	matrix, s, n, err := tools.Split(file, commit.BlockSize)
+	matrix, n, err := tools.Split(commit.FilePath, commit.BlockSize, file.Size())
 	T := FileTagT{}
 	T.T0.N = int64(n)
 	T.T0.Name = pairing.NewZr().Rand().Bytes()
-	U_num := s / segmentSize
-	if s%segmentSize != 0 {
+	U_num := commit.BlockSize / segmentSize
+	if commit.BlockSize%segmentSize != 0 {
 		U_num++
 	}
 	T.T0.U = make([][]byte, U_num)
@@ -53,7 +53,7 @@ func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segm
 	//g1wait := make(chan struct{}, n)
 	for i := int64(0); i < int64(n); i++ {
 		//go func(i int64) {
-		res.Sigmas[i] = GenerateAuthenticator(i, s, res.T.T0, matrix[i], privateKey, pairing, segmentSize)
+		res.Sigmas[i] = GenerateAuthenticator(i, commit.BlockSize, res.T.T0, matrix[i], privateKey, pairing, segmentSize)
 		//g1wait <- struct{}{}
 		//}(i)
 	}
