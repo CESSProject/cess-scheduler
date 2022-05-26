@@ -99,7 +99,7 @@ func task_ValidateProof(ch chan bool) {
 				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
 			}
-			respData, err := rpc.WriteData(string(minerDetails.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
+			respData, err := rpc.WriteData(string(minerDetails.ServiceAddr), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 			if err != nil {
 				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
 				continue
@@ -123,7 +123,21 @@ func task_ValidateProof(ch chan bool) {
 			}
 			poDR2verify.Sigma = proofs[i].Sigma
 			poDR2verify.T = tag.T
+
+			// var wg = new(sync.WaitGroup)
+			// gWait := make(chan bool, 1)
+			// wg.Add(1)
+			// go func(ch chan bool) {
+			// 	runtime.LockOSThread()
 			result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
+			// 	ch <- result
+			// 	wg.Done()
+			// 	return
+			// }(gWait)
+
+			// wg.Wait()
+			//result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
+			//result := <-gWait
 
 			code = 0
 			ts := time.Now().Unix()
@@ -668,3 +682,29 @@ func task_RecoveryFiles(ch chan bool) {
 		}
 	}
 }
+
+// func task_UpdateMinerInfo(ch chan bool) {
+// 	var (
+// 		err         error
+// 		code        int
+// 		puk         chain.Chain_SchedulerPuk
+// 		poDR2verify api.PoDR2Verify
+// 		proofs      []chain.Chain_Proofs
+// 	)
+// 	defer func() {
+// 		err := recover()
+// 		if err != nil {
+// 			Err.Sugar().Errorf("[panic]: %v", err)
+// 		}
+// 		ch <- true
+// 	}()
+// 	Out.Info(">>> Start task_UpdateMinerInfo <<<")
+
+// 	for {
+// 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+// 		allMinerInfo, _, _ := chain.GetAllMinerDataOnChain()
+// 		for i := 0; i < len(allMinerInfo); i++ {
+
+// 		}
+// 	}
+// }

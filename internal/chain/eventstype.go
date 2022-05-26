@@ -35,6 +35,13 @@ type Event_VerifyProof struct {
 	Topics []types.Hash
 }
 
+type Event_OutstandingChallenges struct {
+	Phase  types.Phase
+	PeerId types.U64
+	Fileid types.Bytes
+	Topics []types.Hash
+}
+
 //------------------------Sminer---------------------------------
 type Event_Registered struct {
 	Phase      types.Phase
@@ -188,6 +195,12 @@ type Event_RecoverFile struct {
 	Topics []types.Hash
 }
 
+type Event_ReceiveSpace struct {
+	Phase  types.Phase
+	Acc    types.AccountID
+	Topics []types.Hash
+}
+
 //------------------------FileMap--------------------------------
 type Event_RegistrationScheduler struct {
 	Phase  types.Phase
@@ -230,10 +243,11 @@ type MyEventRecords struct {
 	//system
 	types.EventRecords
 	//SegmentBook
-	SegmentBook_PPBNoOnTimeSubmit []Event_PPBNoOnTimeSubmit
-	SegmentBook_PPDNoOnTimeSubmit []Event_PPDNoOnTimeSubmit
-	SegmentBook_ChallengeProof    []Event_ChallengeProof
-	SegmentBook_VerifyProof       []Event_VerifyProof
+	SegmentBook_PPBNoOnTimeSubmit     []Event_PPBNoOnTimeSubmit
+	SegmentBook_PPDNoOnTimeSubmit     []Event_PPDNoOnTimeSubmit
+	SegmentBook_ChallengeProof        []Event_ChallengeProof
+	SegmentBook_VerifyProof           []Event_VerifyProof
+	SegmentBook_OutstandingChallenges []Event_OutstandingChallenges
 	//Sminer
 	Sminer_Registered         []Event_Registered
 	Sminer_TimedTask          []Event_TimedTask
@@ -259,6 +273,7 @@ type MyEventRecords struct {
 	FileBank_FillerUpload         []Event_FillerUpload
 	FileBank_ClearInvalidFile     []Event_ClearInvalidFile
 	FileBank_RecoverFile          []Event_RecoverFile
+	FileBank_ReceiveSpace         []Event_ReceiveSpace
 	//FileMap
 	FileMap_RegistrationScheduler []Event_RegistrationScheduler
 	//other system

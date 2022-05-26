@@ -11,7 +11,7 @@ const (
 	RpcMethod_Miner_ReadFile     = "readfile"
 	RpcMethod_Miner_WriteFileTag = "writefiletag"
 	RpcMethod_Miner_ReadFileTag  = "readfiletag"
-	RpcFileBuffer                = 2 * 1024 * 1024 //2MB
+	RpcFileBuffer                = 8 * 1024 //8KB
 )
 
 // return state code
@@ -31,8 +31,8 @@ const (
 	ScanBlockSize            = 512 * 1024  //512KB
 	ByteSize_1Kb             = 1024        //1KB
 	TimeToWaitEvents_S       = 20
-	Backups_Min        uint8 = 3
-	Backups_Max        uint8 = 6
+	Backups_Min        uint8 = 1
+	Backups_Max        uint8 = 1
 	BaseDir                  = "scheduler"
 	NewTestAddr              = true
 )
