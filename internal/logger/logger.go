@@ -14,6 +14,8 @@ import (
 var (
 	Out *zap.Logger
 	Err *zap.Logger
+	Tvp *zap.Logger
+	Trf *zap.Logger
 )
 
 func LoggerInit() {
@@ -27,6 +29,8 @@ func LoggerInit() {
 	}
 	initOutLogger()
 	initErrLogger()
+	initTvpLogger()
+	initTrfLogger()
 }
 
 // out log
@@ -34,7 +38,7 @@ func initOutLogger() {
 	outlogpath := configs.LogFileDir + "/out.log"
 	hook := lumberjack.Logger{
 		Filename:   outlogpath,
-		MaxSize:    50,
+		MaxSize:    10,
 		MaxAge:     360,
 		MaxBackups: 0,
 		LocalTime:  true,
@@ -95,6 +99,74 @@ func initErrLogger() {
 	development := zap.Development()
 	Err = zap.New(core, caller, development)
 	Err.Sugar().Errorf("The service has started and created a log file in the %v", errlogpath)
+}
+
+// tvp log
+func initTvpLogger() {
+	tvplogpath := configs.LogFileDir + "/t_vp.log"
+	hook := lumberjack.Logger{
+		Filename:   tvplogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Tvp = zap.New(core, caller, development)
+	Tvp.Sugar().Infof("The service has started and created a log file in the %v", tvplogpath)
+}
+
+// tvp log
+func initTrfLogger() {
+	trflogpath := configs.LogFileDir + "/t_rf.log"
+	hook := lumberjack.Logger{
+		Filename:   trflogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Trf = zap.New(core, caller, development)
+	Trf.Sugar().Infof("The service has started and created a log file in the %v", trflogpath)
 }
 
 func formatEncodeTime(t time.Time, enc zapcore.PrimitiveArrayEncoder) {

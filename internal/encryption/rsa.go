@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"os"
 )
 
@@ -53,6 +54,9 @@ func ParsePrivateKey(key []byte) (*rsa.PrivateKey, error) {
 
 // Parse public key
 func ParsePublicKey(key []byte) (*rsa.PublicKey, error) {
+	if len(key) == 0 {
+		return nil, errors.New("Invalid key")
+	}
 	block, _ := pem.Decode(key)
 	publicKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {

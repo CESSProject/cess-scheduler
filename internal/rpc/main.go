@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -236,6 +235,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		err error
 		b   FileDownloadReq
 	)
+
 	t := tools.RandomInRange(100000000, 999999999)
 	Out.Sugar().Infof("---> Download [T:%v]", t)
 
@@ -274,6 +274,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			return &RespBody{Code: 403, Msg: "Please download later"}, nil
 		}
 	}
+
 	//}
 	// Determine whether the user has download permission
 	// a, err := types.NewAddressFromHexAccountID(b.WalletAddress)
@@ -308,7 +309,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			if err == nil {
 				buf, err := ioutil.ReadFile(duplname)
 				if err != nil {
-					Out.Sugar().Infof("[T:%v] [%v] ReadFile-1 err: %v", t, duplname, err)
+					Out.Sugar().Infof("[T:%v] [%v] ioutil.ReadFile err: %v", t, duplname, err)
 					os.Remove(duplname)
 					continue
 				}
@@ -365,16 +366,11 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		var tmp = make([]byte, configs.RpcFileBuffer)
 		var blockSize int32
 		var n int
-		if b.BlockIndex == int32(blockTotal) {
-			fuser.Seek(0, int(blockTotal*configs.RpcFileBuffer))
-			n, _ = fuser.Read(tmp)
-			//tmp = fuser[uint64(len(fuser)-int(lastslicesize)):]
-			blockSize = int32(n)
-		} else {
-			fuser.Seek(0, int((b.BlockIndex-1)*configs.RpcFileBuffer))
-			n, _ = fuser.Read(tmp)
-			blockSize = int32(n)
-		}
+
+		fuser.Seek(int64((b.BlockIndex-1)*configs.RpcFileBuffer), 0)
+		n, _ = fuser.Read(tmp)
+		blockSize = int32(n)
+
 		respb := &FileDownloadInfo{
 			FileId:     b.FileId,
 			BlockTotal: int32(blockTotal),
@@ -387,7 +383,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			Out.Sugar().Infof("[T:%v] [%v] Marshal err: ", t, filefullname, err)
 			return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 		}
-		Out.Sugar().Infof("---> [T:%v] [%v] [%v] success-1", t, filefullname, b.BlockIndex)
+		Out.Sugar().Infof("---> [T:%v] [%v] [%v] success-1", t, b.FileId, b.BlockIndex)
 		return &RespBody{Code: 200, Msg: "success", Data: protob}, nil
 	}
 
@@ -397,13 +393,29 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[T:%v] [%v %v] GetFileMetaInfoOnChain err: %v", t, b.FileId, b.BlockIndex, err)
 		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 	}
+
+	var client *Client
+	var index int32 = math.MinInt32
 	for i := 0; i < len(fmeta.FileDupl); i++ {
-		err = ReadFile(string(fmeta.FileDupl[i].MinerIp), path, string(fmeta.FileDupl[i].DuplId), b.WalletAddress)
+		dstip := "ws://" + string(base58.Decode(string(fmeta.FileDupl[i].MinerIp)))
+		ctx, _ := context.WithTimeout(context.Background(), 6*time.Second)
+		client, err = DialWebsocket(ctx, dstip, "")
 		if err != nil {
-			Out.Sugar().Infof("[T:%v] [%v] ReadFile-3 err: ", t, string(fmeta.FileDupl[i].MinerIp), err)
 			continue
 		}
+		index = int32(i)
 		break
+	}
+
+	if client != nil && index != math.MinInt32 {
+		err = ReadFile2(client, path, string(fmeta.FileDupl[index].DuplId), b.WalletAddress)
+		if err != nil {
+			Out.Sugar().Infof("[T:%v] [%v] failed-3 err: ", t, b.FileId, err)
+			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+		}
+	} else {
+		Out.Sugar().Infof("[T:%v] [%v] failed-3 err: ", t, b.FileId, err)
+		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 	}
 
 	// file not exist, query dupl file
@@ -753,23 +765,21 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	var commitResponse proof.PoDR2CommitResponse
 	PoDR2commit.FilePath = filefullpath
 	PoDR2commit.BlockSize = configs.BlockSize
-	var wg = new(sync.WaitGroup)
-	gWait := make(chan bool, 1)
-	wg.Add(1)
+
+	gWait := make(chan bool)
+
 	go func(ch chan bool) {
 		runtime.LockOSThread()
-		aft := time.After(time.Second * 5)
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 		if err != nil {
 			ch <- false
-			wg.Done()
 			return
 		}
+		aft := time.After(time.Second * 5)
 		select {
 		case commitResponse = <-commitResponseCh:
 		case <-aft:
 			ch <- false
-			wg.Done()
 			return
 		}
 		if commitResponse.StatueMsg.StatusCode != proof.Success {
@@ -777,11 +787,8 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 		} else {
 			ch <- true
 		}
-		wg.Done()
-		return
 	}(gWait)
 
-	wg.Wait()
 	if !<-gWait {
 		Out.Sugar().Infof("[%v]Receive space request err: PoDR2ProofCommit", t)
 		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
@@ -1121,6 +1128,124 @@ func ReadFile(dst string, path, fid, walletaddr string) error {
 	return errors.New("receiving file failed, please try again...... ")
 }
 
+func ReadFile2(cli *Client, path, fid, walletaddr string) error {
+	reqbody := FileDownloadReq{
+		FileId:        fid,
+		WalletAddress: walletaddr,
+		BlockIndex:    0,
+	}
+	bo, err := proto.Marshal(&reqbody)
+	if err != nil {
+		return err
+	}
+	req := &ReqMsg{
+		Service: configs.RpcService_Miner,
+		Method:  configs.RpcMethod_Miner_ReadFile,
+		Body:    bo,
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 90*time.Second)
+	resp, err := cli.Call(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	var b RespBody
+	var b_data FileDownloadInfo
+	err = proto.Unmarshal(resp.Body, &b)
+	if err != nil {
+		return err
+	}
+	if b.Code == 200 {
+		err = proto.Unmarshal(b.Data, &b_data)
+		if err != nil {
+			return err
+		}
+		if b_data.BlockTotal <= 1 {
+			f, err := os.OpenFile(filepath.Join(path, fid), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+			if err != nil {
+				return err
+			}
+			f.Write(b_data.Data)
+			f.Close()
+			return nil
+		}
+
+		f, err := os.OpenFile(filepath.Join(path, fid), os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+		if err != nil {
+			return err
+		}
+		f.Write(b_data.Data)
+
+		for i := int32(1); i < b_data.BlockTotal; i++ {
+			reqbody := FileDownloadReq{
+				FileId:        fid,
+				WalletAddress: walletaddr,
+				BlockIndex:    i,
+			}
+			body_loop, _ := proto.Marshal(&reqbody)
+			req := &ReqMsg{
+				Service: configs.RpcService_Miner,
+				Method:  configs.RpcMethod_Miner_ReadFile,
+				Body:    body_loop,
+			}
+			ctx2, _ := context.WithTimeout(context.Background(), 90*time.Second)
+			resp_loop, err := cli.Call(ctx2, req)
+			if err != nil {
+				f.Close()
+				os.Remove(filepath.Join(path, fid))
+				return err
+			}
+
+			var rtn_body RespBody
+			var bdata_loop FileDownloadInfo
+			err = proto.Unmarshal(resp_loop.Body, &rtn_body)
+			if err != nil {
+				f.Close()
+				os.Remove(filepath.Join(path, fid))
+				return err
+			}
+			if rtn_body.Code == 200 {
+				err = proto.Unmarshal(rtn_body.Data, &bdata_loop)
+				if err != nil {
+					f.Close()
+					os.Remove(filepath.Join(path, fid))
+					return err
+				}
+				f.Write(bdata_loop.Data)
+			} else {
+				f.Close()
+				os.Remove(filepath.Join(path, fid))
+				return err
+			}
+			if i+1 == b_data.BlockTotal {
+				// completefile := filepath.Join(path, fid)
+				// cf, err := os.OpenFile(completefile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, os.ModePerm)
+				// if err != nil {
+				// 	return err
+				// }
+				// defer cf.Close()
+				// for j := 0; j < int(b_data.BlockTotal); j++ {
+				// 	path := filepath.Join(path, fid+"-"+fmt.Sprintf("%d", j))
+				// 	f, err := os.Open(path)
+				// 	if err != nil {
+				// 		return err
+				// 	}
+				// 	defer f.Close()
+				// 	temp, err := ioutil.ReadAll(f)
+				// 	if err != nil {
+				// 		return err
+				// 	}
+				// 	cf.Write(temp)
+				// }
+				f.Close()
+				return nil
+			}
+		}
+	}
+	return errors.New("receiving file failed, please try again...... ")
+}
+
 // processingfile is used to process all copies of the file and the corresponding tag information
 // func processingfile(t int, fid, dir string, duplnamelist, duplkeynamelist []string) {
 // 	var (
@@ -1448,7 +1573,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 				_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 				if err == nil {
 					mip = string(mDatas[index].Ip)
-					Out.Sugar().Infof("[T:%v] [%v-%v] [%v] WriteData suc: %v", t, fileFullPath, j, mip)
+					Out.Sugar().Infof("[T:%v] [%v-%v] [%v] WriteData suc", t, fileFullPath, j, mip)
 					break
 				}
 				filedIndex[index] = struct{}{}
@@ -1492,8 +1617,6 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		break
 	}
 	filedump[0].Acc = mdetails.Address
-	// fmt.Println(fi.Size())
-	// fmt.Println(bs)
 	matrix, blocknum, err := tools.Split(fileFullPath, bs, fstat.Size())
 	if err != nil {
 		ch <- 1
@@ -1502,7 +1625,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 	}
 
 	filedump[0].BlockNum = types.U32(uint32(blocknum))
-	var blockinfo = make([]chain.BlockInfo, n)
+	var blockinfo = make([]chain.BlockInfo, blocknum)
 	for x := uint64(1); x <= blocknum; x++ {
 		blockinfo[x-1].BlockIndex, _ = tools.IntegerToBytes(uint32(x))
 		blockinfo[x-1].BlockSize = types.U32(uint32(len(matrix[x-1])))
