@@ -190,11 +190,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, info []FileDuplicateInfo) (b
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	b, err := types.EncodeToBytes(fid)
-	if err != nil {
-		return false, errors.Wrap(err, "EncodeToBytes err")
-	}
-	c, err := types.NewCall(meta, ChainTx_FileBank_PutMetaInfo, types.NewBytes(b), info)
+	c, err := types.NewCall(meta, ChainTx_FileBank_PutMetaInfo, types.NewBytes([]byte(fid)), info)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}

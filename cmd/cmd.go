@@ -151,7 +151,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 
 	// start-up
 	logger.LoggerInit()
-	exit_interrupt()
+	//exit_interrupt()
 	go proof.Chain_Main()
 
 	// rpc service
@@ -305,7 +305,7 @@ func rgst() {
 
 	if configs.C.ServiceAddr != "" {
 		if eip != configs.C.ServiceAddr {
-			fmt.Printf("\x1b[%dm[err]\x1b[0mYou can use \"curl ifconfig.co\" to view the external network ip address\n", 41)
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Please check your external network\n", 41)
 			os.Exit(1)
 		}
 	}

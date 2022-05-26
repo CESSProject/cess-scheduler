@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -48,13 +49,14 @@ func Chain_Main() {
 	}
 }
 
+//
 func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
-		code        int
 		puk         chain.Chain_SchedulerPuk
 		poDR2verify api.PoDR2Verify
-		proofs      []chain.Chain_Proofs
+		reqtag      p.ReadTagReq
+		proofs      = make([]chain.Chain_Proofs, 0)
 	)
 	defer func() {
 		err := recover()
@@ -63,57 +65,94 @@ func task_ValidateProof(ch chan bool) {
 		}
 		ch <- true
 	}()
-	Out.Info(">>>Start task_ValidateProof task<<<")
 
-	puk, _, err = chain.GetSchedulerPukFromChain()
+	Tvp.Info("--> Start task_ValidateProof")
+
+	reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
 
+	Tvp.Sugar().Infof("--> %v", reqtag.Acc)
+
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
+		puk, _, err = chain.GetSchedulerPukFromChain()
 		if err != nil {
-			if code != configs.Code_404 {
-				Err.Sugar().Errorf("%v", err)
-			}
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+		}
+		Tvp.Info("--> Successfully found puk")
+		Tvp.Sugar().Infof("--> %v", puk.Shared_g)
+		Tvp.Sugar().Infof("--> %v", puk.Shared_params)
+		Tvp.Sugar().Infof("--> %v", puk.Spk)
+		break
+	}
+
+	for {
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
+		proofs, _, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
+		if err != nil || len(proofs) == 0 {
+			Tvp.Sugar().Infof(" [Err] %v", err)
 			continue
 		}
 
+		Tvp.Sugar().Infof("--> Ready to verify %v proofs", len(proofs))
+
+		var goeson bool = true
+		var code int
+		var respData []byte
+		var tag TagInfo
+		var minerDetails chain.Chain_MinerDetails
 		for i := 0; i < len(proofs); i++ {
-			var reqtag p.ReadTagReq
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
-			reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
-			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
-				continue
-			}
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
+				Tvp.Sugar().Infof(" [Err] [%v] Marshal: %v", proofs[i].Miner_id, err)
+			}
+
+			for j := 0; j < 5; j++ {
+				minerDetails, code, err = chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
+				if err != nil {
+					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", proofs[i].Miner_id, err)
+					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
+				}
+				if code == configs.Code_404 {
+					goeson = false
+					go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, false)
+					break
+				}
+			}
+
+			if !goeson {
 				continue
 			}
-			minerDetails, _, err := chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
-			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
+
+			for j := 0; j < 5; j++ {
+				respData, err = rpc.WriteData(string(minerDetails.ServiceAddr), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
+				if err != nil {
+					Tvp.Sugar().Infof(" [Err] [%v] [%v] WriteData: %v", proofs[i].Miner_id, string(minerDetails.ServiceAddr), err)
+					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
+				} else {
+					break
+				}
+				if j == 4 {
+					goeson = false
+					go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, false)
+					break
+				}
+			}
+
+			if !goeson {
 				continue
 			}
-			respData, err := rpc.WriteData(string(minerDetails.ServiceAddr), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
-			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
-				continue
-			}
-			var tag TagInfo
+
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
-				continue
+				Tvp.Sugar().Infof(" [Err] [%v] [%v] Unmarshal: %v", proofs[i].Miner_id, string(minerDetails.ServiceAddr), err)
 			}
 			qSlice, err := api.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
 			if err != nil {
-				Err.Sugar().Errorf("[%v] %v", proofs[i].Miner_id, err)
-				continue
+				Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] qslice: %v", proofs[i].Miner_id, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
 			}
 
 			poDR2verify.QSlice = qSlice
@@ -121,52 +160,49 @@ func task_ValidateProof(ch chan bool) {
 			for j := 0; j < len(proofs[i].Mu); j++ {
 				poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
 			}
+
 			poDR2verify.Sigma = proofs[i].Sigma
 			poDR2verify.T = tag.T
 
-			// var wg = new(sync.WaitGroup)
-			// gWait := make(chan bool, 1)
-			// wg.Add(1)
-			// go func(ch chan bool) {
-			// 	runtime.LockOSThread()
-			result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-			// 	ch <- result
-			// 	wg.Done()
-			// 	return
-			// }(gWait)
-
-			// wg.Wait()
-			//result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-			//result := <-gWait
-
-			code = 0
-			ts := time.Now().Unix()
-			for code != int(configs.Code_200) && code != int(configs.Code_600) {
-				code, err = chain.PutProofResult(configs.C.CtrlPrk, proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
-				if err == nil {
-					Out.Sugar().Infof("[%v][%v]Proof result submitted successfully", uint64(proofs[i].Miner_id), result)
-					break
-				}
-				if time.Since(time.Unix(ts, 0)).Minutes() > 10.0 {
-					Err.Sugar().Errorf("[%v][%v]Proof result submitted failed:%v", uint64(proofs[i].Miner_id), result, err)
-					break
-				}
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
-			}
+			gWait := make(chan bool)
+			go func(ch chan bool) {
+				runtime.LockOSThread()
+				result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
+				ch <- result
+			}(gWait)
+			result := <-gWait
+			go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
 		}
 	}
 }
 
+func processProofResult(minerId types.U64, fileid types.Bytes, result bool) {
+	var (
+		err  error
+		ts   = time.Now().Unix()
+		code = 0
+	)
+	for code != int(configs.Code_200) && code != int(configs.Code_600) {
+		code, err = chain.PutProofResult(configs.C.CtrlPrk, minerId, fileid, result)
+		if err == nil {
+			Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] [%v] Proof result submitted successfully", minerId, string(fileid), result, err)
+			break
+		}
+		if time.Since(time.Unix(ts, 0)).Minutes() > 3.0 {
+			Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] [%v] Proof result submitted timeout", minerId, string(fileid), result, err)
+			break
+		}
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+	}
+}
+
+//
 func task_RecoveryFiles(ch chan bool) {
 	var (
 		recoverFlag  bool
 		index        int
-		recoverIndex int
-		fileid       string
-		filename     string
-		filebasedir  string
 		fileFullPath string
-		mDatas       []chain.CessChain_AllMinerInfo
+		mDatas       = make([]chain.CessChain_AllMinerInfo, 0)
 	)
 	defer func() {
 		err := recover()
@@ -175,31 +211,43 @@ func task_RecoveryFiles(ch chan bool) {
 		}
 		ch <- true
 	}()
-	Out.Info(">>>Start task_RecoveryFiles task<<<")
+
+	Trf.Info("--> Start task_RecoveryFiles")
+
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
 		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
 		if err != nil {
+			Tvp.Sugar().Infof(" [Err] %v", err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 120)))
 			continue
 		}
+
+		if len(recoverylist) == 0 {
+			continue
+		}
+
+		Trf.Sugar().Infof("--> Ready to restore %v files", len(recoverylist))
+
 		for i := 0; i < len(recoverylist); i++ {
-			ext := filepath.Ext(string(recoverylist[i]))
-			fileid = strings.TrimSuffix(string(recoverylist[i]), ext)
+			filename := string(recoverylist[i])
+			ext := filepath.Ext(filename)
+			fileid := strings.TrimSuffix(filename, ext)
 			fmeta, _, err := chain.GetFileMetaInfoOnChain(fileid)
 			if err != nil {
-				Err.Sugar().Errorf("%v", err)
+				Trf.Sugar().Infof("--> [Err] [%v] GetFileMetaInfoOnChain: %v", fileid, err)
 				continue
 			}
-			// query all miner
+
 			for {
 				mDatas, _, err = chain.GetAllMinerDataOnChain()
 				if err == nil {
 					break
 				}
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
 			}
+			Trf.Sugar().Infof("--> Find %v miners", len(mDatas))
 
-			filebasedir = filepath.Join(configs.FileCacheDir, fileid)
+			filebasedir := filepath.Join(configs.FileCacheDir, fileid)
 
 			_, err = os.Stat(filebasedir)
 			if err != nil {
@@ -209,16 +257,23 @@ func task_RecoveryFiles(ch chan bool) {
 					continue
 				}
 			}
+
 			index = 0
-			recoverIndex = 0
+			var recoverIndex int = -1
 			for d := 0; d < len(fmeta.FileDupl); d++ {
 				if string(fmeta.FileDupl[d].DuplId) == filename {
 					recoverIndex = d
 					break
 				}
 			}
+
+			if recoverIndex == -1 {
+				Trf.Sugar().Infof("--> [Err] [%v] No dupl id found to restore", string(recoverylist[i]))
+				continue
+			}
+
 			recoverFlag = false
-			filename = string(recoverylist[i])
+
 			fileFullPath = filepath.Join(filebasedir, filename)
 			fi, err := os.Stat(fileFullPath)
 			if err == nil {
