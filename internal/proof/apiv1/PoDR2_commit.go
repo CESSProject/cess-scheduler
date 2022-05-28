@@ -1,7 +1,6 @@
 package proof
 
 import (
-	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
 	"crypto/sha256"
 	"encoding/binary"
@@ -12,12 +11,6 @@ import (
 )
 
 func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segmentSize int64) (<-chan PoDR2CommitResponse, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
-		}
-	}()
 	responseCh := make(chan PoDR2CommitResponse, 1)
 	var res PoDR2CommitResponse
 	pairing, _ := pbc.NewPairingFromString(sharedParams)

@@ -20,9 +20,8 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -59,6 +58,44 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 	return mdata, configs.Code_200, nil
 }
 
+// Get miner information on the chain
+func GetMinerDataOnChainByPuk(puk types.AccountID) (Chain_MinerItems, int, error) {
+	var (
+		err   error
+		mdata Chain_MinerItems
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	b, err := types.EncodeToBytes(puk)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+	}
+
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return mdata, configs.Code_404, errors.New("[value is empty]")
+	}
+	return mdata, configs.Code_200, nil
+}
+
 // Get all miner information on the cess chain
 func GetAllMinerDataOnChain() ([]CessChain_AllMinerInfo, int, error) {
 	var (
@@ -68,9 +105,8 @@ func GetAllMinerDataOnChain() ([]CessChain_AllMinerInfo, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_AllMinerItems, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -102,9 +138,8 @@ func GetMinerDetailsById(id uint64) (Chain_MinerDetails, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_MinerDetails, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -138,9 +173,8 @@ func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_FileBank, FileMap_FileMetaInfo, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -177,9 +211,8 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_FileMap, FileMap_SchedulerInfo, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -211,9 +244,8 @@ func GetSchedulerPukFromChain() (Chain_SchedulerPuk, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -245,9 +277,8 @@ func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -304,9 +335,8 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 

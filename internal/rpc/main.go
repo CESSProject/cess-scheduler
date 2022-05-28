@@ -555,31 +555,32 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	)
 	t := tools.RandomInRange(100000000, 999999999)
 	Out.Sugar().Infof("[%v]Receive space request", t)
+
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 
-	// mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
-	// if err != nil {
-	// 	Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-	// 	return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
-	// }
-	// if len(mdata.Publickey) == 0 {
-	// 	Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-	// 	return &RespBody{Code: 500, Msg: "internal err", Data: nil}, nil
-	// }
-	// pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
-	// if err != nil {
-	// 	Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-	// 	return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
-	// }
-	// ok := encryption.VerifySign([]byte(b.Acc), b.Sign, pubkey)
-	// if !ok {
-	// 	Out.Sugar().Infof("[%v]Receive space request err: Invalid signature", t)
-	// 	return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
-	// }
+	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
+		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+	}
+	if len(mdata.Publickey) == 0 {
+		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
+		return &RespBody{Code: 500, Msg: "internal err", Data: nil}, nil
+	}
+	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
+	if err != nil {
+		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+	}
+	ok := encryption.VerifySign([]byte(b.Acc), b.Sign, pubkey)
+	if !ok {
+		Out.Sugar().Infof("[%v]Receive space request err: Invalid signature", t)
+		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
+	}
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.Acc)))
 	_, err = os.Stat(filebasedir)
@@ -770,6 +771,13 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 
 	go func(ch chan bool) {
 		runtime.LockOSThread()
+		defer func() {
+			runtime.UnlockOSThread()
+			if err := recover(); err != nil {
+				ch <- true
+				Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			}
+		}()
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 		if err != nil {
 			ch <- false
@@ -1484,14 +1492,11 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 	var (
 		err    error
 		mDatas = make([]chain.CessChain_AllMinerInfo, 0)
-
-		//mips     = make([]string, len(duplnamelist))
 	)
 
 	defer func() {
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 		result := <-ch
 		if result == 0 {

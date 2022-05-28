@@ -3,6 +3,7 @@ package chain
 import (
 	"cess-scheduler/configs"
 	. "cess-scheduler/internal/logger"
+	"cess-scheduler/tools"
 	"fmt"
 	"os"
 	"sync"
@@ -55,9 +56,8 @@ func substrateAPIKeepAlive() {
 
 func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
 	defer func() {
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	h, err := a.RPC.System.Health()
