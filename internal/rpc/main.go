@@ -118,12 +118,18 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	if b.BlockIndex == b.BlockTotal {
 		backupNum := configs.Backups_Min
-		// if backupNum < uint8(fmeta.Backups) {
-		// 	backupNum = uint8(fmeta.Backups)
-		// }
-		// if backupNum > configs.Backups_Max {
-		// 	backupNum = configs.Backups_Max
-		// }
+		fmeta, _, err := chain.GetFileMetaInfoOnChain(b.FileId)
+		if err == nil {
+			backupNum = uint8(fmeta.Backups)
+		}
+
+		if backupNum < configs.Backups_Min {
+			backupNum = configs.Backups_Min
+		}
+		if backupNum > configs.Backups_Max {
+			backupNum = configs.Backups_Max
+		}
+
 		buf, err := os.ReadFile(fileFullPath)
 		if err != nil {
 			Out.Sugar().Infof("[T:%v] [%v] os.ReadFile err: %v", t, fileFullPath, err)
