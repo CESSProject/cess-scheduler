@@ -517,11 +517,15 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Request error"}, nil
 	}
 
+	if b.Minerid == 0 {
+		return &RespBody{Code: 400, Msg: "Request error"}, nil
+	}
+
 	if b.Fileid == "" {
 		Spc.Sugar().Infof("[C%v] Space file", b.Minerid)
 	}
 
-	if b.Fileid != "" && (b.BlockIndex == 0 || b.BlockIndex == 512) {
+	if b.Fileid != "" && (b.BlockIndex == 0 || b.BlockIndex == 511) {
 		Spc.Sugar().Infof("[%v] [C%v] [%v] Space file", b.Fileid, b.Minerid, b.BlockIndex)
 	}
 
