@@ -205,7 +205,7 @@ func parseProfile() {
 		os.Exit(1)
 	}
 
-	_, err = os.Stat(configs.C.DataDir)
+	err = tools.CreatDirIfNotExist(configs.C.DataDir)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)

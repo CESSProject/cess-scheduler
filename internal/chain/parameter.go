@@ -62,6 +62,13 @@ type CessChain_AllMinerInfo struct {
 	Space  types.U128  `json:"space"`
 }
 
+type Cache_MinerInfo struct {
+	Peerid uint64 `json:"peerid"`
+	Ip     string `json:"ip"`
+	Acc    string `json:"acc"`
+	Puk    []byte `json:"puk"`
+}
+
 type FileMetaInfo struct {
 	//FileId      types.Bytes         `json:"acc"`         //File id
 	File_name   types.Bytes         `json:"file_name"`   //File name
@@ -142,4 +149,11 @@ type ChallengeInfo struct {
 	Block_list   []types.Bytes
 	File_id      types.Bytes
 	Random       []types.Bytes
+}
+
+//---user space Info
+type UserSpaceInfo struct {
+	PurchasedSpace types.U128
+	UsedSpace      types.U128
+	RemainingSpace types.U128
 }

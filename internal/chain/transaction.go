@@ -30,9 +30,8 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -45,13 +44,8 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	if err != nil {
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	bytes, err := tools.DecodeToPub(stash_acc, pre)
+
+	bytes, err := tools.DecodeToPub(stash_acc, tools.ChainCessTestPrefix)
 	if err != nil {
 		return false, errors.Wrap(err, "DecodeToPub")
 	}
@@ -175,9 +169,8 @@ func PutMetaInfoToChain(transactionPrK, fid string, info []FileDuplicateInfo) (b
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
@@ -310,9 +303,8 @@ func PutSpaceTagInfoToChain(transactionPrK string, mid types.U64, info []SpaceFi
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
@@ -465,9 +457,8 @@ func PutProofResult(signaturePrk string, id types.U64, fid types.Bytes, result b
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -591,9 +582,8 @@ func ClearRecoveredFileNoChain(signaturePrk string, duplid types.Bytes) (int, er
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 

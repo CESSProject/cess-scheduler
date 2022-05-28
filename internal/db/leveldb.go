@@ -1,4 +1,4 @@
-package cache
+package db
 
 import (
 	"cess-scheduler/configs"
@@ -17,7 +17,7 @@ const (
 
 	// minHandles is the minimum number of files handles to allocate to the open
 	// database files.
-	minHandles = 16
+	minHandles = 32
 )
 
 type LevelDB struct {
@@ -25,11 +25,11 @@ type LevelDB struct {
 	db *leveldb.DB
 }
 
-var C Cache
+var c Cache
 
 func GetCache() (Cache, error) {
 	var err error
-	if C == nil {
+	if c == nil {
 		_, err = os.Stat(configs.DbFileDir)
 		if err != nil {
 			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
@@ -37,13 +37,13 @@ func GetCache() (Cache, error) {
 				return nil, err
 			}
 		}
-		C, err = newLevelDB(configs.DbFileDir, 0, 0, "cess")
+		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
 		if err != nil {
 			return nil, err
 		}
-		return C, nil
+		return c, nil
 	}
-	if err = C.Delete([]byte("NIL")); err != nil {
+	if err = c.Delete([]byte("NIL")); err != nil {
 		_, err = os.Stat(configs.DbFileDir)
 		if err != nil {
 			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
@@ -51,13 +51,13 @@ func GetCache() (Cache, error) {
 				return nil, err
 			}
 		}
-		C, err = newLevelDB(configs.DbFileDir, 0, 0, "cess")
+		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
 		if err != nil {
 			return nil, err
 		}
-		return C, nil
+		return c, nil
 	}
-	return C, nil
+	return c, nil
 }
 
 func newLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {

@@ -12,10 +12,15 @@ import (
 )
 
 var (
-	Out *zap.Logger
-	Err *zap.Logger
-	Tvp *zap.Logger
-	Trf *zap.Logger
+	Out  *zap.Logger
+	Err  *zap.Logger
+	Uld  *zap.Logger
+	Dld  *zap.Logger
+	Spc  *zap.Logger
+	Tvp  *zap.Logger
+	Trf  *zap.Logger
+	Tsmi *zap.Logger
+	Gpnc *zap.Logger
 )
 
 func LoggerInit() {
@@ -29,8 +34,14 @@ func LoggerInit() {
 	}
 	initOutLogger()
 	initErrLogger()
+	initUldLogger()
+	initDldLogger()
+	initSpcLogger()
 	initTvpLogger()
 	initTrfLogger()
+	initTsmiLogger()
+	initGpncLogger()
+
 }
 
 // out log
@@ -135,7 +146,7 @@ func initTvpLogger() {
 	Tvp.Sugar().Infof("The service has started and created a log file in the %v", tvplogpath)
 }
 
-// tvp log
+// trf log
 func initTrfLogger() {
 	trflogpath := configs.LogFileDir + "/t_rf.log"
 	hook := lumberjack.Logger{
@@ -167,6 +178,176 @@ func initTrfLogger() {
 	development := zap.Development()
 	Trf = zap.New(core, caller, development)
 	Trf.Sugar().Infof("The service has started and created a log file in the %v", trflogpath)
+}
+
+// tsmi log
+func initTsmiLogger() {
+	tsmilogpath := configs.LogFileDir + "/t_smi.log"
+	hook := lumberjack.Logger{
+		Filename:   tsmilogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Tsmi = zap.New(core, caller, development)
+	Tsmi.Sugar().Infof("The service has started and created a log file in the %v", tsmilogpath)
+}
+
+// gpnc log
+func initGpncLogger() {
+	gpnclogpath := configs.LogFileDir + "/g_pnc.log"
+	hook := lumberjack.Logger{
+		Filename:   gpnclogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Gpnc = zap.New(core, caller, development)
+	Gpnc.Sugar().Infof("The service has started and created a log file in the %v", gpnclogpath)
+}
+
+// uld log
+func initUldLogger() {
+	uldlogpath := configs.LogFileDir + "/uld.log"
+	hook := lumberjack.Logger{
+		Filename:   uldlogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Uld = zap.New(core, caller, development)
+	Uld.Sugar().Infof("The service has started and created a log file in the %v", uldlogpath)
+}
+
+// dld log
+func initDldLogger() {
+	dldlogpath := configs.LogFileDir + "/dld.log"
+	hook := lumberjack.Logger{
+		Filename:   dldlogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Dld = zap.New(core, caller, development)
+	Dld.Sugar().Infof("The service has started and created a log file in the %v", dldlogpath)
+}
+
+// spc log
+func initSpcLogger() {
+	spclogpath := configs.LogFileDir + "/spc.log"
+	hook := lumberjack.Logger{
+		Filename:   spclogpath,
+		MaxSize:    10,
+		MaxAge:     360,
+		MaxBackups: 0,
+		LocalTime:  true,
+		Compress:   true,
+	}
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:   "msg",
+		TimeKey:      "time",
+		CallerKey:    "file",
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   formatEncodeTime,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
+	atomicLevel := zap.NewAtomicLevel()
+	atomicLevel.SetLevel(zap.InfoLevel)
+	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(writes...),
+		atomicLevel,
+	)
+	caller := zap.AddCaller()
+	development := zap.Development()
+	Spc = zap.New(core, caller, development)
+	Spc.Sugar().Infof("The service has started and created a log file in the %v", spclogpath)
 }
 
 func formatEncodeTime(t time.Time, enc zapcore.PrimitiveArrayEncoder) {

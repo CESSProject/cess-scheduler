@@ -3,6 +3,7 @@ package proof
 import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/db"
 	"cess-scheduler/internal/encryption"
 	. "cess-scheduler/internal/logger"
 	api "cess-scheduler/internal/proof/apiv1"
@@ -36,15 +37,19 @@ func Chain_Main() {
 	var (
 		channel_1 = make(chan bool, 1)
 		channel_2 = make(chan bool, 1)
+		channel_3 = make(chan bool, 1)
 	)
 	go task_ValidateProof(channel_1)
 	go task_RecoveryFiles(channel_2)
+	go task_SyncMinersInfo(channel_3)
 	for {
 		select {
 		case <-channel_1:
 			go task_ValidateProof(channel_1)
 		case <-channel_2:
 			go task_RecoveryFiles(channel_2)
+		case <-channel_3:
+			go task_SyncMinersInfo(channel_3)
 		}
 	}
 }
@@ -59,9 +64,8 @@ func task_ValidateProof(ch chan bool) {
 		proofs      = make([]chain.Chain_Proofs, 0)
 	)
 	defer func() {
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 		ch <- true
 	}()
@@ -167,6 +171,13 @@ func task_ValidateProof(ch chan bool) {
 			gWait := make(chan bool)
 			go func(ch chan bool) {
 				runtime.LockOSThread()
+				defer func() {
+					runtime.UnlockOSThread()
+					if err := recover(); err != nil {
+						ch <- true
+						Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+					}
+				}()
 				result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
 				ch <- result
 			}(gWait)
@@ -205,9 +216,8 @@ func task_RecoveryFiles(ch chan bool) {
 		mDatas       = make([]chain.CessChain_AllMinerInfo, 0)
 	)
 	defer func() {
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 		ch <- true
 	}()
@@ -215,9 +225,11 @@ func task_RecoveryFiles(ch chan bool) {
 	Trf.Info("--> Start task_RecoveryFiles")
 
 	for {
-		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
+		recoverylist, code, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
 		if err != nil {
-			Tvp.Sugar().Infof(" [Err] %v", err)
+			if code != configs.Code_404 {
+				Trf.Sugar().Infof(" [Err] GetFileRecoveryByAcc: %v", err)
+			}
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 120)))
 			continue
 		}
@@ -738,28 +750,68 @@ func task_RecoveryFiles(ch chan bool) {
 	}
 }
 
-// func task_UpdateMinerInfo(ch chan bool) {
-// 	var (
-// 		err         error
-// 		code        int
-// 		puk         chain.Chain_SchedulerPuk
-// 		poDR2verify api.PoDR2Verify
-// 		proofs      []chain.Chain_Proofs
-// 	)
-// 	defer func() {
-// 		err := recover()
-// 		if err != nil {
-// 			Err.Sugar().Errorf("[panic]: %v", err)
-// 		}
-// 		ch <- true
-// 	}()
-// 	Out.Info(">>> Start task_UpdateMinerInfo <<<")
+//
+func task_SyncMinersInfo(ch chan bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+		ch <- true
+	}()
 
-// 	for {
-// 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-// 		allMinerInfo, _, _ := chain.GetAllMinerDataOnChain()
-// 		for i := 0; i < len(allMinerInfo); i++ {
+	Tsmi.Info("-----> Start task_UpdateMinerInfo")
 
-// 		}
-// 	}
-// }
+	for {
+		c, err := db.GetCache()
+		if c == nil || err != nil {
+			Tsmi.Sugar().Infof(" [Err] GetCache: %v", err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+			continue
+		}
+
+		allMinerInfo, _, _ := chain.GetAllMinerDataOnChain()
+		for i := 0; i < len(allMinerInfo); i++ {
+			key, _ := tools.IntegerToBytes(allMinerInfo[i].Peerid)
+			ok, err := c.Has(key)
+			if err != nil {
+				Tsmi.Sugar().Infof(" [Err] [%v] IntegerToBytes: %v", allMinerInfo[i].Peerid, err)
+				continue
+			}
+
+			if ok {
+				continue
+			}
+
+			var cm chain.Cache_MinerInfo
+
+			mdata, _, err := chain.GetMinerDetailsById(uint64(allMinerInfo[i].Peerid))
+			if err != nil {
+				Tsmi.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", allMinerInfo[i].Peerid, err)
+				continue
+			}
+			cm.Peerid = uint64(allMinerInfo[i].Peerid)
+			cm.Ip = string(allMinerInfo[i].Ip)
+			ss, _ := tools.Encode(mdata.Address[:], tools.ChainCessTestPrefix)
+			cm.Acc = ss
+
+			mdetails, _, err := chain.GetMinerDataOnChain(ss)
+			if err != nil {
+				Tsmi.Sugar().Infof(" [Err] [%v] GetMinerDataOnChain: %v", allMinerInfo[i].Peerid, err)
+				continue
+			}
+			cm.Puk = mdetails.Publickey
+
+			value, err := json.Marshal(&cm)
+			if err != nil {
+				Tsmi.Sugar().Infof(" [Err] [%v] json.Marshal: %v", allMinerInfo[i].Peerid, err)
+				continue
+			}
+			err = c.Put(key, value)
+			if err != nil {
+				Tsmi.Sugar().Infof(" [Err] [%v] c.Put: %v", allMinerInfo[i].Peerid, err)
+			}
+			Tsmi.Sugar().Infof(" [suc] [%v] Put suc", allMinerInfo[i].Peerid)
+		}
+		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(10, 30)))
+	}
+}

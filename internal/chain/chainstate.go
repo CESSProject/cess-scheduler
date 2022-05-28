@@ -20,22 +20,16 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	pub, err := tools.DecodeToPub(addr, pre)
+
+	pub, err := tools.DecodeToPub(addr, tools.ChainCessTestPrefix)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[DecodeToPub]")
 	}
@@ -44,6 +38,44 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
 	}
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return mdata, configs.Code_404, errors.New("[value is empty]")
+	}
+	return mdata, configs.Code_200, nil
+}
+
+// Get miner information on the chain
+func GetMinerDataOnChainByPuk(puk types.AccountID) (Chain_MinerItems, int, error) {
+	var (
+		err   error
+		mdata Chain_MinerItems
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	b, err := types.EncodeToBytes(puk)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+	}
+
 	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
@@ -68,9 +100,8 @@ func GetAllMinerDataOnChain() ([]CessChain_AllMinerInfo, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_AllMinerItems, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -102,9 +133,8 @@ func GetMinerDetailsById(id uint64) (Chain_MinerDetails, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_Sminer, Sminer_MinerDetails, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -138,9 +168,8 @@ func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_FileBank, FileMap_FileMetaInfo, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -177,9 +206,8 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic] [%v.%v] [err:%v]", State_FileMap, FileMap_SchedulerInfo, err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -211,9 +239,8 @@ func GetSchedulerPukFromChain() (Chain_SchedulerPuk, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -245,9 +272,8 @@ func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -282,13 +308,7 @@ func GetAddressByPrk(prk string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
 	}
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	acc, err := tools.Encode(keyring.PublicKey, pre)
+	acc, err := tools.Encode(keyring.PublicKey, tools.ChainCessTestPrefix)
 	if err != nil {
 		return "", errors.Wrap(err, "[Encode]")
 	}
@@ -304,9 +324,8 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 	api := getSubstrateApi_safe()
 	defer func() {
 		releaseSubstrateApi()
-		err := recover()
-		if err != nil {
-			Err.Sugar().Errorf("[panic]: %v", err)
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -330,7 +349,50 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, configs.Code_404, errors.New("public key not found")
+		return data, configs.Code_404, errors.New("value is empty")
 	}
 	return data, configs.Code_200, nil
+}
+
+//
+func GetUserSpaceOnChain(account string) (UserSpaceInfo, int, error) {
+	var (
+		err   error
+		mdata UserSpaceInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	puk, err := tools.DecodeToPub(account, tools.ChainCessTestPrefix)
+	if err != nil {
+		return mdata, configs.Code_400, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	b, err := types.EncodeToBytes(types.NewAccountID(puk))
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+	}
+
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_UserSpaceInfo, types.NewBytes(b))
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return mdata, configs.Code_404, errors.New("value is empty")
+	}
+	return mdata, configs.Code_200, nil
 }
