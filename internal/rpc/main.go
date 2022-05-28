@@ -56,61 +56,60 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		err error
 		b   FileUploadInfo
 	)
-	t := tools.RandomInRange(100000000, 999999999)
-	Out.Sugar().Infof("+++> Upload [T:%v]", t)
 
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[T:%v] Unmarshal err: %v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 400, Msg: "Http error"}, nil
 	}
+
+	Uld.Sugar().Infof("+++> Upload [%v]", b.FileId)
 
 	cachepath := filepath.Join(configs.FileCacheDir, b.FileId)
 	fileFullPath := filepath.Join(cachepath, b.FileId+".cess")
 
 	if b.BlockIndex == 0 {
-		return &RespBody{Code: 400, Msg: "File block numbering starts from 1", Data: nil}, nil
+		return &RespBody{Code: 400, Msg: "File block numbering starts from 1"}, nil
 	}
 
 	if b.BlockIndex == 1 {
 		_, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
 		if err != nil {
 			if code == configs.Code_404 {
-				Out.Sugar().Infof("[T:%v] File not found on chain [%v]", t, b.FileId)
-				return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+				Uld.Sugar().Infof("[%v] File not found on chain", b.FileId)
+				return &RespBody{Code: int32(code), Msg: "File not found on chain"}, nil
 			}
-			Out.Sugar().Infof("[T:%v] [%v] GetFileMetaInfoOnChain err: %v", t, b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
 		}
 		err = tools.CreatDirIfNotExist(cachepath)
 		if err != nil {
-			Out.Sugar().Infof("[T:%v] [%v] CreatDirIfNotExist err: %v", t, b.FileId, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			Uld.Sugar().Infof("[%v] CreatDirIfNotExist err: %v", b.FileId, err)
+			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 		_, err = os.Create(fileFullPath)
 		if err != nil {
-			Out.Sugar().Infof("[T:%v] [%v] Create file err: %v", t, b.FileId, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			Uld.Sugar().Infof("[%v] Create file err: %v", b.FileId, err)
+			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
 	f, err := os.OpenFile(fileFullPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		Out.Sugar().Infof("[T:%v] [%v] os.OpenFile-1 err: %v", t, fileFullPath, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		Uld.Sugar().Infof("[%v] OpenFile-1 err: %v", b.FileId, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
 	_, err = f.Write(b.Data)
 	if err != nil {
 		f.Close()
-		Out.Sugar().Infof("[T:%v] [%v] f.Write err: %v", t, fileFullPath, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		Uld.Sugar().Infof("[%v] f.Write err: %v", b.FileId, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
 	err = f.Sync()
 	if err != nil {
 		f.Close()
-		Out.Sugar().Infof("[T:%v] [%v] f.Sync err: %v", t, fileFullPath, err)
+		Uld.Sugar().Infof("[%v] f.Sync err: %v", b.FileId, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
@@ -132,7 +131,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 		buf, err := os.ReadFile(fileFullPath)
 		if err != nil {
-			Out.Sugar().Infof("[T:%v] [%v] os.ReadFile err: %v", t, fileFullPath, err)
+			Uld.Sugar().Infof("[%v] ReadFile err: %v", b.FileId, err)
 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 		}
 
@@ -146,7 +145,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			// Aes ctr mode encryption
 			encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58)[:16])
 			if err != nil {
-				Out.Sugar().Infof("[T:%v] [%v] AesCtrEncrypt err: %v", t, fileFullPath, err)
+				Uld.Sugar().Infof("[%v] AesCtrEncrypt err: %v", b.FileId, err)
 				continue
 			}
 
@@ -155,19 +154,21 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 			duplf, err := os.OpenFile(duplFallpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 			if err != nil {
-				Out.Sugar().Infof("[T:%v] [%v] os.OpenFile-2 err: %v", t, duplFallpath, err)
+				Uld.Sugar().Infof("[%v] [%v] OpenFile-2 err: %v", b.FileId, duplFallpath, err)
 				continue
 			}
 			_, err = duplf.Write(encrypted)
 			if err != nil {
 				duplf.Close()
 				os.Remove(duplFallpath)
+				Uld.Sugar().Infof("[%v] [%v] duplf.Write err: %v", b.FileId, duplFallpath, err)
 				continue
 			}
 			err = duplf.Sync()
 			if err != nil {
 				duplf.Close()
 				os.Remove(duplFallpath)
+				Uld.Sugar().Infof("[%v] [%v] f.Sync-2 err: %v", b.FileId, duplFallpath, err)
 				continue
 			}
 			duplf.Close()
@@ -176,6 +177,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			_, err = os.Create(duplkeyFallpath)
 			if err != nil {
 				os.Remove(duplFallpath)
+				Uld.Sugar().Infof("[%v] [%v] os.Create-2 err: %v", b.FileId, duplkeyFallpath, err)
 				continue
 			} else {
 				duplnamelist = append(duplnamelist, duplFallpath)
@@ -184,50 +186,50 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			}
 		}
 		os.Remove(fileFullPath)
-		go storeFiles(t, b.FileId, duplnamelist, duplkeynamelist)
+		go storeFiles(b.FileId, duplnamelist, duplkeynamelist)
 		//go processingfile(t, b.FileId, cachepath, duplnamelist, duplkeynamelist)
-		Out.Sugar().Infof("[T:%v] [%v] All %v chunks are uploaded successfully", t, b.FileId, b.BlockTotal)
-		return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
+		Uld.Sugar().Infof("[%v] All %v chunks are uploaded successfully", b.FileId, b.BlockTotal)
+		return &RespBody{Code: 200, Msg: "success"}, nil
 
 	}
-	Out.Sugar().Infof("[T:%v] [%v] The %v chunk uploaded successfully", t, b.FileId, b.BlockIndex)
+	Uld.Sugar().Infof("[%v] The %v chunk uploaded successfully", b.FileId, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
 }
 
-func storeFiles(t int, fid string, duplnamelist, duplkeynamelist []string) {
+func storeFiles(fid string, duplnamelist, duplkeynamelist []string) {
 	var (
 		channel_map = make(map[int]chan uint8, len(duplnamelist))
 	)
 
-	Out.Sugar().Infof("[T:%v] [%v] Prepare to store %v replicas to miners", t, fid, len(duplnamelist))
+	Uld.Sugar().Infof("[%v] Prepare to store %v replicas to miners", fid, len(duplnamelist))
 
 	for i := 0; i < len(duplnamelist); i++ {
 		channel_map[i] = make(chan uint8, 1)
 	}
 
 	for i := 0; i < len(duplnamelist); i++ {
-		go backupFile(channel_map[i], t, i, fid, duplnamelist[i], duplkeynamelist[i])
+		go backupFile(channel_map[i], i, fid, duplnamelist[i], duplkeynamelist[i])
 	}
 
 	for {
 		for k, v := range channel_map {
 			result := <-v
 			if result == 1 {
-				go backupFile(channel_map[k], t, k, fid, duplnamelist[k], duplkeynamelist[k])
+				go backupFile(channel_map[k], k, fid, duplnamelist[k], duplkeynamelist[k])
 				continue
 			}
 			if result == 2 {
 				delete(channel_map, k)
-				Out.Sugar().Infof("[T:%v] [%v] The %v copy is successfully stored", t, fid, k)
+				Uld.Sugar().Infof("[%v] The %v copy is successfully stored", fid, k)
 				break
 			}
 			if result == 3 {
 				delete(channel_map, k)
-				Out.Sugar().Infof("[T:%v] [%v] The %v copy is failed stored", t, fid, k)
+				Uld.Sugar().Infof("[%v] The %v copy is failed stored", fid, k)
 			}
 		}
 		if len(channel_map) == 0 {
-			Out.Sugar().Infof("[T:%v] [%v] All replicas stored successfully", t, fid)
+			Uld.Sugar().Infof("[%v] All replicas stored successfully", fid)
 			return
 		}
 	}
@@ -1494,7 +1496,7 @@ func cutDataRule(size uint64) (uint64, uint64, uint8, error) {
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string) {
+func backupFile(ch chan uint8, num int, fid, fileFullPath, duplkeyname string) {
 	var (
 		err    error
 		mDatas = make([]chain.CessChain_AllMinerInfo, 0)
@@ -1510,7 +1512,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		}
 	}()
 
-	Out.Sugar().Infof("[T:%v] [%v] Prepare to store the %vrd replica", t, fid, num)
+	Uld.Sugar().Infof("[%v] Prepare to store the %vrd replica", fid, num)
 
 	for len(mDatas) == 0 {
 		mDatas, _, err = chain.GetAllMinerDataOnChain()
@@ -1519,23 +1521,23 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		}
 	}
 
-	Out.Sugar().Infof("[T:%v] %v miners found", t, len(mDatas))
+	Uld.Sugar().Infof("[%v] %v miners found", fid, len(mDatas))
 	for i := 0; i < len(mDatas); i++ {
-		Out.Sugar().Infof("[T:%v] %v miners found", t, string(mDatas[i].Ip))
+		Uld.Sugar().Infof("[%v] %v: %v", fid, i, string(mDatas[i].Ip))
 	}
 
 	duplname := filepath.Base(fileFullPath)
 	fstat, err := os.Stat(fileFullPath)
 	if err != nil {
 		ch <- 3
-		Out.Sugar().Infof("[T:%v] [%v] The copy was deleted and cannot be stored: %v", t, fileFullPath, err)
+		Uld.Sugar().Infof("[%v] [%v] The copy was deleted and cannot be stored: %v", fid, fileFullPath, err)
 		return
 	}
 
 	f, err := os.OpenFile(fileFullPath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		ch <- 3
-		Out.Sugar().Infof("[T:%v] [%v] Failed to read replica file, cannot be stored: %v", t, fileFullPath, err)
+		Uld.Sugar().Infof("[%v] [%v] Failed to read replica file: %v", fid, fileFullPath, err)
 		return
 	}
 
@@ -1564,7 +1566,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		bob, _ := proto.Marshal(&bo)
 		if err != nil {
 			ch <- 3
-			Out.Sugar().Infof("[T:%v] [%v] Failed to marshal data, cannot be stored: %v", t, fileFullPath, err)
+			Uld.Sugar().Infof("[%v] [%v] Marshal err: %v", fid, fileFullPath, err)
 			return
 		}
 		var failcount uint8
@@ -1581,10 +1583,11 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 					filedIndex[index] = struct{}{}
 					continue
 				}
+				Uld.Sugar().Infof("[%v] [%v] [%v] connection suc", fid, fileFullPath, mip)
 				_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 				if err == nil {
 					mip = string(mDatas[index].Ip)
-					Out.Sugar().Infof("[T:%v] [%v-%v] [%v] WriteData suc", t, fileFullPath, j, mip)
+					Uld.Sugar().Infof("[%v] [%v-%v] transfer suc", fid, fileFullPath, j)
 					break
 				}
 				filedIndex[index] = struct{}{}
@@ -1594,7 +1597,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 					failcount++
 					if failcount >= 5 {
 						ch <- 1
-						Out.Sugar().Infof("[T:%v] [%v-%v] [%v] WriteData failed: %v", t, fileFullPath, j, mip)
+						Uld.Sugar().Infof("[%v] [%v-%v] transfer failed: %v", fid, fileFullPath, j)
 						return
 					}
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -1615,13 +1618,13 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 	filedump[0].MinerIp = mDatas[index].Ip
 	bs, sbs := CalcFileBlockSizeAndScanSize(fstat.Size())
 	filedump[0].ScanSize = types.U32(sbs)
-	//mips[0] = string(mDatas[index].Ip)
+
 	// Query miner information by id
 	var mdetails chain.Chain_MinerDetails
 	for {
 		mdetails, _, err = chain.GetMinerDetailsById(uint64(mDatas[index].Peerid))
 		if err != nil {
-			Out.Sugar().Infof("[T:%v] [%v] GetMinerDetailsById err: %v", t, fileFullPath, err)
+			Uld.Sugar().Infof("[%v] [%v] [%v] GetMinerDetailsById err: %v", fid, mDatas[index].Peerid, fileFullPath, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
@@ -1631,7 +1634,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 	matrix, blocknum, err := tools.Split(fileFullPath, bs, fstat.Size())
 	if err != nil {
 		ch <- 1
-		Out.Sugar().Infof("[T:%v] [%v] [%v] [%v] Split err: %v", t, fileFullPath, fstat.Size(), bs, err)
+		Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Split err: %v", fid, fileFullPath, fstat.Size(), bs, err)
 		return
 	}
 
@@ -1653,7 +1656,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), sbs)
 		if err != nil {
 			ch <- 1
-			Out.Sugar().Infof("[T:%v] [%v] [%v] PoDR2ProofCommit err: %v", t, fileFullPath, sbs, err)
+			Uld.Sugar().Infof("[%v] [%v] [%v] PoDR2ProofCommit err: %v", fid, fileFullPath, sbs, err)
 			return
 		}
 		select {
@@ -1661,7 +1664,7 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		}
 		if commitResponse.StatueMsg.StatusCode != proof.Success {
 			ch <- 1
-			Out.Sugar().Infof("[T:%v] [%v] [%v] PoDR2ProofCommit failed", t, fileFullPath, sbs)
+			Uld.Sugar().Infof("[%v] [%v] [%v] PoDR2ProofCommit failed", fid, fileFullPath, sbs)
 			return
 		}
 		var resp PutTagToBucket
@@ -1674,14 +1677,14 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 		resp_proto, err := proto.Marshal(&resp)
 		if err != nil {
 			ch <- 1
-			Out.Sugar().Infof("[T:%v] [%v] Marshal resp err: %v", t, fileFullPath, err)
+			Uld.Sugar().Infof("[%v] [%v] Marshal resp err: %v", fid, fileFullPath, err)
 			return
 		}
 
 		_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
 		if err != nil {
 			ch <- 1
-			Out.Sugar().Infof("[T:%v] [%v] [%v] WriteData2 tag err: %v", t, fileFullPath, mip, err)
+			Uld.Sugar().Infof("[%v] [%v] [%v] WriteData2 tag err: %v", fid, fileFullPath, mip, err)
 			return
 		}
 	}
@@ -1690,11 +1693,11 @@ func backupFile(ch chan uint8, t, num int, fid, fileFullPath, duplkeyname string
 	for {
 		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
 		if !ok || err != nil {
-			Out.Sugar().Infof("[T:%v] [%v] PutMetaInfoToChain err: %v", t, fileFullPath, err)
+			Uld.Sugar().Infof("[%v] [%v] PutMetaInfoToChain err: %v", fid, fileFullPath, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
-		Out.Sugar().Infof("[T:%v] [%v] The metadata of the %v replica was successfully uploaded to the chain", t, fid, num)
+		Uld.Sugar().Infof("[%v] The metadata of the %v replica was successfully uploaded to the chain", fid, num)
 		// c, err := cache.GetCache()
 		// if err != nil {
 		// 	Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)

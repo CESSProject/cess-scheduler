@@ -11,7 +11,7 @@ const (
 	RpcMethod_Miner_ReadFile     = "readfile"
 	RpcMethod_Miner_WriteFileTag = "writefiletag"
 	RpcMethod_Miner_ReadFileTag  = "readfiletag"
-	RpcFileBuffer                = 64 * 1024 //32KB
+	RpcFileBuffer                = 64 * 1024 //64KB
 )
 
 // return state code
