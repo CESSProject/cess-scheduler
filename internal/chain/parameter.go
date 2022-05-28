@@ -150,3 +150,10 @@ type ChallengeInfo struct {
 	File_id      types.Bytes
 	Random       []types.Bytes
 }
+
+//---user space Info
+type UserSpaceInfo struct {
+	PurchasedSpace types.U128
+	UsedSpace      types.U128
+	RemainingSpace types.U128
+}

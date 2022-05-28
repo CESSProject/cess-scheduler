@@ -360,7 +360,50 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, configs.Code_404, errors.New("public key not found")
+		return data, configs.Code_404, errors.New("value is empty")
 	}
 	return data, configs.Code_200, nil
+}
+
+//
+func GetUserSpaceOnChain(account string) (UserSpaceInfo, int, error) {
+	var (
+		err   error
+		mdata UserSpaceInfo
+	)
+	api := getSubstrateApi_safe()
+	defer func() {
+		releaseSubstrateApi()
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
+	meta, err := api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	puk, err := tools.DecodeToPub(account, tools.ChainCessTestPrefix)
+	if err != nil {
+		return mdata, configs.Code_400, errors.Wrap(err, "[GetMetadataLatest]")
+	}
+
+	b, err := types.EncodeToBytes(types.NewAccountID(puk))
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+	}
+
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_UserSpaceInfo, types.NewBytes(b))
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+	}
+
+	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+	}
+	if !ok {
+		return mdata, configs.Code_404, errors.New("value is empty")
+	}
+	return mdata, configs.Code_200, nil
 }
