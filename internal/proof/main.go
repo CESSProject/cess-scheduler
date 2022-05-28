@@ -225,9 +225,11 @@ func task_RecoveryFiles(ch chan bool) {
 	Trf.Info("--> Start task_RecoveryFiles")
 
 	for {
-		recoverylist, _, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
+		recoverylist, code, err := chain.GetFileRecoveryByAcc(configs.C.CtrlPrk)
 		if err != nil {
-			Tvp.Sugar().Infof(" [Err] GetFileRecoveryByAcc: %v", err)
+			if code != configs.Code_404 {
+				Trf.Sugar().Infof(" [Err] GetFileRecoveryByAcc: %v", err)
+			}
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 120)))
 			continue
 		}
@@ -808,6 +810,7 @@ func task_SyncMinersInfo(ch chan bool) {
 			if err != nil {
 				Tsmi.Sugar().Infof(" [Err] [%v] c.Put: %v", allMinerInfo[i].Peerid, err)
 			}
+			Tsmi.Sugar().Infof(" [suc] [%v] Put suc", allMinerInfo[i].Peerid)
 		}
 		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(10, 30)))
 	}

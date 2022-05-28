@@ -3,6 +3,7 @@ package rpc
 import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/db"
 	"cess-scheduler/internal/encryption"
 	. "cess-scheduler/internal/logger"
 	proof "cess-scheduler/internal/proof/apiv1"
@@ -64,7 +65,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	}()
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		return &RespBody{Code: 400, Msg: "Http error"}, nil
+		return &RespBody{Code: 400, Msg: "Request error"}, nil
 	}
 
 	Uld.Sugar().Infof("+++> Upload [%v] %v", b.FileId, b.BlockIndex)
@@ -259,7 +260,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	}()
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		return &RespBody{Code: 400, Msg: "Http error"}, nil
+		return &RespBody{Code: 400, Msg: "Request error"}, nil
 	}
 
 	Dld.Sugar().Infof("---> Download [%v] %v", b.FileId, b.BlockIndex)
@@ -510,42 +511,82 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
-	t := tools.RandomInRange(100000000, 999999999)
-	Out.Sugar().Infof("[%v]Receive space request", t)
 
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 400, Msg: "Request error"}, nil
 	}
 
-	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
+	if b.Fileid == "" {
+		Spc.Sugar().Infof("[C%v] Space file", b.Minerid)
+	}
+
+	if b.Fileid != "" && (b.BlockIndex == 0 || b.BlockIndex == 512) {
+		Spc.Sugar().Infof("[%v] [C%v] [%v] Space file", b.Fileid, b.Minerid, b.BlockIndex)
+	}
+
+	var puk []byte
+	key, _ := tools.IntegerToBytes(b.Minerid)
+	c, err := db.GetCache()
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+		mdata, code, err := chain.GetMinerDetailsById(b.Minerid)
+		if err != nil {
+			Spc.Sugar().Infof("[%v] [C%v] GetMinerDetailsById err: %v", b.Fileid, b.Minerid, err)
+			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+		}
+		mdatas, code, err := chain.GetMinerDataOnChainByPuk(mdata.Address)
+		if err != nil {
+			Spc.Sugar().Infof("[%v] [C%v] GetMinerDataOnChainByPuk err: %v", b.Fileid, b.Minerid, err)
+			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+		}
+		puk = mdatas.Publickey
+	} else {
+		var minerInfo chain.Cache_MinerInfo
+		value, err := c.Get(key)
+		if err != nil {
+			Spc.Sugar().Infof("[%v] [C%v] c.Get err: %v", b.Fileid, b.Minerid, err)
+			mdata, code, err := chain.GetMinerDetailsById(b.Minerid)
+			if err != nil {
+				Spc.Sugar().Infof("[%v] [C%v] GetMinerDetailsById err: %v", b.Fileid, b.Minerid, err)
+				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+			}
+			mdatas, code, err := chain.GetMinerDataOnChainByPuk(mdata.Address)
+			if err != nil {
+				Spc.Sugar().Infof("[%v] [C%v] GetMinerDataOnChainByPuk err: %v", b.Fileid, b.Minerid, err)
+				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+			}
+			puk = mdatas.Publickey
+		} else {
+			err = json.Unmarshal(value, &minerInfo)
+			if err != nil {
+				Spc.Sugar().Infof("[%v] [C%v] c.Get err: %v", b.Fileid, b.Minerid, err)
+			} else {
+				puk = minerInfo.Puk
+			}
+		}
 	}
-	if len(mdata.Publickey) == 0 {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 500, Msg: "internal err", Data: nil}, nil
-	}
-	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
+
+	pubkey, err := encryption.ParsePublicKey(puk)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] ParsePublicKey err: %v", b.Fileid, b.Minerid, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
-	ok := encryption.VerifySign([]byte(b.Acc), b.Sign, pubkey)
+
+	ok := encryption.VerifySign(key, b.Sign, pubkey)
 	if !ok {
-		Out.Sugar().Infof("[%v]Receive space request err: Invalid signature", t)
-		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] Invalid signature", b.Fileid, b.Minerid)
+		return &RespBody{Code: 403, Msg: "Invalid signature"}, nil
 	}
 
-	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.Acc)))
+	var mid = "C" + fmt.Sprintf("%v", b.Minerid)
+
+	filebasedir := filepath.Join(configs.SpaceCacheDir, mid)
 	_, err = os.Stat(filebasedir)
 	if err != nil {
 		err = os.MkdirAll(filebasedir, os.ModeDir)
 		if err != nil {
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+			Spc.Sugar().Infof("[%v] [C%v] mkdir err: %v", b.Fileid, b.Minerid, err)
+			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
@@ -558,7 +599,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 			respfile.BlockIndex = b.BlockIndex
 			f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
 			if err != nil {
-				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+				Spc.Sugar().Infof("[%v] [C%v] OpenFile err: %v", b.Fileid, b.Minerid, err)
 				os.Remove(filefullpath)
 				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
@@ -567,22 +608,22 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 			respfile.BlockTotal = uint32(blockTotal)
 			if b.BlockIndex >= uint32(blockTotal) {
 				f.Close()
-				Out.Sugar().Infof("[%v]Receive space request err: Invalid block index", t)
-				return &RespBody{Code: 400, Msg: "Invalid block index", Data: nil}, nil
+				Spc.Sugar().Infof("[%v] [C%v] Invalid block index", b.Fileid, b.Minerid)
+				return &RespBody{Code: 400, Msg: "Invalid block index"}, nil
 			}
 			offset, err := f.Seek(int64(b.BlockIndex*configs.RpcSpaceBuffer), 0)
 			if err != nil {
 				f.Close()
-				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+				Spc.Sugar().Infof("[%v] [C%v] f.Seek err: %v", b.Fileid, b.Minerid, err)
+				return &RespBody{Code: 500, Msg: err.Error()}, nil
 			}
 			var buf = make([]byte, configs.RpcSpaceBuffer)
 			_, err = f.ReadAt(buf, offset)
 			if err != nil {
 				f.Close()
 				os.Remove(filefullpath)
-				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+				Spc.Sugar().Infof("[%v] [C%v] f.ReadAt err: %v", b.Fileid, b.Minerid, err)
+				return &RespBody{Code: 500, Msg: err.Error()}, nil
 			}
 			f.Close()
 			respfile.FileHash = ""
@@ -591,7 +632,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 				hash, err := tools.CalcFileHash(filefullpath)
 				if err != nil {
 					os.Remove(filefullpath)
-					Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+					Spc.Sugar().Infof("[%v] [C%v] CalcFileHash err: %v", b.Fileid, b.Minerid, err)
 					return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 				}
 				respfile.FileHash = hash
@@ -599,24 +640,24 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 			respfile_b, err := json.Marshal(respfile)
 			if err != nil {
 				os.Remove(filefullpath)
-				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+				Spc.Sugar().Infof("[%v] [C%v] Marshal err: %v", b.Fileid, b.Minerid, err)
 				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
-			return &RespBody{Code: 200, Msg: "Invalid block index", Data: respfile_b}, nil
+			return &RespBody{Code: 200, Msg: "success", Data: respfile_b}, nil
 		}
 	}
 	if b.SizeMb > 32 || b.SizeMb == 0 {
-		Out.Sugar().Infof("[%v]Receive space request err: SizeMb up to 32 and not 0", t)
-		return &RespBody{Code: 400, Msg: "SizeMb up to 32 and not 0", Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] SizeMb up to 32 and not 0", b.Fileid, b.Minerid)
+		return &RespBody{Code: 400, Msg: "SizeMb up to 32 and not 0"}, nil
 	}
 
 	lines := b.SizeMb * 1024 * 1024 / configs.LengthOfALine
-	filename := fmt.Sprintf("%v_%d%d", b.Acc[len(b.Acc)-5:], time.Now().Unix(), tools.RandomInRange(1000, 9999))
+	filename := fmt.Sprintf("%v_%d%d", mid, time.Now().Unix(), tools.RandomInRange(1000, 9999))
 	filefullpath := filepath.Join(filebasedir, filename)
 	f, err := os.OpenFile(filefullpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] [%v] OpenFile err: %v", b.Fileid, b.Minerid, filefullpath, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 	var i uint32 = 0
 	for i = 0; i < lines; i++ {
@@ -625,18 +666,18 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	}
 	err = f.Sync()
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		Spc.Sugar().Infof("[%v] [C%v] [%v] f.Sync err: %v", b.Fileid, b.Minerid, filefullpath, err)
 		f.Close()
 		os.Remove(filefullpath)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 	f.Close()
 
 	fi, err := os.Stat(filefullpath)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		Spc.Sugar().Infof("[%v] [C%v] [%v] Stat err: %v", b.Fileid, b.Minerid, filefullpath, err)
 		os.Remove(filefullpath)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
 	var respfile RespSpacefileInfo
@@ -647,9 +688,9 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	respfile.BlockTotal = uint32(blockTotal)
 	f, err = os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		Spc.Sugar().Infof("[%v] [C%v] [%v] OpenFile err: %v", b.Fileid, b.Minerid, filefullpath, err)
 		os.Remove(filefullpath)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
 	var buf = make([]byte, configs.RpcSpaceBuffer)
@@ -657,7 +698,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(filefullpath)
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		Spc.Sugar().Infof("[%v] [C%v] [%v] f.Read err: %v", b.Fileid, b.Minerid, filefullpath, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	respfile.BlockData = buf
@@ -665,11 +706,11 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(filefullpath)
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] [%v] Marshal err: %v", b.Fileid, b.Minerid, filefullpath, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 	f.Close()
-	fmt.Println("--> A new file: ", filefullpath)
+	Spc.Sugar().Infof("[%v] [C%v] A new file was successfully generated", b.Fileid, b.Minerid)
 	return &RespBody{Code: 200, Msg: "success", Data: respfile_b}, nil
 }
 
@@ -684,28 +725,26 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
-	t := tools.RandomInRange(100000000, 999999999)
-	Out.Sugar().Infof("[%v]Receive space tag request", t)
+
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 400, Msg: "Request error"}, nil
 	}
 
-	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.Acc)))
+	Spc.Sugar().Infof("[%v] [C%v] Space file tag", b.Fileid, b.Minerid)
+
+	var mid = "C" + fmt.Sprintf("%v", b.Minerid)
+
+	filebasedir := filepath.Join(configs.SpaceCacheDir, mid)
 	_, err = os.Stat(filebasedir)
 	if err != nil {
-		err = os.MkdirAll(filebasedir, os.ModeDir)
-		if err != nil {
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
+		os.MkdirAll(filebasedir, os.ModeDir)
 	}
 	filefullpath := filepath.Join(filebasedir, b.Fileid)
 	_, err = os.Stat(filefullpath)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] os.Stat err: %v", b.Fileid, b.Minerid, err)
+		return &RespBody{Code: 400, Msg: err.Error()}, nil
 	}
 
 	// calculate file tag info
@@ -715,11 +754,9 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	PoDR2commit.BlockSize = configs.BlockSize
 
 	gWait := make(chan bool)
-
 	go func(ch chan bool) {
 		runtime.LockOSThread()
 		defer func() {
-			runtime.UnlockOSThread()
 			if err := recover(); err != nil {
 				ch <- true
 				Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
@@ -745,8 +782,8 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	}(gWait)
 
 	if !<-gWait {
-		Out.Sugar().Infof("[%v]Receive space request err: PoDR2ProofCommit", t)
-		return &RespBody{Code: 500, Msg: "unexpected system error", Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] PoDR2ProofCommit false", b.Fileid, b.Minerid)
+		return &RespBody{Code: 500, Msg: "unexpected system error"}, nil
 	}
 
 	var resp RespSpacetagInfo
@@ -755,10 +792,10 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	resp.Sigmas = commitResponse.Sigmas
 	resp_b, err := json.Marshal(resp)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] Marshal err: %v", b.Fileid, b.Minerid, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
-	fmt.Println("--> File tag: ", b.Fileid)
+	Spc.Sugar().Infof("[%v] [C%v] The file tag was successfully generated", b.Fileid, b.Minerid)
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
@@ -773,32 +810,28 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
-	t := tools.RandomInRange(100000000, 999999999)
-	Out.Sugar().Infof("[%v]Receive space tag request", t)
+
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 400, Msg: "Request error"}, nil
 	}
-	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
-	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+
+	if b.Fileid != "" && b.Minerid != 0 {
+		Spc.Sugar().Infof("[%v] [C%v] Space file back", b.Fileid, b.Minerid)
 	}
-	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.Acc)))
+
+	var mid = "C" + fmt.Sprintf("%v", b.Minerid)
+
+	filebasedir := filepath.Join(configs.SpaceCacheDir, mid)
 	_, err = os.Stat(filebasedir)
 	if err != nil {
-		err = os.MkdirAll(filebasedir, os.ModeDir)
-		if err != nil {
-			Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
+		os.MkdirAll(filebasedir, os.ModeDir)
 	}
 	filefullpath := filepath.Join(filebasedir, b.Fileid)
 	fi, err := os.Stat(filefullpath)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] os.Stat err: %v", b.Fileid, b.Minerid, err)
+		return &RespBody{Code: 400, Msg: err.Error()}, nil
 	}
 	// up-chain meta info
 	var metainfo = make([]chain.SpaceFileInfo, 1)
@@ -807,19 +840,15 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 	metainfo[0].FileSize = types.U64(uint64(fi.Size()))
 	wal, err := tools.DecodeToPub(b.Acc, tools.ChainCessTestPrefix)
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		Spc.Sugar().Infof("[%v] [C%v] DecodeToPub err: %v", b.Fileid, b.Minerid, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 	metainfo[0].Acc = types.NewAccountID(wal)
-	metainfo[0].MinerId = mdata.Peerid
-	// f, err := os.Open(filefullpath)
-	// if err != nil {
-	// 	Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-	// 	return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-	// }
+	metainfo[0].MinerId = types.U64(b.Minerid)
+
 	_, n, err := tools.Split(filefullpath, configs.BlockSize, fi.Size())
 	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
+		Spc.Sugar().Infof("[%v] [C%v] Split err: %v", b.Fileid, b.Minerid, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 	metainfo[0].BlockNum = types.U32(n)
@@ -830,15 +859,21 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 		file_blocks[i-1].BlockSize = types.U32(configs.BlockSize)
 	}
 	metainfo[0].BlockInfo = file_blocks
-
-	txhash, code, err := chain.PutSpaceTagInfoToChain(
-		configs.C.CtrlPrk,
-		mdata.Peerid,
-		metainfo,
-	)
+	var txhash = ""
+	var code int
+	for i := 0; i < 3; i++ {
+		txhash, code, _ = chain.PutSpaceTagInfoToChain(
+			configs.C.CtrlPrk,
+			types.U64(b.Minerid),
+			metainfo,
+		)
+		if code == configs.Code_200 || code == configs.Code_600 {
+			break
+		}
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+	}
 	os.Remove(filefullpath)
-	Out.Sugar().Infof("[T:%v][%v][%v]File meta on chain", t, b.Fileid, txhash)
-	fmt.Println("--> File meta on chain: ", b.Fileid, " ", code, " ", txhash)
+	Spc.Sugar().Infof("[%v] [C%v] File meta information on the chain successfully", b.Fileid, b.Minerid)
 	return &RespBody{Code: int32(code), Msg: "Check status code", Data: []byte(txhash)}, nil
 }
 
