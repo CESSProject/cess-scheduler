@@ -44,13 +44,8 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	if err != nil {
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	bytes, err := tools.DecodeToPub(stash_acc, pre)
+
+	bytes, err := tools.DecodeToPub(stash_acc, tools.ChainCessTestPrefix)
 	if err != nil {
 		return false, errors.Wrap(err, "DecodeToPub")
 	}

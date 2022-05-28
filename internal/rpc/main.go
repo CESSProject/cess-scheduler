@@ -563,20 +563,20 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
 
-			blockTotal := fi.Size() / configs.RpcFileBuffer
+			blockTotal := fi.Size() / configs.RpcSpaceBuffer
 			respfile.BlockTotal = uint32(blockTotal)
 			if b.BlockIndex >= uint32(blockTotal) {
 				f.Close()
 				Out.Sugar().Infof("[%v]Receive space request err: Invalid block index", t)
 				return &RespBody{Code: 400, Msg: "Invalid block index", Data: nil}, nil
 			}
-			offset, err := f.Seek(int64(b.BlockIndex*configs.RpcFileBuffer), 0)
+			offset, err := f.Seek(int64(b.BlockIndex*configs.RpcSpaceBuffer), 0)
 			if err != nil {
 				f.Close()
 				Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 				return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 			}
-			var buf = make([]byte, configs.RpcFileBuffer)
+			var buf = make([]byte, configs.RpcSpaceBuffer)
 			_, err = f.ReadAt(buf, offset)
 			if err != nil {
 				f.Close()
@@ -611,7 +611,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	}
 
 	lines := b.SizeMb * 1024 * 1024 / configs.LengthOfALine
-	filename := fmt.Sprintf("%v_%d%d%d", b.Acc[len(b.Acc)-5:], tools.RandomInRange(1000, 9999), time.Now().Unix(), tools.RandomInRange(1000, 9999))
+	filename := fmt.Sprintf("%v_%d%d", b.Acc[len(b.Acc)-5:], time.Now().Unix(), tools.RandomInRange(1000, 9999))
 	filefullpath := filepath.Join(filebasedir, filename)
 	f, err := os.OpenFile(filefullpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if err != nil {
@@ -643,7 +643,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	respfile.FileId = filename
 	respfile.BlockIndex = 0
 	respfile.FileHash = ""
-	blockTotal := fi.Size() / configs.RpcFileBuffer
+	blockTotal := fi.Size() / configs.RpcSpaceBuffer
 	respfile.BlockTotal = uint32(blockTotal)
 	f, err = os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
@@ -652,7 +652,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
-	var buf = make([]byte, configs.RpcFileBuffer)
+	var buf = make([]byte, configs.RpcSpaceBuffer)
 	_, err = f.Read(buf)
 	if err != nil {
 		f.Close()
@@ -691,21 +691,6 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
 		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
-	mdata, code, err := chain.GetMinerDataOnChain(b.Acc)
-	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
-	}
-	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
-	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
-	}
-	ok := encryption.VerifySign([]byte(b.Acc), b.Sign, pubkey)
-	if !ok {
-		Out.Sugar().Infof("[%v]Receive space request err: Invalid signature", t)
-		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
-	}
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.Acc)))
 	_, err = os.Stat(filebasedir)
@@ -720,7 +705,7 @@ func (WService) SpacetagAction(body []byte) (proto.Message, error) {
 	_, err = os.Stat(filefullpath)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 
 	// calculate file tag info
@@ -800,16 +785,6 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
 		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
 	}
-	pubkey, err := encryption.ParsePublicKey(mdata.Publickey)
-	if err != nil {
-		Out.Sugar().Infof("[%v]Receive space request err:%v", t, err)
-		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
-	}
-	ok := encryption.VerifySign([]byte(b.Acc), b.Sign, pubkey)
-	if !ok {
-		Out.Sugar().Infof("[%v]Receive space request err: Invalid signature", t)
-		return &RespBody{Code: 403, Msg: "Invalid signature", Data: nil}, nil
-	}
 	filebasedir := filepath.Join(configs.SpaceCacheDir, base58.Encode([]byte(b.Acc)))
 	_, err = os.Stat(filebasedir)
 	if err != nil {
@@ -823,20 +798,14 @@ func (WService) FilebackAction(body []byte) (proto.Message, error) {
 	fi, err := os.Stat(filefullpath)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
-		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+		return &RespBody{Code: 400, Msg: err.Error(), Data: nil}, nil
 	}
 	// up-chain meta info
 	var metainfo = make([]chain.SpaceFileInfo, 1)
 	metainfo[0].FileId = []byte(b.Fileid)
 	metainfo[0].FileHash = []byte(b.Filehash)
 	metainfo[0].FileSize = types.U64(uint64(fi.Size()))
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	wal, err := tools.DecodeToPub(b.Acc, pre)
+	wal, err := tools.DecodeToPub(b.Acc, tools.ChainCessTestPrefix)
 	if err != nil {
 		Out.Sugar().Infof("[%v]Receive space request err: %v", t, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil

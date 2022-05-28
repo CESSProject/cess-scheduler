@@ -28,13 +28,8 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	pub, err := tools.DecodeToPub(addr, pre)
+
+	pub, err := tools.DecodeToPub(addr, tools.ChainCessTestPrefix)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[DecodeToPub]")
 	}
@@ -313,13 +308,7 @@ func GetAddressByPrk(prk string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
 	}
-	var pre []byte
-	if configs.NewTestAddr {
-		pre = tools.ChainCessTestPrefix
-	} else {
-		pre = tools.SubstratePrefix
-	}
-	acc, err := tools.Encode(keyring.PublicKey, pre)
+	acc, err := tools.Encode(keyring.PublicKey, tools.ChainCessTestPrefix)
 	if err != nil {
 		return "", errors.Wrap(err, "[Encode]")
 	}
