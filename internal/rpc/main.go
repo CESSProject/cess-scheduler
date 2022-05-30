@@ -282,7 +282,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
 		}
 
-		if uspace.RemainingSpace.CmpAbs(new(big.Int).SetUint64(uint64(fmeta.FileSize))) == -1 {
+		if uspace.PurchasedSpace.CmpAbs(new(big.Int).SetBytes(uspace.UsedSpace.Bytes())) < 0 {
 			Dld.Sugar().Infof("[%v] Not enough space", b.FileId)
 			return &RespBody{Code: 403, Msg: "Not enough space"}, nil
 		}
@@ -1296,10 +1296,43 @@ func backupFile(ch chan uint8, num int, fid, fileFullPath, duplkeyname string) {
 		var failcount uint8
 		for {
 			if mip == "" {
+				if len(filedIndex) >= len(mDatas) {
+					for k, _ := range filedIndex {
+						delete(filedIndex, k)
+					}
+					Uld.Sugar().Infof("[%v] All miners cannot store, refresh the miner list", fid)
+					mDatas, _, err = chain.GetAllMinerDataOnChain()
+					if err != nil {
+						time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+					}
+				}
+
 				index = tools.RandomInRange(0, len(mDatas))
 				if _, ok := filedIndex[index]; ok {
 					continue
 				}
+
+				mDetails, _, err := chain.GetMinerDetailsById(uint64(mDatas[index].Peerid))
+				if err != nil {
+					filedIndex[index] = struct{}{}
+					Uld.Sugar().Infof("[%v] GetMinerDetailsById err: %v", fid, err)
+					continue
+				}
+
+				if mDetails.Power.CmpAbs(new(big.Int).SetBytes(mDetails.Space.Bytes())) < 0 {
+					filedIndex[index] = struct{}{}
+					Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Abnormal size of space", fid, uint64(mDatas[index].Peerid), mDetails.Power, mDetails.Space)
+					continue
+				}
+
+				var temp = new(big.Int)
+				temp.Sub(new(big.Int).SetBytes(mDetails.Power.Bytes()), new(big.Int).SetBytes(mDetails.Space.Bytes()))
+				if temp.CmpAbs(new(big.Int).SetInt64(fstat.Size())) <= 0 {
+					filedIndex[index] = struct{}{}
+					Uld.Sugar().Infof("[%v] [%v] Not enough space", fid, fstat.Size())
+					continue
+				}
+
 				dstip := "ws://" + string(base58.Decode(string(mDatas[index].Ip)))
 				ctx, _ := context.WithTimeout(context.Background(), 6*time.Second)
 				client, err = DialWebsocket(ctx, dstip, "")
@@ -1414,10 +1447,14 @@ func backupFile(ch chan uint8, num int, fid, fileFullPath, duplkeyname string) {
 	}
 
 	// Upload the file meta information to the chain and write it to the cache
-	for {
+	for i := 0; i < 3; i++ {
 		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
 		if !ok || err != nil {
-			Uld.Sugar().Infof("[%v] [%v] PutMetaInfoToChain err: %v", fid, fileFullPath, err)
+			if i == 2 {
+				Uld.Sugar().Infof("[%v] [%v] Failed to upload meta information, PutMetaInfoToChain err: %v", fid, fileFullPath, err)
+				ch <- 1
+				break
+			}
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}

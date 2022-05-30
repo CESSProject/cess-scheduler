@@ -172,7 +172,6 @@ func task_ValidateProof(ch chan bool) {
 			go func(ch chan bool) {
 				runtime.LockOSThread()
 				defer func() {
-					runtime.UnlockOSThread()
 					if err := recover(); err != nil {
 						ch <- true
 						Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
