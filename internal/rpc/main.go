@@ -302,8 +302,13 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	_, err = os.Stat(filefullname)
 	if err != nil {
 		// file not exist, query dupl file
-		for i := 0; i < int(configs.Backups_Max); i++ {
-			duplname := filepath.Join(path, b.FileId+".d"+strconv.Itoa(i))
+		fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
+		if err != nil {
+			Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+		}
+		for i := 0; i < len(fmeta.FileDupl); i++ {
+			duplname := filepath.Join(path, string(fmeta.FileDupl[i].DuplId))
 			_, err = os.Stat(duplname)
 			if err == nil {
 				buf, err := ioutil.ReadFile(duplname)
@@ -312,15 +317,11 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 					os.Remove(duplname)
 					continue
 				}
-				fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
-				if err != nil {
-					Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-					return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
-				}
+
 				//aes decryption
-				ivkey := string(fmeta.FileDupl[i].RandKey)[:16]
+				ivkey := fmeta.FileDupl[i].RandKey[:16]
 				bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
-				decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), []byte(ivkey))
+				decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), ivkey)
 				if err != nil {
 					Dld.Sugar().Infof("[%v] [%v] AesCtrDecrypt-1 err: ", b.FileId, duplname, err)
 					os.Remove(duplname)
@@ -414,7 +415,7 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 
 	// file not exist, query dupl file
 	for i := 0; i < len(fmeta.FileDupl); i++ {
-		duplname := filepath.Join(path, b.FileId+".d"+strconv.Itoa(i))
+		duplname := filepath.Join(path, string(fmeta.FileDupl[i].DuplId))
 		_, err = os.Stat(duplname)
 		if err == nil {
 			buf, err := ioutil.ReadFile(duplname)
@@ -424,9 +425,9 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 				continue
 			}
 			//aes decryption
-			ivkey := string(fmeta.FileDupl[i].RandKey)[:16]
+			ivkey := fmeta.FileDupl[i].RandKey[:16]
 			bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
-			decrypted, err := encryption.AesCtrDecrypt(buf, bkey, []byte(ivkey))
+			decrypted, err := encryption.AesCtrDecrypt(buf, bkey, ivkey)
 			if err != nil {
 				Dld.Sugar().Infof("[%v] [%v] AesCtrDecrypt-2 err: %v", b.FileId, duplname, err)
 				os.Remove(duplname)
