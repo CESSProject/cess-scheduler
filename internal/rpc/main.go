@@ -231,7 +231,7 @@ func storeFiles(fid string, duplnamelist, duplkeynamelist []string) {
 			if result == 2 {
 				delete(channel_map, k)
 				Uld.Sugar().Infof("[%v] The %v copy is successfully stored", fid, k)
-				break
+				continue
 			}
 			if result == 3 {
 				delete(channel_map, k)
