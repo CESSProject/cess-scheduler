@@ -58,14 +58,20 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		err error
 		b   FileUploadInfo
 	)
+
 	defer func() {
 		if err := recover(); err != nil {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
+
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		return &RespBody{Code: 400, Msg: "Request error"}, nil
+		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
+	}
+
+	if b.FileId == "" || b.BlockIndex == 0 {
+		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
 	Uld.Sugar().Infof("+++> Upload [%v] %v", b.FileId, b.BlockIndex)
@@ -73,17 +79,9 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	cachepath := filepath.Join(configs.FileCacheDir, b.FileId)
 	fileFullPath := filepath.Join(cachepath, b.FileId+".cess")
 
-	if b.BlockIndex == 0 {
-		return &RespBody{Code: 400, Msg: "File block numbering starts from 1"}, nil
-	}
-
 	if b.BlockIndex == 1 {
 		_, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
 		if err != nil {
-			if code == configs.Code_404 {
-				Uld.Sugar().Infof("[%v] File not found on chain", b.FileId)
-				return &RespBody{Code: int32(code), Msg: "File not found on chain"}, nil
-			}
 			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
 		}
@@ -193,7 +191,6 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		}
 		os.Remove(fileFullPath)
 		go storeFiles(b.FileId, duplnamelist, duplkeynamelist)
-		//go processingfile(t, b.FileId, cachepath, duplnamelist, duplkeynamelist)
 		Uld.Sugar().Infof("[%v] All %v chunks are uploaded successfully", b.FileId, b.BlockTotal)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 
@@ -260,14 +257,14 @@ func (WService) ReadfileAction(body []byte) (proto.Message, error) {
 	}()
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		return &RespBody{Code: 400, Msg: "Request error"}, nil
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if b.FileId == "" || b.BlockIndex == 0 {
+		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
 	Dld.Sugar().Infof("---> Download [%v] %v", b.FileId, b.BlockIndex)
-
-	if b.BlockIndex == 0 {
-		return &RespBody{Code: 400, Msg: "File block numbering starts from 1"}, nil
-	}
 
 	if b.BlockIndex == 1 {
 		uspace, code, err := chain.GetUserSpaceOnChain(b.WalletAddress)
@@ -515,15 +512,11 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 
 	err = proto.Unmarshal(body, &b)
 	if err != nil {
-		return &RespBody{Code: 400, Msg: "Request error"}, nil
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
 	if b.Minerid == 0 {
-		return &RespBody{Code: 400, Msg: "Request error"}, nil
-	}
-
-	if b.Fileid == "" {
-		Spc.Sugar().Infof("[C%v] Space file", b.Minerid)
+		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
 	if b.Fileid != "" && (b.BlockIndex == 0 || b.BlockIndex == 511) {
@@ -549,7 +542,11 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		var minerInfo chain.Cache_MinerInfo
 		value, err := c.Get(key)
 		if err != nil {
-			Spc.Sugar().Infof("[%v] [C%v] c.Get err: %v", b.Fileid, b.Minerid, err)
+			if err.Error() != "leveldb: not found" {
+				Spc.Sugar().Infof("[%v] [C%v] c.Get err: %v", b.Fileid, b.Minerid, err)
+			} else {
+				return &RespBody{Code: 404, Msg: "Miner not found"}, nil
+			}
 			mdata, code, err := chain.GetMinerDetailsById(b.Minerid)
 			if err != nil {
 				Spc.Sugar().Infof("[%v] [C%v] GetMinerDetailsById err: %v", b.Fileid, b.Minerid, err)

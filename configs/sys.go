@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.1.0"
+const Version = "cess-scheduler v0.1.1"
 
 // rpc
 const (
@@ -32,7 +32,7 @@ const (
 	ScanBlockSize            = 512 * 1024  //512KB
 	ByteSize_1Kb             = 1024        //1KB
 	TimeToWaitEvents_S       = 20
-	Backups_Min        uint8 = 3
+	Backups_Min        uint8 = 1
 	Backups_Max        uint8 = 6
 	BaseDir                  = "scheduler"
 	NewTestAddr              = true

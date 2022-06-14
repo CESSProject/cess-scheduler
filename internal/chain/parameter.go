@@ -71,7 +71,7 @@ type Cache_MinerInfo struct {
 
 type FileMetaInfo struct {
 	//FileId      types.Bytes         `json:"acc"`         //File id
-	File_name   types.Bytes         `json:"file_name"`   //File name
+	FileName    types.Bytes         `json:"file_name"`   //File name
 	FileSize    types.U64           `json:"file_size"`   //File size
 	FileHash    types.Bytes         `json:"file_hash"`   //File hash
 	Public      types.Bool          `json:"public"`      //Public or not
