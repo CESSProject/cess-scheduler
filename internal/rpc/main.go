@@ -80,10 +80,18 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	fileFullPath := filepath.Join(cachepath, b.FileId+".cess")
 
 	if b.BlockIndex == 1 {
-		_, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
-		if err != nil {
-			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+		count := 0
+		code := configs.Code_404
+		for code != configs.Code_200 {
+			_, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
+			if count > 3 && code != configs.Code_200 {
+				Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+			}
+			if code != configs.Code_200 {
+				time.Sleep(time.Second)
+			}
+			count++
 		}
 		err = tools.CreatDirIfNotExist(cachepath)
 		if err != nil {

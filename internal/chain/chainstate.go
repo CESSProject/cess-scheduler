@@ -192,7 +192,7 @@ func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.Errorf("[%v not folund]", fileid)
+		return mdata, configs.Code_404, errors.Errorf("[%v not found]", fileid)
 	}
 	return mdata, configs.Code_200, nil
 }
