@@ -94,9 +94,13 @@ func task_ValidateProof(ch chan bool) {
 
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
+
 		proofs, _, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
-		if err != nil || len(proofs) == 0 {
+		if err != nil {
 			Tvp.Sugar().Infof(" [Err] %v", err)
+			continue
+		}
+		if len(proofs) == 0 {
 			continue
 		}
 

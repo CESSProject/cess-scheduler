@@ -107,12 +107,13 @@ type SpaceFileInfo struct {
 	MinerId   types.U64
 	FileSize  types.U64
 	BlockNum  types.U32
+	BlockSize types.U32
 	ScanSize  types.U32
 	Acc       types.AccountID
-	BlockInfo []BlockInfo
 	FileId    types.Bytes
 	FileHash  types.Bytes
 }
+
 type BlockInfo struct {
 	BlockIndex types.Bytes
 	BlockSize  types.U32
