@@ -94,9 +94,13 @@ func task_ValidateProof(ch chan bool) {
 
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
+
 		proofs, _, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
-		if err != nil || len(proofs) == 0 {
+		if err != nil {
 			Tvp.Sugar().Infof(" [Err] %v", err)
+			continue
+		}
+		if len(proofs) == 0 {
 			continue
 		}
 
@@ -195,7 +199,7 @@ func processProofResult(minerId types.U64, fileid types.Bytes, result bool) {
 	for code != int(configs.Code_200) && code != int(configs.Code_600) {
 		code, err = chain.PutProofResult(configs.C.CtrlPrk, minerId, fileid, result)
 		if err == nil {
-			Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] [%v] Proof result submitted successfully", minerId, string(fileid), result, err)
+			Tvp.Sugar().Infof("[%v] [%v] [%v] [%v] Proof result submitted successfully", minerId, string(fileid), result, err)
 			break
 		}
 		if time.Since(time.Unix(ts, 0)).Minutes() > 3.0 {
@@ -759,6 +763,7 @@ func task_SyncMinersInfo(ch chan bool) {
 	}()
 
 	Tsmi.Info("-----> Start task_UpdateMinerInfo")
+	time.Sleep(time.Second * 10)
 
 	for {
 		c, err := db.GetCache()
@@ -773,7 +778,7 @@ func task_SyncMinersInfo(ch chan bool) {
 			key, _ := tools.IntegerToBytes(allMinerInfo[i].Peerid)
 			ok, err := c.Has(key)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] IntegerToBytes: %v", allMinerInfo[i].Peerid, err)
+				Tsmi.Sugar().Infof(" [Err] [%v] c.Has: %v", allMinerInfo[i].Peerid, err)
 				continue
 			}
 
@@ -811,6 +816,9 @@ func task_SyncMinersInfo(ch chan bool) {
 			}
 			Tsmi.Sugar().Infof(" [suc] [%v] Put suc", allMinerInfo[i].Peerid)
 		}
-		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(10, 30)))
+
+		if len(allMinerInfo) > 0 {
+			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(1, 5)))
+		}
 	}
 }

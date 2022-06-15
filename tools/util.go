@@ -110,6 +110,7 @@ func CalcFileHash2(f *os.File) (string, error) {
 
 // Get a random integer in a specified range
 func RandomInRange(min, max int) int {
+	time.Sleep(time.Nanosecond)
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min) + min
 }
@@ -129,7 +130,7 @@ func WriteStringtoFile(content, fileName string) error {
 }
 
 //  ----------------------- Random key -----------------------
-const baseStr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()[]{}+-*/_=."
+const baseStr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()[]{}+-*/_=.<>?:|,~"
 
 // Generate random password
 func GetRandomkey(length uint8) string {
