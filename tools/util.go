@@ -295,3 +295,14 @@ func RecoverError(err interface{}) string {
 	fmt.Fprintf(buf, "%v\n", string(debug.Stack()))
 	return buf.String()
 }
+
+// Generate random password
+func GetRandomcode(length uint8) string {
+	r := rand.New(rand.NewSource(time.Now().UnixNano() + rand.Int63()))
+	bytes := make([]byte, length)
+	l := len(baseStr)
+	for i := uint8(0); i < length; i++ {
+		bytes[i] = baseStr[r.Intn(l)]
+	}
+	return string(bytes)
+}

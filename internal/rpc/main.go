@@ -17,8 +17,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -32,6 +32,19 @@ import (
 )
 
 type WService struct {
+}
+
+type authmap struct {
+	l *sync.Mutex
+	m map[string]int64
+}
+
+var am *authmap
+
+func init() {
+	am = new(authmap)
+	am.l = new(sync.Mutex)
+	am.m = make(map[string]int64, 10)
 }
 
 // Start tcp service.
@@ -50,22 +63,67 @@ func Rpc_Main() {
 	}
 }
 
-// WritefileAction is used to handle client requests to upload files.
-// The return code is 0 for success, non-0 for failure.
+// AuthAction is used to generate credentials.
+// The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
-func (WService) WritefileAction(body []byte) (proto.Message, error) {
-	var (
-		err error
-		b   FileUploadInfo
-	)
-
+func (WService) AuthAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
 
-	err = proto.Unmarshal(body, &b)
+	am.l.Lock()
+	if len(am.m) >= 2000 {
+		am.l.Unlock()
+		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
+	}
+	am.l.Unlock()
+
+	var b AuthReq
+	err := proto.Unmarshal(body, &b)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
+	}
+
+	if len(b.Msg) == 0 || len(b.Sign) < 64 {
+		return &RespBody{Code: 400, Msg: "Invalid Sign"}, nil
+	}
+
+	ss58, err := tools.EncodeToSS58(b.PublicKey)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Invalid PublicKey"}, nil
+	}
+
+	verkr, _ := keyring.FromURI(ss58, keyring.NetSubstrate{})
+
+	var sign [64]byte
+	for i := 0; i < 64; i++ {
+		sign[i] = b.Sign[i]
+	}
+	ok := verkr.Verify(verkr.SigningContext(b.Msg), sign)
+	if !ok {
+		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
+	}
+	token := tools.GetRandomcode(16)
+	am.l.Lock()
+	defer am.l.Unlock()
+	am.m[token] = time.Now().Unix()
+	return &RespBody{Code: 200, Msg: "success", Data: []byte(token)}, nil
+}
+
+// WritefileAction is used to handle client requests to upload files.
+// The return code is 0 for success, non-0 for failure.
+// The returned Msg indicates the result reason.
+func (WService) WritefileAction(body []byte) (proto.Message, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
+
+	var b FileUploadReq
+	err := proto.Unmarshal(body, &b)
 	if err != nil {
 		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
 	}
@@ -74,10 +132,18 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
+	am.l.Lock()
+	_, ok := am.m[string(b.Auth)]
+	if !ok {
+		am.l.Unlock()
+		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
+	}
+	am.m[string(b.Auth)] = time.Now().Unix()
+	am.l.Unlock()
+
 	Uld.Sugar().Infof("+++> Upload [%v] %v", b.FileId, b.BlockIndex)
 
-	cachepath := filepath.Join(configs.FileCacheDir, b.FileId)
-	fileFullPath := filepath.Join(cachepath, b.FileId+".cess")
+	fileAbsPath := filepath.Join(configs.FileCacheDir, b.FileId)
 
 	if b.BlockIndex == 1 {
 		count := 0
@@ -93,27 +159,23 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			}
 			count++
 		}
-		err = tools.CreatDirIfNotExist(cachepath)
-		if err != nil {
-			Uld.Sugar().Infof("[%v] CreatDirIfNotExist err: %v", b.FileId, err)
-			return &RespBody{Code: 500, Msg: err.Error()}, nil
-		}
-		_, err = os.Create(fileFullPath)
+		_, err = os.Create(fileAbsPath)
 		if err != nil {
 			Uld.Sugar().Infof("[%v] Create file err: %v", b.FileId, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
-	f, err := os.OpenFile(fileFullPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	f, err := os.OpenFile(fileAbsPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		Uld.Sugar().Infof("[%v] OpenFile-1 err: %v", b.FileId, err)
+		Uld.Sugar().Infof("[%v] OpenFile err: %v", b.FileId, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
-	_, err = f.Write(b.Data)
+	_, err = f.Write(b.FileData)
 	if err != nil {
 		f.Close()
+		os.Remove(fileAbsPath)
 		Uld.Sugar().Infof("[%v] f.Write err: %v", b.FileId, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
@@ -121,6 +183,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	err = f.Sync()
 	if err != nil {
 		f.Close()
+		os.Remove(fileAbsPath)
 		Uld.Sugar().Infof("[%v] f.Sync err: %v", b.FileId, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
@@ -128,103 +191,26 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	f.Close()
 
 	if b.BlockIndex == b.BlockTotal {
-		backupNum := configs.Backups_Min
-		fmeta, _, err := chain.GetFileMetaInfoOnChain(b.FileId)
-		if err == nil {
-			backupNum = uint8(fmeta.Backups)
-		}
-
-		if backupNum < configs.Backups_Min {
-			backupNum = configs.Backups_Min
-		}
-		if backupNum > configs.Backups_Max {
-			backupNum = configs.Backups_Max
-		}
-
-		buf, err := os.ReadFile(fileFullPath)
-		if err != nil {
-			Uld.Sugar().Infof("[%v] ReadFile err: %v", b.FileId, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-
-		var duplnamelist = make([]string, 0)
-		var duplkeynamelist = make([]string, 0)
-
-		for i := uint8(0); i < backupNum; {
-			// Generate 32-bit random key for aes encryption
-			key := tools.GetRandomkey(32)
-			key_base58 := base58.Encode([]byte(key))
-			// Aes ctr mode encryption
-			encrypted, err := encryption.AesCtrEncrypt(buf, []byte(key), []byte(key_base58)[:16])
-			if err != nil {
-				Uld.Sugar().Infof("[%v] AesCtrEncrypt err: %v", b.FileId, err)
-				continue
-			}
-
-			duplname := b.FileId + ".d" + strconv.Itoa(int(i))
-			duplFallpath := filepath.Join(cachepath, duplname)
-
-			duplf, err := os.OpenFile(duplFallpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
-			if err != nil {
-				Uld.Sugar().Infof("[%v] [%v] OpenFile-2 err: %v", b.FileId, duplFallpath, err)
-				continue
-			}
-			_, err = duplf.Write(encrypted)
-			if err != nil {
-				duplf.Close()
-				os.Remove(duplFallpath)
-				Uld.Sugar().Infof("[%v] [%v] duplf.Write err: %v", b.FileId, duplFallpath, err)
-				continue
-			}
-			err = duplf.Sync()
-			if err != nil {
-				duplf.Close()
-				os.Remove(duplFallpath)
-				Uld.Sugar().Infof("[%v] [%v] f.Sync-2 err: %v", b.FileId, duplFallpath, err)
-				continue
-			}
-			duplf.Close()
-			duplkey := string(key_base58) + ".k" + strconv.Itoa(int(i))
-			duplkeyFallpath := filepath.Join(cachepath, duplkey)
-			_, err = os.Create(duplkeyFallpath)
-			if err != nil {
-				os.Remove(duplFallpath)
-				Uld.Sugar().Infof("[%v] [%v] os.Create-2 err: %v", b.FileId, duplkeyFallpath, err)
-				continue
-			} else {
-				duplnamelist = append(duplnamelist, duplFallpath)
-				duplkeynamelist = append(duplkeynamelist, duplkeyFallpath)
-				i++
-			}
-		}
-		os.Remove(fileFullPath)
-		go storeFiles(b.FileId, duplnamelist, duplkeynamelist)
+		go storeFiles(b.FileId, fileAbsPath)
 		Uld.Sugar().Infof("[%v] All %v chunks are uploaded successfully", b.FileId, b.BlockTotal)
 		return &RespBody{Code: 200, Msg: "success"}, nil
-
 	}
 	Uld.Sugar().Infof("[%v] The %v chunk uploaded successfully", b.FileId, b.BlockIndex)
-	return &RespBody{Code: 200, Msg: "success", Data: nil}, nil
+	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
-func storeFiles(fid string, duplnamelist, duplkeynamelist []string) {
+func storeFiles(fid, fpath string) {
 	var (
-		channel_map = make(map[int]chan uint8, len(duplnamelist))
+		channel_map = make(chan uint8, 1)
 	)
 	defer func() {
 		if err := recover(); err != nil {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
-	Uld.Sugar().Infof("[%v] Prepare to store %v replicas to miners", fid, len(duplnamelist))
+	Uld.Sugar().Infof("[%v] Prepare to store file", fid)
 
-	for i := 0; i < len(duplnamelist); i++ {
-		channel_map[i] = make(chan uint8, 1)
-	}
-
-	for i := 0; i < len(duplnamelist); i++ {
-		go backupFile(channel_map[i], i, fid, duplnamelist[i], duplkeynamelist[i])
-	}
+	go backupFile(channel_map, fid, fpath)
 
 	for {
 		for k, v := range channel_map {
@@ -499,13 +485,6 @@ type RespSpacetagInfo struct {
 	Rule    []byte         `json:"rule"`
 	T       proof.FileTagT `json:"file_tag_t"`
 	Sigmas  [][]byte       `json:"sigmas"`
-}
-type RespSpacefileInfo struct {
-	FileId    string         `json:"fileId"`
-	FileHash  string         `json:"fileHash"`
-	BlockData []byte         `json:"blockData"`
-	T         proof.FileTagT `json:"file_tag_t"`
-	Sigmas    [][]byte       `json:"sigmas"`
 }
 
 var spaceFileMap = make(map[uint64]int64, 10)
@@ -992,7 +971,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(ch chan uint8, num int, fid, fileFullPath, duplkeyname string) {
+func backupFile(ch chan uint8, fid, fpath string) {
 	var (
 		err    error
 		mDatas = make([]chain.CessChain_AllMinerInfo, 0)
@@ -1007,7 +986,7 @@ func backupFile(ch chan uint8, num int, fid, fileFullPath, duplkeyname string) {
 		}
 	}()
 
-	Uld.Sugar().Infof("[%v] Prepare to store the %vrd replica", fid, num)
+	Uld.Sugar().Infof("[%v] Start to store files", fid)
 
 	for len(mDatas) == 0 {
 		mDatas, _, err = chain.GetAllMinerDataOnChain()
@@ -1021,15 +1000,15 @@ func backupFile(ch chan uint8, num int, fid, fileFullPath, duplkeyname string) {
 		Uld.Sugar().Infof("[%v] %v: %v", fid, i, string(mDatas[i].Ip))
 	}
 
-	duplname := filepath.Base(fileFullPath)
-	fstat, err := os.Stat(fileFullPath)
+	duplname := fid + ".cess"
+	fstat, err := os.Stat(fpath)
 	if err != nil {
 		ch <- 3
-		Uld.Sugar().Infof("[%v] [%v] The copy was deleted and cannot be stored: %v", fid, fileFullPath, err)
+		Uld.Sugar().Infof("[%v] The copy was deleted and cannot be stored: %v", fid, err)
 		return
 	}
 
-	f, err := os.OpenFile(fileFullPath, os.O_RDONLY, os.ModePerm)
+	f, err := os.OpenFile(fpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		ch <- 3
 		Uld.Sugar().Infof("[%v] [%v] Failed to read replica file: %v", fid, fileFullPath, err)
