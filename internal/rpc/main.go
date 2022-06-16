@@ -50,6 +50,53 @@ type authmap struct {
 
 var am *authmap
 
+func (this *authmap) Delete(key string) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	v, ok := this.tokens[key]
+	if ok {
+		delete(this.users, v.publicKey)
+		delete(this.tokens, key)
+	}
+}
+
+func (this *authmap) DeleteExpired() {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	for k, v := range this.tokens {
+		if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 10 {
+			delete(this.users, v.publicKey)
+			delete(this.tokens, k)
+		}
+	}
+}
+
+func (this *authmap) UpdateTimeIfExists(key string) string {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	v, ok := this.users[key]
+	if ok {
+		info := this.tokens[v]
+		info.updateTime = time.Now().Unix()
+		this.tokens[v] = info
+		return v
+	}
+	return ""
+}
+
+func (this *authmap) UpdateTime(key string) (string, uint32, error) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	v, ok := this.tokens[key]
+	if !ok {
+		return "", 0, errors.New("Authentication failed")
+	}
+	v.updateTime = time.Now().Unix()
+	this.tokens[key] = v
+	return v.fileId, v.blockTotal, nil
+}
+
 func init() {
 	am = new(authmap)
 	am.lock = new(sync.Mutex)
@@ -95,17 +142,9 @@ func task_ClearAuthMap(ch chan bool) {
 		ch <- true
 	}()
 
-	Tvp.Info("--> Start task_ClearAuthMap")
 	for {
 		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(2, 5)))
-		am.lock.Lock()
-		for k, v := range am.tokens {
-			if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 5 {
-				delete(am.tokens, k)
-				delete(am.users, v.publicKey)
-			}
-		}
-		am.lock.Unlock()
+		am.DeleteExpired()
 	}
 }
 
@@ -133,16 +172,10 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Invalid Sign"}, nil
 	}
 
-	am.lock.Lock()
-	v, ok := am.users[string(b.PublicKey)]
-	if ok {
-		am.lock.Unlock()
-		info := am.tokens[v]
-		info.updateTime = time.Now().Unix()
-		am.tokens[v] = info
-		return &RespBody{Code: 200, Msg: "success", Data: []byte(v)}, nil
+	token := am.UpdateTimeIfExists(string(b.PublicKey))
+	if token != "" {
+		return &RespBody{Code: 200, Msg: "success", Data: []byte(token)}, nil
 	}
-	am.lock.Unlock()
 
 	ss58, err := tools.EncodeToSS58(b.PublicKey)
 	if err != nil {
@@ -155,7 +188,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	for i := 0; i < 64; i++ {
 		sign[i] = b.Sign[i]
 	}
-	ok = verkr.Verify(verkr.SigningContext(b.Msg), sign)
+	ok := verkr.Verify(verkr.SigningContext(b.Msg), sign)
 	if !ok {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
@@ -163,6 +196,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	count := 0
 	code := configs.Code_404
 	for code != configs.Code_200 {
+		//TODO:
 		_, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
 		if count > 3 && code != configs.Code_200 {
 			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
@@ -180,7 +214,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	info.fileName = b.FileName
 	info.updateTime = time.Now().Unix()
 	info.blockTotal = b.BlockTotal
-	token := tools.GetRandomcode(12)
+	token = tools.GetRandomcode(12)
 	am.lock.Lock()
 	defer am.lock.Unlock()
 	am.users[string(b.PublicKey)] = token
@@ -208,31 +242,25 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
-	am.lock.Lock()
-	v, ok := am.tokens[string(b.Auth)]
-	if !ok {
-		am.lock.Unlock()
-		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
+	fid, blockTotal, err := am.UpdateTime(string(b.Auth))
+	if err != nil {
+		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
-	v.updateTime = time.Now().Unix()
-	am.tokens[string(b.Auth)] = v
-	am.lock.Unlock()
 
-	Uld.Sugar().Infof("+++> Upload [%v] %v", v.fileId, b.BlockIndex)
-
-	fileAbsPath := filepath.Join(configs.FileCacheDir, v.fileId)
+	fileAbsPath := filepath.Join(configs.FileCacheDir, fid)
 
 	if b.BlockIndex == 1 {
+		Uld.Sugar().Infof("+++> Upload file [%v] ", fid)
 		_, err = os.Create(fileAbsPath)
 		if err != nil {
-			Uld.Sugar().Infof("[%v] Create file err: %v", v.fileId, err)
+			Uld.Sugar().Infof("[%v] Create file err: %v", fid, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
 	f, err := os.OpenFile(fileAbsPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		Uld.Sugar().Infof("[%v] OpenFile err: %v", v.fileId, err)
+		Uld.Sugar().Infof("[%v] OpenFile err: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
@@ -240,7 +268,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(fileAbsPath)
-		Uld.Sugar().Infof("[%v] f.Write err: %v", v.fileId, err)
+		Uld.Sugar().Infof("[%v] f.Write err: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
@@ -248,18 +276,19 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(fileAbsPath)
-		Uld.Sugar().Infof("[%v] f.Sync err: %v", v.fileId, err)
+		Uld.Sugar().Infof("[%v] f.Sync err: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
 	f.Close()
 
-	if b.BlockIndex == v.blockTotal {
-		go storeFiles(v.fileId, fileAbsPath)
-		Uld.Sugar().Infof("[%v] All %v chunks are uploaded successfully", v.fileId, v.blockTotal)
+	if b.BlockIndex == blockTotal {
+		am.Delete(string(b.Auth))
+		go storeFiles(fid, fileAbsPath)
+		Uld.Sugar().Infof("[%v] All %v chunks saved successfully", fid, blockTotal)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
-	Uld.Sugar().Infof("[%v] The %v chunk uploaded successfully", v.fileId, b.BlockIndex)
+	Uld.Sugar().Infof("[%v] The %v chunk saved successfully", fid, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
