@@ -24,18 +24,18 @@ message RespBody {
 }
 
 message auth_req {
-    bytes  public_key  = 1;
-    bytes  msg         = 2;
-    bytes  sign        = 3;
-}
-
-message file_upload_req {
     string file_id     = 1;
     string file_name   = 2;
     uint32 block_total = 3;
-    uint32 block_index = 4;
-    bytes  auth        = 5;
-    bytes  file_data   = 6;
+    bytes  public_key  = 4;
+    bytes  msg         = 5;
+    bytes  sign        = 6;
+}
+
+message file_upload_req {
+    uint32 block_index = 1;
+    bytes  auth        = 2;
+    bytes  file_data   = 3;
 }
 
 message file_download_info {

@@ -34,22 +34,33 @@ import (
 type WService struct {
 }
 
+type authinfo struct {
+	publicKey  string
+	fileId     string
+	fileName   string
+	updateTime int64
+	blockTotal uint32
+}
+
 type authmap struct {
-	l *sync.Mutex
-	m map[string]int64
+	lock   *sync.Mutex
+	users  map[string]string
+	tokens map[string]authinfo
 }
 
 var am *authmap
 
 func init() {
 	am = new(authmap)
-	am.l = new(sync.Mutex)
-	am.m = make(map[string]int64, 10)
+	am.lock = new(sync.Mutex)
+	am.users = make(map[string]string, 10)
+	am.tokens = make(map[string]authinfo, 10)
 }
 
 // Start tcp service.
 // If an error occurs, it will exit immediately.
 func Rpc_Main() {
+	go task_Management()
 	srv := NewServer()
 	err := srv.Register(configs.RpcService_Scheduler, WService{})
 	if err != nil {
@@ -63,6 +74,41 @@ func Rpc_Main() {
 	}
 }
 
+func task_Management() {
+	var (
+		channel_1 = make(chan bool, 1)
+	)
+	go task_ClearAuthMap(channel_1)
+	for {
+		select {
+		case <-channel_1:
+			go task_ClearAuthMap(channel_1)
+		}
+	}
+}
+
+func task_ClearAuthMap(ch chan bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+		ch <- true
+	}()
+
+	Tvp.Info("--> Start task_ClearAuthMap")
+	for {
+		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(2, 5)))
+		am.lock.Lock()
+		for k, v := range am.tokens {
+			if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 5 {
+				delete(am.tokens, k)
+				delete(am.users, v.publicKey)
+			}
+		}
+		am.lock.Unlock()
+	}
+}
+
 // AuthAction is used to generate credentials.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
@@ -73,12 +119,9 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		}
 	}()
 
-	am.l.Lock()
-	if len(am.m) >= 2000 {
-		am.l.Unlock()
+	if len(am.users) >= 2000 {
 		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
 	}
-	am.l.Unlock()
 
 	var b AuthReq
 	err := proto.Unmarshal(body, &b)
@@ -89,6 +132,17 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	if len(b.Msg) == 0 || len(b.Sign) < 64 {
 		return &RespBody{Code: 400, Msg: "Invalid Sign"}, nil
 	}
+
+	am.lock.Lock()
+	v, ok := am.users[string(b.PublicKey)]
+	if ok {
+		am.lock.Unlock()
+		info := am.tokens[v]
+		info.updateTime = time.Now().Unix()
+		am.tokens[v] = info
+		return &RespBody{Code: 200, Msg: "success", Data: []byte(v)}, nil
+	}
+	am.lock.Unlock()
 
 	ss58, err := tools.EncodeToSS58(b.PublicKey)
 	if err != nil {
@@ -101,14 +155,36 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	for i := 0; i < 64; i++ {
 		sign[i] = b.Sign[i]
 	}
-	ok := verkr.Verify(verkr.SigningContext(b.Msg), sign)
+	ok = verkr.Verify(verkr.SigningContext(b.Msg), sign)
 	if !ok {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
-	token := tools.GetRandomcode(16)
-	am.l.Lock()
-	defer am.l.Unlock()
-	am.m[token] = time.Now().Unix()
+
+	count := 0
+	code := configs.Code_404
+	for code != configs.Code_200 {
+		_, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
+		if count > 3 && code != configs.Code_200 {
+			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+		}
+		if code != configs.Code_200 {
+			time.Sleep(time.Second)
+		}
+		count++
+	}
+
+	var info authinfo
+	info.publicKey = string(b.PublicKey)
+	info.fileId = b.FileId
+	info.fileName = b.FileName
+	info.updateTime = time.Now().Unix()
+	info.blockTotal = b.BlockTotal
+	token := tools.GetRandomcode(12)
+	am.lock.Lock()
+	defer am.lock.Unlock()
+	am.users[string(b.PublicKey)] = token
+	am.tokens[token] = info
 	return &RespBody{Code: 200, Msg: "success", Data: []byte(token)}, nil
 }
 
@@ -128,47 +204,35 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
 	}
 
-	if b.FileId == "" || b.BlockIndex == 0 {
+	if b.BlockIndex == 0 {
 		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
-	am.l.Lock()
-	_, ok := am.m[string(b.Auth)]
+	am.lock.Lock()
+	v, ok := am.tokens[string(b.Auth)]
 	if !ok {
-		am.l.Unlock()
+		am.lock.Unlock()
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
-	am.m[string(b.Auth)] = time.Now().Unix()
-	am.l.Unlock()
+	v.updateTime = time.Now().Unix()
+	am.tokens[string(b.Auth)] = v
+	am.lock.Unlock()
 
-	Uld.Sugar().Infof("+++> Upload [%v] %v", b.FileId, b.BlockIndex)
+	Uld.Sugar().Infof("+++> Upload [%v] %v", v.fileId, b.BlockIndex)
 
-	fileAbsPath := filepath.Join(configs.FileCacheDir, b.FileId)
+	fileAbsPath := filepath.Join(configs.FileCacheDir, v.fileId)
 
 	if b.BlockIndex == 1 {
-		count := 0
-		code := configs.Code_404
-		for code != configs.Code_200 {
-			_, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
-			if count > 3 && code != configs.Code_200 {
-				Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-			}
-			if code != configs.Code_200 {
-				time.Sleep(time.Second)
-			}
-			count++
-		}
 		_, err = os.Create(fileAbsPath)
 		if err != nil {
-			Uld.Sugar().Infof("[%v] Create file err: %v", b.FileId, err)
+			Uld.Sugar().Infof("[%v] Create file err: %v", v.fileId, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
 	f, err := os.OpenFile(fileAbsPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		Uld.Sugar().Infof("[%v] OpenFile err: %v", b.FileId, err)
+		Uld.Sugar().Infof("[%v] OpenFile err: %v", v.fileId, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
@@ -176,7 +240,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(fileAbsPath)
-		Uld.Sugar().Infof("[%v] f.Write err: %v", b.FileId, err)
+		Uld.Sugar().Infof("[%v] f.Write err: %v", v.fileId, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
@@ -184,18 +248,18 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(fileAbsPath)
-		Uld.Sugar().Infof("[%v] f.Sync err: %v", b.FileId, err)
+		Uld.Sugar().Infof("[%v] f.Sync err: %v", v.fileId, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
 	f.Close()
 
-	if b.BlockIndex == b.BlockTotal {
-		go storeFiles(b.FileId, fileAbsPath)
-		Uld.Sugar().Infof("[%v] All %v chunks are uploaded successfully", b.FileId, b.BlockTotal)
+	if b.BlockIndex == v.blockTotal {
+		go storeFiles(v.fileId, fileAbsPath)
+		Uld.Sugar().Infof("[%v] All %v chunks are uploaded successfully", v.fileId, v.blockTotal)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
-	Uld.Sugar().Infof("[%v] The %v chunk uploaded successfully", b.FileId, b.BlockIndex)
+	Uld.Sugar().Infof("[%v] The %v chunk uploaded successfully", v.fileId, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
@@ -213,25 +277,19 @@ func storeFiles(fid, fpath string) {
 	go backupFile(channel_map, fid, fpath)
 
 	for {
-		for k, v := range channel_map {
-			result := <-v
+		select {
+		case result := <-channel_map:
 			if result == 1 {
-				go backupFile(channel_map[k], k, fid, duplnamelist[k], duplkeynamelist[k])
-				continue
+				go backupFile(channel_map, fid, fpath)
 			}
 			if result == 2 {
-				delete(channel_map, k)
-				Uld.Sugar().Infof("[%v] The %v copy is successfully stored", fid, k)
-				continue
+				Uld.Sugar().Infof("[%v] File save successfully", fid)
+				return
 			}
 			if result == 3 {
-				delete(channel_map, k)
-				Uld.Sugar().Infof("[%v] The %v copy is failed stored", fid, k)
+				Uld.Sugar().Infof("[%v] File save failed", fid)
+				return
 			}
-		}
-		if len(channel_map) == 0 {
-			Uld.Sugar().Infof("[%v] All replicas stored successfully", fid)
-			return
 		}
 	}
 }
@@ -997,21 +1055,21 @@ func backupFile(ch chan uint8, fid, fpath string) {
 
 	Uld.Sugar().Infof("[%v] %v miners found", fid, len(mDatas))
 	for i := 0; i < len(mDatas); i++ {
-		Uld.Sugar().Infof("[%v] %v: %v", fid, i, string(mDatas[i].Ip))
+		Uld.Sugar().Infof("   %v: %v", i, string(mDatas[i].Ip))
 	}
 
 	duplname := fid + ".cess"
 	fstat, err := os.Stat(fpath)
 	if err != nil {
 		ch <- 3
-		Uld.Sugar().Infof("[%v] The copy was deleted and cannot be stored: %v", fid, err)
+		Uld.Sugar().Infof("[%v] The file was deleted and cannot be stored: %v", fid, err)
 		return
 	}
 
 	f, err := os.OpenFile(fpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		ch <- 3
-		Uld.Sugar().Infof("[%v] [%v] Failed to read replica file: %v", fid, fileFullPath, err)
+		Uld.Sugar().Infof("[%v] OpenFile err: %v", fid, err)
 		return
 	}
 
@@ -1040,7 +1098,7 @@ func backupFile(ch chan uint8, fid, fpath string) {
 		bob, _ := proto.Marshal(&bo)
 		if err != nil {
 			ch <- 3
-			Uld.Sugar().Infof("[%v] [%v] Marshal err: %v", fid, fileFullPath, err)
+			Uld.Sugar().Infof("[%v] Marshal err: %v", fid, err)
 			return
 		}
 		var failcount uint8
@@ -1090,11 +1148,11 @@ func backupFile(ch chan uint8, fid, fpath string) {
 					filedIndex[index] = struct{}{}
 					continue
 				}
-				Uld.Sugar().Infof("[%v] [%v] [%v] connection suc", fid, fileFullPath, mip)
+				Uld.Sugar().Infof("[%v] [%v] connection suc", fid, mip)
 				_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 				if err == nil {
 					mip = string(mDatas[index].Ip)
-					Uld.Sugar().Infof("[%v] [%v-%v] transfer suc", fid, fileFullPath, j)
+					Uld.Sugar().Infof("[%v] [%v] transfer suc", fid, j)
 					break
 				}
 				filedIndex[index] = struct{}{}
@@ -1104,7 +1162,7 @@ func backupFile(ch chan uint8, fid, fpath string) {
 					failcount++
 					if failcount >= 5 {
 						ch <- 1
-						Uld.Sugar().Infof("[%v] [%v-%v] transfer failed: %v", fid, fileFullPath, j)
+						Uld.Sugar().Infof("[%v] [%v] transfer failed: %v", fid, j)
 						return
 					}
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -1115,119 +1173,123 @@ func backupFile(ch chan uint8, fid, fpath string) {
 		}
 	}
 	f.Close()
-	var filedump = make([]chain.FileDuplicateInfo, 1)
+	// TODO:
+	// After the file meta information is defined on the chain, modify it
 
-	filedump[0].DuplId = types.Bytes([]byte(duplname))
-	key := filepath.Base(duplkeyname)
-	sufffex := filepath.Ext(key)
-	filedump[0].RandKey = types.Bytes([]byte(strings.TrimSuffix(key, sufffex)))
-	filedump[0].MinerId = mDatas[index].Peerid
-	filedump[0].MinerIp = mDatas[index].Ip
-	bs, sbs := CalcFileBlockSizeAndScanSize(fstat.Size())
-	filedump[0].ScanSize = types.U32(sbs)
-
-	// Query miner information by id
-	var mdetails chain.Chain_MinerDetails
-	for {
-		mdetails, _, err = chain.GetMinerDetailsById(uint64(mDatas[index].Peerid))
-		if err != nil {
-			Uld.Sugar().Infof("[%v] [%v] [%v] GetMinerDetailsById err: %v", fid, mDatas[index].Peerid, fileFullPath, err)
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
-			continue
-		}
-		break
-	}
-	filedump[0].Acc = mdetails.Address
-	matrix, blocknum, err := tools.Split(fileFullPath, bs, fstat.Size())
-	if err != nil {
-		ch <- 1
-		Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Split err: %v", fid, fileFullPath, fstat.Size(), bs, err)
-		return
-	}
-
-	filedump[0].BlockNum = types.U32(uint32(blocknum))
-	var blockinfo = make([]chain.BlockInfo, blocknum)
-	for x := uint64(1); x <= blocknum; x++ {
-		blockinfo[x-1].BlockIndex, _ = tools.IntegerToBytes(uint32(x))
-		blockinfo[x-1].BlockSize = types.U32(uint32(len(matrix[x-1])))
-	}
-	filedump[0].BlockInfo = blockinfo
-
-	// calculate file tag info
-	for i := 0; i < len(filedump); i++ {
-		var PoDR2commit proof.PoDR2Commit
-		var commitResponse proof.PoDR2CommitResponse
-		PoDR2commit.FilePath = fileFullPath
+	/*
+		var filedump = make([]chain.FileDuplicateInfo, 1)
+		filedump[0].DuplId = types.Bytes([]byte(duplname))
+		key := filepath.Base(duplkeyname)
+		sufffex := filepath.Ext(key)
+		filedump[0].RandKey = types.Bytes([]byte(strings.TrimSuffix(key, sufffex)))
+		filedump[0].MinerId = mDatas[index].Peerid
+		filedump[0].MinerIp = mDatas[index].Ip
 		bs, sbs := CalcFileBlockSizeAndScanSize(fstat.Size())
-		PoDR2commit.BlockSize = bs
-		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), sbs)
-		if err != nil {
-			ch <- 1
-			Uld.Sugar().Infof("[%v] [%v] [%v] PoDR2ProofCommit err: %v", fid, fileFullPath, sbs, err)
-			return
-		}
-		select {
-		case commitResponse = <-commitResponseCh:
-		}
-		if commitResponse.StatueMsg.StatusCode != proof.Success {
-			ch <- 1
-			Uld.Sugar().Infof("[%v] [%v] [%v] PoDR2ProofCommit failed", fid, fileFullPath, sbs)
-			return
-		}
-		var resp PutTagToBucket
-		resp.FileId = string(filedump[i].DuplId)
-		resp.Name = commitResponse.T.Name
-		resp.N = commitResponse.T.N
-		resp.U = commitResponse.T.U
-		resp.Signature = commitResponse.T.Signature
-		resp.Sigmas = commitResponse.Sigmas
-		resp_proto, err := proto.Marshal(&resp)
-		if err != nil {
-			ch <- 1
-			Uld.Sugar().Infof("[%v] [%v] Marshal resp err: %v", fid, fileFullPath, err)
-			return
-		}
+		filedump[0].ScanSize = types.U32(sbs)
 
-		_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
-		if err != nil {
-			ch <- 1
-			Uld.Sugar().Infof("[%v] [%v] [%v] WriteData2 tag err: %v", fid, fileFullPath, mip, err)
-			return
-		}
-	}
-
-	// Upload the file meta information to the chain and write it to the cache
-	for i := 0; i < 3; i++ {
-		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
-		if !ok || err != nil {
-			if i == 2 {
-				Uld.Sugar().Infof("[%v] [%v] Failed to upload meta information, PutMetaInfoToChain err: %v", fid, fileFullPath, err)
-				ch <- 1
-				break
+		// Query miner information by id
+		var mdetails chain.Chain_MinerDetails
+		for {
+			mdetails, _, err = chain.GetMinerDetailsById(uint64(mDatas[index].Peerid))
+			if err != nil {
+				Uld.Sugar().Infof("[%v] [%v] [%v] GetMinerDetailsById err: %v", fid, mDatas[index].Peerid, fileFullPath, err)
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+				continue
 			}
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
-			continue
+			break
 		}
-		Uld.Sugar().Infof("[%v] The metadata of the %v replica was successfully uploaded to the chain", fid, num)
-		// c, err := cache.GetCache()
-		// if err != nil {
-		// 	Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-		// } else {
-		// 	b, err := json.Marshal(filedump)
-		// 	if err != nil {
-		// 		Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-		// 	} else {
-		// 		err = c.Put([]byte(fid), b)
-		// 		if err != nil {
-		// 			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-		// 		} else {
-		// 			Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
-		// 		}
-		// 	}
-		// }
-		ch <- 2
-		break
-	}
+		filedump[0].Acc = mdetails.Address
+		matrix, blocknum, err := tools.Split(fileFullPath, bs, fstat.Size())
+		if err != nil {
+			ch <- 1
+			Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Split err: %v", fid, fileFullPath, fstat.Size(), bs, err)
+			return
+		}
+
+		filedump[0].BlockNum = types.U32(uint32(blocknum))
+		var blockinfo = make([]chain.BlockInfo, blocknum)
+		for x := uint64(1); x <= blocknum; x++ {
+			blockinfo[x-1].BlockIndex, _ = tools.IntegerToBytes(uint32(x))
+			blockinfo[x-1].BlockSize = types.U32(uint32(len(matrix[x-1])))
+		}
+		filedump[0].BlockInfo = blockinfo
+
+		// calculate file tag info
+		for i := 0; i < len(filedump); i++ {
+			var PoDR2commit proof.PoDR2Commit
+			var commitResponse proof.PoDR2CommitResponse
+			PoDR2commit.FilePath = fileFullPath
+			bs, sbs := CalcFileBlockSizeAndScanSize(fstat.Size())
+			PoDR2commit.BlockSize = bs
+			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), sbs)
+			if err != nil {
+				ch <- 1
+				Uld.Sugar().Infof("[%v] [%v] [%v] PoDR2ProofCommit err: %v", fid, fileFullPath, sbs, err)
+				return
+			}
+			select {
+			case commitResponse = <-commitResponseCh:
+			}
+			if commitResponse.StatueMsg.StatusCode != proof.Success {
+				ch <- 1
+				Uld.Sugar().Infof("[%v] [%v] [%v] PoDR2ProofCommit failed", fid, fileFullPath, sbs)
+				return
+			}
+			var resp PutTagToBucket
+			resp.FileId = string(filedump[i].DuplId)
+			resp.Name = commitResponse.T.Name
+			resp.N = commitResponse.T.N
+			resp.U = commitResponse.T.U
+			resp.Signature = commitResponse.T.Signature
+			resp.Sigmas = commitResponse.Sigmas
+			resp_proto, err := proto.Marshal(&resp)
+			if err != nil {
+				ch <- 1
+				Uld.Sugar().Infof("[%v] [%v] Marshal resp err: %v", fid, fileFullPath, err)
+				return
+			}
+
+			_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
+			if err != nil {
+				ch <- 1
+				Uld.Sugar().Infof("[%v] [%v] [%v] WriteData2 tag err: %v", fid, fileFullPath, mip, err)
+				return
+			}
+		}
+
+		// Upload the file meta information to the chain and write it to the cache
+		for i := 0; i < 3; i++ {
+			ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
+			if !ok || err != nil {
+				if i == 2 {
+					Uld.Sugar().Infof("[%v] [%v] Failed to upload meta information, PutMetaInfoToChain err: %v", fid, fileFullPath, err)
+					ch <- 1
+					break
+				}
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+				continue
+			}
+			Uld.Sugar().Infof("[%v] The metadata of the %v replica was successfully uploaded to the chain", fid, num)
+			// c, err := cache.GetCache()
+			// if err != nil {
+			// 	Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			// } else {
+			// 	b, err := json.Marshal(filedump)
+			// 	if err != nil {
+			// 		Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			// 	} else {
+			// 		err = c.Put([]byte(fid), b)
+			// 		if err != nil {
+			// 			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+			// 		} else {
+			// 			Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
+			// 		}
+			// 	}
+			// }
+			ch <- 2
+			break
+		}
+	*/
 }
 
 func genSpaceFile(fpath, content string, rule []byte) error {
