@@ -28,6 +28,7 @@ const (
 //
 const (
 	LengthOfALine            = 4096
+	BYTE_SIZE_1GB            = 1024 * 1024 * 1024
 	BlockSize                = 1024 * 1024 //1MB
 	ScanBlockSize            = 512 * 1024  //512KB
 	ByteSize_1Kb             = 1024        //1KB

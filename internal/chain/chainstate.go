@@ -160,7 +160,7 @@ func GetMinerDetailsById(id uint64) (Chain_MinerDetails, int, error) {
 }
 
 // Query file meta info
-func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
+func GetFileMetaInfoOnChain(fid string) (FileMetaInfo, int, error) {
 	var (
 		err   error
 		mdata FileMetaInfo
@@ -177,7 +177,7 @@ func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	b, err := types.EncodeToBytes(fileid)
+	b, err := types.EncodeToBytes(fid)
 	if err != nil {
 		return mdata, configs.Code_400, errors.Wrap(err, "[EncodeToBytes]")
 	}
@@ -192,7 +192,7 @@ func GetFileMetaInfoOnChain(fileid string) (FileMetaInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.Errorf("[%v not found]", fileid)
+		return mdata, configs.Code_404, errors.New("[Not found]")
 	}
 	return mdata, configs.Code_200, nil
 }

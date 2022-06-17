@@ -70,16 +70,15 @@ type Cache_MinerInfo struct {
 }
 
 type FileMetaInfo struct {
-	//FileId      types.Bytes         `json:"acc"`         //File id
-	FileName    types.Bytes         `json:"file_name"`   //File name
-	FileSize    types.U64           `json:"file_size"`   //File size
-	FileHash    types.Bytes         `json:"file_hash"`   //File hash
-	Public      types.Bool          `json:"public"`      //Public or not
-	UserAddr    types.AccountID     `json:"user_addr"`   //Upload user's address
-	FileState   types.Bytes         `json:"file_state"`  //File state
-	Backups     types.U8            `json:"backups"`     //Number of backups
-	Downloadfee types.U128          `json:"downloadfee"` //Download fee
-	FileDupl    []FileDuplicateInfo `json:"file_dupl"`   //File backup information list
+	FileSize    types.U64       `json:"File_size"`
+	BlockNum    types.U32       `json:"Block_num"`
+	ScanSize    types.U32       `json:"Scan_size"`
+	SegmentSize types.U32       `json:"Segment_size"`
+	MinerAcc    types.AccountID `json:"Miner_acc"`
+	MinerIp     types.Bytes     `json:"Miner_ip"`
+	FileState   types.Bytes     `json:"File_state"`
+	Users       []types.Bytes   `json:"Users"`
+	Names       []types.Bytes   `json:"Names"`
 }
 
 type FileDuplicateInfo struct {

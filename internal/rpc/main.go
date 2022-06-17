@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"math/big"
@@ -53,6 +54,7 @@ var am *authmap
 func (this *authmap) Delete(key string) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
+
 	v, ok := this.tokens[key]
 	if ok {
 		delete(this.users, v.publicKey)
@@ -63,6 +65,7 @@ func (this *authmap) Delete(key string) {
 func (this *authmap) DeleteExpired() {
 	this.lock.Lock()
 	defer this.lock.Unlock()
+
 	for k, v := range this.tokens {
 		if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 10 {
 			delete(this.users, v.publicKey)
@@ -85,16 +88,17 @@ func (this *authmap) UpdateTimeIfExists(key string) string {
 	return ""
 }
 
-func (this *authmap) UpdateTime(key string) (string, uint32, error) {
+func (this *authmap) UpdateTime(key string) (uint32, string, string, string, error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
+
 	v, ok := this.tokens[key]
 	if !ok {
-		return "", 0, errors.New("Authentication failed")
+		return 0, "", "", "", errors.New("Authentication failed")
 	}
 	v.updateTime = time.Now().Unix()
 	this.tokens[key] = v
-	return v.fileId, v.blockTotal, nil
+	return v.blockTotal, v.fileId, v.publicKey, v.fileName, nil
 }
 
 func init() {
@@ -193,21 +197,6 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
 
-	count := 0
-	code := configs.Code_404
-	for code != configs.Code_200 {
-		//TODO:
-		_, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
-		if count > 3 && code != configs.Code_200 {
-			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-		}
-		if code != configs.Code_200 {
-			time.Sleep(time.Second)
-		}
-		count++
-	}
-
 	var info authinfo
 	info.publicKey = string(b.PublicKey)
 	info.fileId = b.FileId
@@ -223,7 +212,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 }
 
 // WritefileAction is used to handle client requests to upload files.
-// The return code is 0 for success, non-0 for failure.
+// The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	defer func() {
@@ -231,6 +220,10 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
+
+	if len(am.users) >= 2000 {
+		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
+	}
 
 	var b FileUploadReq
 	err := proto.Unmarshal(body, &b)
@@ -242,7 +235,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
-	fid, blockTotal, err := am.UpdateTime(string(b.Auth))
+	blockTotal, fid, pubkey, fname, err := am.UpdateTime(string(b.Auth))
 	if err != nil {
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
@@ -251,6 +244,27 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	if b.BlockIndex == 1 {
 		Uld.Sugar().Infof("+++> Upload file [%v] ", fid)
+		count := 0
+		code := configs.Code_404
+		fmeta := chain.FileMetaInfo{}
+		for code != configs.Code_200 {
+			fmeta, code, err = chain.GetFileMetaInfoOnChain(fid)
+			if count > 3 && code != configs.Code_200 {
+				Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", fid, err)
+				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+			}
+			if code != configs.Code_200 {
+				time.Sleep(time.Second)
+			} else {
+				if len(fmeta.Users) > 0 {
+					go recordFileOwner(pubkey, fname)
+					Uld.Sugar().Infof("[%v] File upload successfully", fid)
+					return &RespBody{Code: 201, Msg: "success"}, nil
+				}
+			}
+			count++
+		}
+
 		_, err = os.Create(fileAbsPath)
 		if err != nil {
 			Uld.Sugar().Infof("[%v] Create file err: %v", fid, err)
@@ -283,13 +297,97 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	f.Close()
 
 	if b.BlockIndex == blockTotal {
-		am.Delete(string(b.Auth))
-		go storeFiles(fid, fileAbsPath)
 		Uld.Sugar().Infof("[%v] All %v chunks saved successfully", fid, blockTotal)
+		am.Delete(string(b.Auth))
+		filehash, err := calcFileHashByChunks(fileAbsPath, configs.BYTE_SIZE_1GB)
+		if err != nil {
+			Uld.Sugar().Infof("[%v] calcFileHashByChunks err: %v", fid, err)
+			return &RespBody{Code: 500, Msg: err.Error()}, nil
+		}
+		if filehash != fid[4:] {
+			Uld.Sugar().Infof("[%v] Invalid file hash", fid)
+			return &RespBody{Code: 400, Msg: "Invalid file hash"}, nil
+		}
+		go storeFiles(fid, fileAbsPath)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
 	Uld.Sugar().Infof("[%v] The %v chunk saved successfully", fid, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success"}, nil
+}
+
+func recordFileOwner(pubkey, fname string) {
+	//TODO:
+	// Upload the file meta information to the chain and write it to the cache
+	// for i := 0; i < 3; i++ {
+	// 	ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
+	// 	if !ok || err != nil {
+	// 		if i == 2 {
+	// 			Uld.Sugar().Infof("[%v] [%v] Failed to upload meta information, PutMetaInfoToChain err: %v", fid, fileFullPath, err)
+	// 			ch <- 1
+	// 			break
+	// 		}
+	// 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+	// 		continue
+	// 	}
+	// 	Uld.Sugar().Infof("[%v] The metadata of the %v replica was successfully uploaded to the chain", fid, num)
+	// c, err := cache.GetCache()
+	// if err != nil {
+	// 	Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+	// } else {
+	// 	b, err := json.Marshal(filedump)
+	// 	if err != nil {
+	// 		Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+	// 	} else {
+	// 		err = c.Put([]byte(fid), b)
+	// 		if err != nil {
+	// 			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
+	// 		} else {
+	// 			Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
+	// 		}
+	// 	}
+	// }
+	// 	ch <- 2
+	// 	break
+	// }
+}
+
+func calcFileHashByChunks(fpath string, chunksize int64) (string, error) {
+	if chunksize <= 0 {
+		return "", errors.New("Invalid chunk size")
+	}
+	fstat, err := os.Stat(fpath)
+	if err != nil {
+		return "", err
+	}
+	chunkNum := fstat.Size() / chunksize
+	if fstat.Size()%chunksize != 0 {
+		chunkNum++
+	}
+	var n int
+	var chunkhash, allhash, filehash string
+	var buf = make([]byte, chunksize)
+	f, err := os.OpenFile(fpath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	for i := int64(0); i < chunkNum; i++ {
+		f.Seek(i*chunksize, 0)
+		n, err = f.Read(buf)
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		chunkhash, err = tools.CalcHash(buf[:n])
+		if err != nil {
+			return "", err
+		}
+		allhash += chunkhash
+	}
+	filehash, err = tools.CalcHash([]byte(allhash))
+	if err != nil {
+		return "", err
+	}
+	return filehash, nil
 }
 
 func storeFiles(fid, fpath string) {
@@ -301,7 +399,7 @@ func storeFiles(fid, fpath string) {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
-	Uld.Sugar().Infof("[%v] Prepare to store file", fid)
+	Uld.Sugar().Infof("[%v] Start the file backup management process", fid)
 
 	go backupFile(channel_map, fid, fpath)
 
