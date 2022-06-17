@@ -102,6 +102,21 @@ func EncodeToSS58(publicKeyHash []byte) (string, error) {
 	return address, nil
 }
 
+func EncodeToCESSAddr(publicKeyHash []byte) (string, error) {
+	if len(publicKeyHash) != 32 {
+		return "", errors.New("public hash length is not equal 32")
+	}
+	payload := appendBytes(ChainCessTestPrefix, publicKeyHash)
+	input := appendBytes(SSPrefix, payload)
+	ck := blake2b.Sum512(input)
+	checkum := ck[:2]
+	address := base58.Encode(appendBytes(payload, checkum))
+	if address == "" {
+		return address, errors.New("base58 encode error")
+	}
+	return address, nil
+}
+
 func appendBytes(data1, data2 []byte) []byte {
 	if data2 == nil {
 		return data1

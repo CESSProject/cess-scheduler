@@ -12,10 +12,10 @@ import (
 )
 
 // Get miner information on the chain
-func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
+func GetMinerInfo(pubkey []byte) (MinerInfo, int, error) {
 	var (
 		err   error
-		mdata Chain_MinerItems
+		mdata MinerInfo
 	)
 	api := getSubstrateApi_safe()
 	defer func() {
@@ -29,16 +29,12 @@ func GetMinerDataOnChain(addr string) (Chain_MinerItems, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	pub, err := tools.DecodeToPub(addr, tools.ChainCessTestPrefix)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[DecodeToPub]")
-	}
+	// b, err := types.EncodeToBytes(types.NewAccountID(pubkey))
+	// if err != nil {
+	// 	return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+	// }
 
-	b, err := types.EncodeToBytes(types.NewAccountID(pub))
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
-	}
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerInfo, pubkey)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
@@ -92,10 +88,10 @@ func GetMinerDataOnChainByPuk(puk types.AccountID) (Chain_MinerItems, int, error
 }
 
 // Get all miner information on the cess chain
-func GetAllMinerDataOnChain() ([]CessChain_AllMinerInfo, int, error) {
+func GetAllMinerDataOnChain() ([]types.Bytes, int, error) {
 	var (
 		err   error
-		mdata []CessChain_AllMinerInfo
+		mdata []types.Bytes
 	)
 	api := getSubstrateApi_safe()
 	defer func() {

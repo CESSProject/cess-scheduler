@@ -257,6 +257,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 				time.Sleep(time.Second)
 			} else {
 				if len(fmeta.Users) > 0 {
+					am.Delete(string(b.Auth))
 					go recordFileOwner(pubkey, fname)
 					Uld.Sugar().Infof("[%v] File upload successfully", fid)
 					return &RespBody{Code: 201, Msg: "success"}, nil
@@ -1185,7 +1186,6 @@ func backupFile(ch chan uint8, fid, fpath string) {
 		Uld.Sugar().Infof("   %v: %v", i, string(mDatas[i].Ip))
 	}
 
-	duplname := fid + ".cess"
 	fstat, err := os.Stat(fpath)
 	if err != nil {
 		ch <- 3
@@ -1215,7 +1215,7 @@ func backupFile(ch chan uint8, fid, fpath string) {
 		n, _ = f.Read(buf)
 
 		var bo = PutFileToBucket{
-			FileId:     duplname,
+			FileId:     fid,
 			FileHash:   "",
 			BlockTotal: uint32(blockTotal),
 			BlockSize:  uint32(n),
@@ -1301,6 +1301,11 @@ func backupFile(ch chan uint8, fid, fpath string) {
 	}
 	f.Close()
 	// TODO:
+
+	var fmeta chain.FileMetaInfo
+	fmeta.FileSize = types.U64(fstat.Size())
+	//fmeta.MinerAcc =
+
 	// After the file meta information is defined on the chain, modify it
 
 	/*
