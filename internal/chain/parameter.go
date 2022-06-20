@@ -15,7 +15,7 @@ const (
 // cess chain module method
 const (
 	Sminer_AllMinerItems      = "AllMiner"
-	Sminer_MinerInfo          = "MinerInfo"
+	Sminer_MinerItems         = "MinerItems"
 	Sminer_SegInfo            = "SegInfo"
 	FileMap_FileMetaInfo      = "File"
 	FileMap_SchedulerInfo     = "SchedulerMap"
@@ -24,7 +24,6 @@ const (
 	FileBank_UserFilelistInfo = "UserHoldFileList"
 	Sminer_PurchasedSpace     = "PurchasedSpace"
 	Sminer_TotalSpace         = "AvailableSpace"
-	Sminer_MinerDetails       = "MinerDetails"
 	FileMap_SchedulerPuk      = "SchedulerPuk"
 	SegmentBook_UnVerifyProof = "UnVerifyProof"
 	FileBank_FileRecovery     = "FileRecovery"
@@ -32,14 +31,13 @@ const (
 
 // cess chain Transaction name
 const (
-	ChainTx_FileBank_Update         = "FileBank.update"
-	ChainTx_FileMap_Add_schedule    = "FileMap.registration_scheduler"
-	ChainTx_FileBank_PutMetaInfo    = "FileBank.update_dupl"
-	ChainTx_FileBank_Upload         = "FileBank.upload"
-	ChainTx_FileBank_HttpDeleteFile = "FileBank.http_delete"
-	ChainTx_FileBank_UploadFiller   = "FileBank.upload_filler"
-	SegmentBook_VerifyProof         = "SegmentBook.verify_proof"
-	FileBank_ClearRecoveredFile     = "FileBank.recover_file"
+	ChainTx_FileBank_Update      = "FileBank.update"
+	ChainTx_FileMap_Add_schedule = "FileMap.registration_scheduler"
+	//ChainTx_FileBank_PutMetaInfo  = "FileBank.update_dupl"
+	Tx_FileBank_Upload            = "FileBank.upload"
+	ChainTx_FileBank_UploadFiller = "FileBank.upload_filler"
+	SegmentBook_VerifyProof       = "SegmentBook.verify_proof"
+	FileBank_ClearRecoveredFile   = "FileBank.recover_file"
 )
 
 type MinerInfo struct {
@@ -105,7 +103,7 @@ type Chain_SchedulerPuk struct {
 }
 
 type Chain_Proofs struct {
-	Miner_id       types.U64
+	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
 	Sigma          types.Bytes
@@ -125,4 +123,11 @@ type UserSpaceInfo struct {
 	PurchasedSpace types.U128
 	UsedSpace      types.U128
 	RemainingSpace types.U128
+}
+
+//
+type VerifyResult struct {
+	Miner_pubkey types.AccountID
+	FileId       types.Bytes
+	Result       types.Bool
 }

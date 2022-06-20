@@ -181,6 +181,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 200, Msg: "success", Data: []byte(token)}, nil
 	}
 
+	// Verify signature
 	ss58, err := tools.EncodeToSS58(b.PublicKey)
 	if err != nil {
 		return &RespBody{Code: 400, Msg: "Invalid PublicKey"}, nil
@@ -195,6 +196,51 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	ok := verkr.Verify(verkr.SigningContext(b.Msg), sign)
 	if !ok {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
+	}
+
+	// Verify space
+	if b.FileSize == 0 {
+		return &RespBody{Code: 400, Msg: "Invalid File Size"}, nil
+	}
+
+	//Judge whether the space is enough
+	count := 0
+	code := configs.Code_404
+	userSpace := chain.UserSpaceInfo{}
+	for code != configs.Code_200 {
+		userSpace, code, err = chain.GetUserSpaceByPuk(types.NewAccountID(b.PublicKey))
+		if count > 3 && code != configs.Code_200 {
+			Uld.Sugar().Infof("[%v] GetUserSpaceByPuk err: %v", b.FileId, err)
+			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+		}
+		if code != configs.Code_200 {
+			time.Sleep(time.Second * 3)
+		} else {
+			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.RemainingSpace.Bytes())) == -1 {
+				return &RespBody{Code: 403, Msg: "Not enough space"}, nil
+			}
+		}
+		count++
+	}
+
+	//Judge whether the file has been uploaded
+	count = 0
+	code = configs.Code_404
+	fmeta := chain.FileMetaInfo{}
+	for code != configs.Code_200 {
+		fmeta, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
+		if count > 3 && code != configs.Code_200 {
+			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+		}
+		if code != configs.Code_200 {
+			time.Sleep(time.Second * 3)
+		} else {
+			if string(fmeta.FileState) == "active" {
+				return &RespBody{Code: 201, Msg: "success"}, nil
+			}
+		}
+		count++
 	}
 
 	var info authinfo
@@ -244,28 +290,6 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	if b.BlockIndex == 1 {
 		Uld.Sugar().Infof("+++> Upload file [%v] ", fid)
-		count := 0
-		code := configs.Code_404
-		fmeta := chain.FileMetaInfo{}
-		for code != configs.Code_200 {
-			fmeta, code, err = chain.GetFileMetaInfoOnChain(fid)
-			if count > 3 && code != configs.Code_200 {
-				Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", fid, err)
-				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-			}
-			if code != configs.Code_200 {
-				time.Sleep(time.Second)
-			} else {
-				if len(fmeta.Users) > 0 {
-					am.Delete(string(b.Auth))
-					go recordFileOwner(pubkey, fname)
-					Uld.Sugar().Infof("[%v] File upload successfully", fid)
-					return &RespBody{Code: 201, Msg: "success"}, nil
-				}
-			}
-			count++
-		}
-
 		_, err = os.Create(fileAbsPath)
 		if err != nil {
 			Uld.Sugar().Infof("[%v] Create file err: %v", fid, err)
@@ -314,42 +338,6 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	}
 	Uld.Sugar().Infof("[%v] The %v chunk saved successfully", fid, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success"}, nil
-}
-
-func recordFileOwner(pubkey, fname string) {
-	//TODO:
-	// Upload the file meta information to the chain and write it to the cache
-	// for i := 0; i < 3; i++ {
-	// 	ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, filedump)
-	// 	if !ok || err != nil {
-	// 		if i == 2 {
-	// 			Uld.Sugar().Infof("[%v] [%v] Failed to upload meta information, PutMetaInfoToChain err: %v", fid, fileFullPath, err)
-	// 			ch <- 1
-	// 			break
-	// 		}
-	// 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
-	// 		continue
-	// 	}
-	// 	Uld.Sugar().Infof("[%v] The metadata of the %v replica was successfully uploaded to the chain", fid, num)
-	// c, err := cache.GetCache()
-	// if err != nil {
-	// 	Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-	// } else {
-	// 	b, err := json.Marshal(filedump)
-	// 	if err != nil {
-	// 		Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-	// 	} else {
-	// 		err = c.Put([]byte(fid), b)
-	// 		if err != nil {
-	// 			Err.Sugar().Errorf("[%v][%v][%v]", t, fid, err)
-	// 		} else {
-	// 			Out.Sugar().Infof("[%v][%v]File metainfo write cache success", t, fid)
-	// 		}
-	// 	}
-	// }
-	// 	ch <- 2
-	// 	break
-	// }
 }
 
 func calcFileHashByChunks(fpath string, chunksize int64) (string, error) {
@@ -1210,19 +1198,22 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	var index int
 	var n int
 	var minerInfo chain.MinerInfo
+
+	puk, _ := chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
+
+	var bo = PutFileToBucket{}
+	bo.BlockTotal = uint32(blockTotal)
+	bo.FileId = fid
+	bo.Publickey = puk
+
 	for j := int64(0); j < blockTotal; j++ {
 		var buf = make([]byte, configs.RpcFileBuffer)
 		f.Seek(j*configs.RpcFileBuffer, 0)
 		n, _ = f.Read(buf)
 
-		var bo = PutFileToBucket{
-			FileId:     fid,
-			FileHash:   "",
-			BlockTotal: uint32(blockTotal),
-			BlockSize:  uint32(n),
-			BlockIndex: uint32(j),
-			BlockData:  buf[:n],
-		}
+		bo.BlockIndex = uint32(j)
+		bo.BlockData = buf[:n]
+
 		bob, _ := proto.Marshal(&bo)
 		if err != nil {
 			ch <- 3
@@ -1256,11 +1247,11 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 					continue
 				}
 
-				if minerInfo.Power.CmpAbs(new(big.Int).SetBytes(minerInfo.Space.Bytes())) < 0 {
-					filedIndex[index] = struct{}{}
-					Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Abnormal size of space", fid, uint64(minerInfo.PeerId), minerInfo.Power, minerInfo.Space)
-					continue
-				}
+				// if minerInfo.Power.CmpAbs(new(big.Int).SetBytes(minerInfo.Space.Bytes())) < 0 {
+				// 	filedIndex[index] = struct{}{}
+				// 	Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Abnormal size of space", fid, uint64(minerInfo.PeerId), minerInfo.Power, minerInfo.Space)
+				// 	continue
+				// }
 
 				var temp = new(big.Int)
 				temp.Sub(new(big.Int).SetBytes(minerInfo.Power.Bytes()), new(big.Int).SetBytes(minerInfo.Space.Bytes()))
@@ -1303,27 +1294,11 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	}
 	f.Close()
 
-	// Calculate file meta information
-	var fmeta chain.FileMetaInfo
-	fmeta.FileSize = types.U64(fstat.Size())
-	fmeta.MinerAcc = types.NewAccountID(allMinerPubkey[index])
-	fmeta.FileState = types.Bytes([]byte("Active"))
-	fmeta.MinerIp = minerInfo.Ip
-	names := make([]types.Bytes, 1)
-	names[0] = types.NewBytes([]byte(name))
-	fmeta.Names = names
-	users := make([]types.Bytes, 1)
-	users[0] = types.NewBytes([]byte(userkey))
-	fmeta.Users = users
-
 	bs, sbs := CalcFileBlockSizeAndScanSize(fstat.Size())
-	fmeta.SegmentSize = types.U32(bs)
-	fmeta.ScanSize = types.U32(sbs)
 	blocknum := fstat.Size() / bs
 	if n == 0 {
 		n = 1
 	}
-	fmeta.BlockNum = types.U32(blocknum)
 
 	// calculate file tag info
 	var PoDR2commit proof.PoDR2Commit
@@ -1367,7 +1342,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 
 	// Upload the file meta information to the chain
 	for i := 0; i < 3; i++ {
-		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, fmeta)
+		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, fstat.Size(), blocknum, sbs, bs, allMinerPubkey[index], minerInfo.Ip, []byte(userkey))
 		if !ok || err != nil {
 			if i == 2 {
 				Uld.Sugar().Infof("[%v] File meta info on the chain failed: %v", fid, err)

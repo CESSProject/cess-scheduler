@@ -4,7 +4,6 @@ import (
 	"cess-scheduler/configs"
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
-	"encoding/binary"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -34,45 +33,7 @@ func GetMinerInfo(pubkey []byte) (MinerInfo, int, error) {
 	// 	return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
 	// }
 
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerInfo, pubkey)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
-	}
-
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
-	}
-	if !ok {
-		return mdata, configs.Code_404, errors.New("[value is empty]")
-	}
-	return mdata, configs.Code_200, nil
-}
-
-// Get miner information on the chain
-func GetMinerDataOnChainByPuk(puk types.AccountID) (Chain_MinerItems, int, error) {
-	var (
-		err   error
-		mdata Chain_MinerItems
-	)
-	api := getSubstrateApi_safe()
-	defer func() {
-		releaseSubstrateApi()
-		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
-		}
-	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
-	}
-
-	b, err := types.EncodeToBytes(puk)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
-	}
-
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, pubkey)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
@@ -116,41 +77,6 @@ func GetAllMinerDataOnChain() ([]types.Bytes, int, error) {
 	}
 	if !ok {
 		return mdata, configs.Code_404, errors.New("[value is empty]")
-	}
-	return mdata, configs.Code_200, nil
-}
-
-// Get miner information on the cess chain
-func GetMinerDetailsById(id uint64) (Chain_MinerDetails, int, error) {
-	var (
-		err   error
-		mdata Chain_MinerDetails
-	)
-	api := getSubstrateApi_safe()
-	defer func() {
-		releaseSubstrateApi()
-		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
-		}
-	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
-	}
-
-	eraIndexSerialized := make([]byte, 8)
-	binary.LittleEndian.PutUint64(eraIndexSerialized, id)
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerDetails, types.NewBytes(eraIndexSerialized))
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
-	}
-
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
-	}
-	if !ok {
-		return mdata, configs.Code_404, errors.New("Not found miner")
 	}
 	return mdata, configs.Code_200, nil
 }
@@ -309,6 +235,15 @@ func GetAddressByPrk(prk string) (string, error) {
 		return "", errors.Wrap(err, "[Encode]")
 	}
 	return acc, nil
+}
+
+//
+func GetPublicKeyByPrk(prk string) ([]byte, error) {
+	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	if err != nil {
+		return nil, errors.Wrap(err, "[KeyringPairFromSecret]")
+	}
+	return keyring.PublicKey, nil
 }
 
 //
