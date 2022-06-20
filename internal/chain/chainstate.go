@@ -238,6 +238,15 @@ func GetAddressByPrk(prk string) (string, error) {
 }
 
 //
+func GetPublicKeyByPrk(prk string) ([]byte, error) {
+	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	if err != nil {
+		return nil, errors.Wrap(err, "[KeyringPairFromSecret]")
+	}
+	return keyring.PublicKey, nil
+}
+
+//
 func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 	var (
 		err  error

@@ -1198,19 +1198,22 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	var index int
 	var n int
 	var minerInfo chain.MinerInfo
+
+	puk, _ := chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
+
+	var bo = PutFileToBucket{}
+	bo.BlockTotal = uint32(blockTotal)
+	bo.FileId = fid
+	bo.Publickey = puk
+
 	for j := int64(0); j < blockTotal; j++ {
 		var buf = make([]byte, configs.RpcFileBuffer)
 		f.Seek(j*configs.RpcFileBuffer, 0)
 		n, _ = f.Read(buf)
 
-		var bo = PutFileToBucket{
-			FileId:     fid,
-			FileHash:   "",
-			BlockTotal: uint32(blockTotal),
-			BlockSize:  uint32(n),
-			BlockIndex: uint32(j),
-			BlockData:  buf[:n],
-		}
+		bo.BlockIndex = uint32(j)
+		bo.BlockData = buf[:n]
+
 		bob, _ := proto.Marshal(&bo)
 		if err != nil {
 			ch <- 3
