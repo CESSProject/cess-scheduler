@@ -127,7 +127,7 @@ type UserSpaceInfo struct {
 
 //
 type VerifyResult struct {
-	MinerId types.U64
-	FileId  types.Bytes
-	Result  types.Bool
+	Miner_pubkey types.AccountID
+	FileId       types.Bytes
+	Result       types.Bool
 }

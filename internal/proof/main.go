@@ -117,55 +117,70 @@ func task_ValidateProof(ch chan bool) {
 			}
 			goeson = false
 			code = 0
+
+			addr, err := tools.EncodeToCESSAddr(proofs[i].Miner_pubkey[:])
+			if err != nil {
+				Tvp.Sugar().Infof(" [Err] [%v] EncodeToCESSAddr: %v", proofs[i].Miner_pubkey, err)
+			}
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] Marshal: %v", proofs[i].Miner_id, err)
+				Tvp.Sugar().Infof(" [Err] [%v] Marshal: %v", addr, err)
 			}
 
-			for j := 0; j < 5; j++ {
+			for j := 0; j < 3; j++ {
 				minerInfo, code, err = chain.GetMinerInfo(proofs[i].Miner_pubkey[:])
 				if err != nil {
-					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", string(proofs[i].Challenge_info.File_id), err)
+					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", addr, err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				}
 				if code == configs.Code_404 {
 					goeson = false
-					go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, false)
+					break
+				}
+				if code == configs.Code_200 {
+					goeson = true
 					break
 				}
 			}
 
 			if !goeson {
+				resultTemp := chain.VerifyResult{}
+				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Result = false
+				verifyResults = append(verifyResults, resultTemp)
 				continue
 			}
 
-			for j := 0; j < 5; j++ {
-				respData, err = rpc.WriteData(string(minerDetails.ServiceAddr), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
+			goeson = false
+			for j := 0; j < 3; j++ {
+				respData, err = rpc.WriteData(string(minerInfo.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 				if err != nil {
-					Tvp.Sugar().Infof(" [Err] [%v] [%v] WriteData: %v", proofs[i].Miner_id, string(minerDetails.ServiceAddr), err)
+					Tvp.Sugar().Infof(" [Err] [%v] [%v] WriteData: %v", addr, string(minerInfo.Ip), err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				} else {
-					break
-				}
-				if j == 4 {
-					goeson = false
-					go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, false)
+					goeson = true
 					break
 				}
 			}
 
 			if !goeson {
+				resultTemp := chain.VerifyResult{}
+				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Result = false
+				verifyResults = append(verifyResults, resultTemp)
 				continue
 			}
 
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] [%v] Unmarshal: %v", proofs[i].Miner_id, string(minerDetails.ServiceAddr), err)
+				Tvp.Sugar().Infof(" [Err] [%v] [%v] Unmarshal: %v", addr, string(minerInfo.Ip), err)
 			}
 			qSlice, err := api.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] qslice: %v", proofs[i].Miner_id, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
+				Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] qslice: %v", addr, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
 			}
 
 			poDR2verify.QSlice = qSlice
@@ -190,28 +205,33 @@ func task_ValidateProof(ch chan bool) {
 				ch <- result
 			}(gWait)
 			result := <-gWait
-			go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+			resultTemp := chain.VerifyResult{}
+			resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+			resultTemp.FileId = proofs[i].Challenge_info.File_id
+			resultTemp.Result = types.Bool(result)
+			verifyResults = append(verifyResults, resultTemp)
 		}
+		go processProofResult(verifyResults)
 	}
 }
 
-func processProofResult(minerId types.U64, fileid types.Bytes, result bool) {
+func processProofResult(data []chain.VerifyResult) {
 	var (
 		err  error
 		ts   = time.Now().Unix()
 		code = 0
 	)
 	for code != int(configs.Code_200) && code != int(configs.Code_600) {
-		code, err = chain.PutProofResult(configs.C.CtrlPrk, minerId, fileid, result)
+		code, err = chain.PutProofResult(configs.C.CtrlPrk, data)
 		if err == nil {
-			Tvp.Sugar().Infof("[%v] [%v] [%v] [%v] Proof result submitted successfully", minerId, string(fileid), result, err)
+			Tvp.Info("[ok] Proof result submitted successfully")
 			break
 		}
-		if time.Since(time.Unix(ts, 0)).Minutes() > 3.0 {
-			Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] [%v] Proof result submitted timeout", minerId, string(fileid), result, err)
+		if time.Since(time.Unix(ts, 0)).Minutes() > 2.0 {
+			Tvp.Info(" [Err] Proof result submitted timeout")
 			break
 		}
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
 	}
 }
 
