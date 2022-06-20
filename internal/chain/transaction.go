@@ -161,7 +161,7 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 }
 
 // Update file meta information
-func PutMetaInfoToChain(transactionPrK, fid string, info []FileDuplicateInfo) (bool, error) {
+func PutMetaInfoToChain(transactionPrK, fid string, info FileMetaInfo) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo

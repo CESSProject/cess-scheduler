@@ -763,7 +763,6 @@ func task_SyncMinersInfo(ch chan bool) {
 	}()
 
 	Tsmi.Info("-----> Start task_UpdateMinerInfo")
-	time.Sleep(time.Second * 10)
 
 	for {
 		c, err := db.GetCache()
@@ -773,12 +772,16 @@ func task_SyncMinersInfo(ch chan bool) {
 			continue
 		}
 
-		allMinerInfo, _, _ := chain.GetAllMinerDataOnChain()
-		for i := 0; i < len(allMinerInfo); i++ {
-			key, _ := tools.IntegerToBytes(allMinerInfo[i].Peerid)
-			ok, err := c.Has(key)
+		allMinerAcc, _, _ := chain.GetAllMinerDataOnChain()
+		for i := 0; i < len(allMinerAcc); i++ {
+			addr, err := tools.EncodeToCESSAddr(allMinerAcc[i])
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] c.Has: %v", allMinerInfo[i].Peerid, err)
+				Tsmi.Sugar().Infof(" [Err] [%v] EncodeToCESSAddr: %v", allMinerAcc[i], err)
+				continue
+			}
+			ok, err := c.Has(allMinerAcc[i])
+			if err != nil {
+				Tsmi.Sugar().Infof(" [Err] [%v] c.Has: %v", addr, err)
 				continue
 			}
 
@@ -788,36 +791,28 @@ func task_SyncMinersInfo(ch chan bool) {
 
 			var cm chain.Cache_MinerInfo
 
-			mdata, _, err := chain.GetMinerDetailsById(uint64(allMinerInfo[i].Peerid))
+			mdata, _, err := chain.GetMinerInfo(allMinerAcc[i])
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", allMinerInfo[i].Peerid, err)
+				Tsmi.Sugar().Infof("[Err] [%v] GetMinerInfo: %v", addr, err)
 				continue
 			}
-			cm.Peerid = uint64(allMinerInfo[i].Peerid)
-			cm.Ip = string(allMinerInfo[i].Ip)
-			ss, _ := tools.Encode(mdata.Address[:], tools.ChainCessTestPrefix)
-			cm.Acc = ss
-
-			mdetails, _, err := chain.GetMinerDataOnChain(ss)
-			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] GetMinerDataOnChain: %v", allMinerInfo[i].Peerid, err)
-				continue
-			}
-			cm.Puk = mdetails.Publickey
+			cm.Peerid = uint64(mdata.PeerId)
+			cm.Ip = string(mdata.Ip)
+			cm.Pubkey = allMinerAcc[i]
 
 			value, err := json.Marshal(&cm)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] json.Marshal: %v", allMinerInfo[i].Peerid, err)
+				Tsmi.Sugar().Infof(" [Err] [%v] json.Marshal: %v", addr, err)
 				continue
 			}
-			err = c.Put(key, value)
+			err = c.Put(allMinerAcc[i], value)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] c.Put: %v", allMinerInfo[i].Peerid, err)
+				Tsmi.Sugar().Infof(" [Err] [%v] c.Put: %v", addr, err)
 			}
-			Tsmi.Sugar().Infof(" [suc] [%v] Put suc", allMinerInfo[i].Peerid)
+			Tsmi.Sugar().Infof(" [OK] [C%v] Cache succeeded", mdata.PeerId)
 		}
 
-		if len(allMinerInfo) > 0 {
+		if len(allMinerAcc) > 0 {
 			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(1, 5)))
 		}
 	}

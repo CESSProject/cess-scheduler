@@ -15,7 +15,7 @@ const (
 // cess chain module method
 const (
 	Sminer_AllMinerItems      = "AllMiner"
-	Sminer_MinerItems         = "MinerItems"
+	Sminer_MinerInfo          = "MinerInfo"
 	Sminer_SegInfo            = "SegInfo"
 	FileMap_FileMetaInfo      = "File"
 	FileMap_SchedulerInfo     = "SchedulerMap"
@@ -42,55 +42,39 @@ const (
 	FileBank_ClearRecoveredFile     = "FileBank.recover_file"
 )
 
-type Chain_MinerItems struct {
-	Peerid      types.U64
-	Beneficiary types.AccountID
+type MinerInfo struct {
+	PeerId      types.U64
+	IncomeAcc   types.AccountID
 	Ip          types.Bytes
 	Collaterals types.U128
-	Earnings    types.U128
-	Locked      types.U128
 	State       types.Bytes
 	Power       types.U128
 	Space       types.U128
-	Publickey   types.Bytes
+	RewardInfo  RewardInfo
 }
 
-type CessChain_AllMinerInfo struct {
-	Peerid types.U64   `json:"peerid"`
-	Ip     types.Bytes `json:"ip"`
-	Power  types.U128  `json:"power"`
-	Space  types.U128  `json:"space"`
+type RewardInfo struct {
+	Total       types.U128
+	Received    types.U128
+	NotReceived types.U128
 }
 
 type Cache_MinerInfo struct {
 	Peerid uint64 `json:"peerid"`
 	Ip     string `json:"ip"`
-	Acc    string `json:"acc"`
-	Puk    []byte `json:"puk"`
+	Pubkey []byte `json:"pubkey"`
 }
 
 type FileMetaInfo struct {
-	//FileId      types.Bytes         `json:"acc"`         //File id
-	FileName    types.Bytes         `json:"file_name"`   //File name
-	FileSize    types.U64           `json:"file_size"`   //File size
-	FileHash    types.Bytes         `json:"file_hash"`   //File hash
-	Public      types.Bool          `json:"public"`      //Public or not
-	UserAddr    types.AccountID     `json:"user_addr"`   //Upload user's address
-	FileState   types.Bytes         `json:"file_state"`  //File state
-	Backups     types.U8            `json:"backups"`     //Number of backups
-	Downloadfee types.U128          `json:"downloadfee"` //Download fee
-	FileDupl    []FileDuplicateInfo `json:"file_dupl"`   //File backup information list
-}
-
-type FileDuplicateInfo struct {
-	MinerId   types.U64
-	BlockNum  types.U32
-	ScanSize  types.U32
-	Acc       types.AccountID
-	MinerIp   types.Bytes
-	DuplId    types.Bytes
-	RandKey   types.Bytes
-	BlockInfo []BlockInfo
+	FileSize    types.U64       `json:"File_size"`
+	BlockNum    types.U32       `json:"Block_num"`
+	ScanSize    types.U32       `json:"Scan_size"`
+	SegmentSize types.U32       `json:"Segment_size"`
+	MinerAcc    types.AccountID `json:"Miner_acc"`
+	MinerIp     types.Bytes     `json:"Miner_ip"`
+	FileState   types.Bytes     `json:"File_state"`
+	Users       []types.Bytes   `json:"Users"`
+	Names       []types.Bytes   `json:"Names"`
 }
 
 type SchedulerInfo struct {
@@ -112,22 +96,6 @@ type SpaceFileInfo struct {
 	Acc       types.AccountID
 	FileId    types.Bytes
 	FileHash  types.Bytes
-}
-
-type BlockInfo struct {
-	BlockIndex types.Bytes
-	BlockSize  types.U32
-}
-
-type Chain_MinerDetails struct {
-	Address                           types.AccountID
-	Beneficiary                       types.AccountID
-	ServiceAddr                       types.Bytes
-	Power                             types.U128
-	Space                             types.U128
-	Total_reward                      types.U128
-	Total_rewards_currently_available types.U128
-	Totald_not_receive                types.U128
 }
 
 type Chain_SchedulerPuk struct {
