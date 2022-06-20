@@ -449,7 +449,7 @@ func ObtainFromFaucet(faucetaddr, pbk string) error {
 }
 
 //
-func PutProofResult(signaturePrk string, id types.U64, fid types.Bytes, result bool) (int, error) {
+func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -472,7 +472,7 @@ func PutProofResult(signaturePrk string, id types.U64, fid types.Bytes, result b
 		return configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	c, err := types.NewCall(meta, SegmentBook_VerifyProof, id, fid, types.Bool(result))
+	c, err := types.NewCall(meta, SegmentBook_VerifyProof, data)
 	if err != nil {
 		return configs.Code_500, errors.Wrap(err, "[NewCall]")
 	}
@@ -554,15 +554,12 @@ func PutProofResult(signaturePrk string, id types.U64, fid types.Bytes, result b
 				if err != nil {
 					Out.Sugar().Infof("[T:%v]Decode event err:%v", t, err)
 				}
-				if events.SegmentBook_VerifyProof != nil {
-					for i := 0; i < len(events.SegmentBook_VerifyProof); i++ {
-						if events.SegmentBook_VerifyProof[i].PeerId == types.U64(id) {
-							Out.Sugar().Infof("[T:%v] Submit prove success", t)
-							return configs.Code_200, nil
-						}
-					}
-					return configs.Code_600, errors.Errorf("[T:%v] events.SegmentBook_VerifyProof data err", t)
+
+				if len(events.SegmentBook_VerifyProof) > 0 {
+					Out.Sugar().Infof("[T:%v] Submit prove success", t)
+					return configs.Code_200, nil
 				}
+
 				return configs.Code_600, errors.Errorf("[T:%v] events.SegmentBook_VerifyProof not found", t)
 			}
 		case err = <-sub.Err():

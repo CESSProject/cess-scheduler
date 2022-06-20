@@ -136,6 +136,7 @@ type Chain_SchedulerPuk struct {
 }
 
 type Chain_Proofs struct {
+	File_id        types.Bytes
 	Miner_id       types.U64
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
@@ -156,4 +157,11 @@ type UserSpaceInfo struct {
 	PurchasedSpace types.U128
 	UsedSpace      types.U128
 	RemainingSpace types.U128
+}
+
+//---user space Info
+type VerifyResult struct {
+	MinerId types.U64
+	FileId  types.Bytes
+	Result  types.Bool
 }

@@ -78,14 +78,18 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	}
 
 	if b.BlockIndex == 1 {
-		_, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
-		if err != nil {
-			if code == configs.Code_404 {
-				Uld.Sugar().Infof("[%v] File not found on chain", b.FileId)
-				return &RespBody{Code: int32(code), Msg: "File not found on chain"}, nil
+		count := 0
+		code := configs.Code_404
+		for code != configs.Code_200 {
+			_, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
+			if count > 3 && code != configs.Code_200 {
+				Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+				return &RespBody{Code: int32(code), Msg: err.Error()}, nil
 			}
-			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+			if code != configs.Code_200 {
+				time.Sleep(time.Second)
+			}
+			count++
 		}
 		err = tools.CreatDirIfNotExist(cachepath)
 		if err != nil {
@@ -579,7 +583,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	ok := encryption.VerifySign(key, b.Sign, pubkey)
 	if !ok {
 		Spc.Sugar().Infof("[%v] [C%v] Invalid signature", b.Fileid, b.Minerid)
-		return &RespBody{Code: 403, Msg: "Invalid signature"}, nil
+		//return &RespBody{Code: 403, Msg: "Invalid signature"}, nil
 	}
 
 	var mid = "C" + fmt.Sprintf("%v", b.Minerid)

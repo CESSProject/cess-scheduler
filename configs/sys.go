@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.4.0"
+const Version = "cess-scheduler v0.4.1"
 
 // rpc
 const (

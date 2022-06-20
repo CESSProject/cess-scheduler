@@ -58,6 +58,8 @@ func Chain_Main() {
 func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
+		goeson      bool
+		code        int
 		puk         chain.Chain_SchedulerPuk
 		poDR2verify api.PoDR2Verify
 		reqtag      p.ReadTagReq
@@ -93,60 +95,73 @@ func task_ValidateProof(ch chan bool) {
 	}
 
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(150, 300)))
+		var verifyResults = make([]chain.VerifyResult, 0)
 		proofs, _, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
-		if err != nil || len(proofs) == 0 {
+		if err != nil {
 			Tvp.Sugar().Infof(" [Err] %v", err)
+			continue
+		}
+		if len(proofs) == 0 {
 			continue
 		}
 
 		Tvp.Sugar().Infof("--> Ready to verify %v proofs", len(proofs))
 
-		var goeson bool = true
-		var code int
 		var respData []byte
 		var tag TagInfo
 		var minerDetails chain.Chain_MinerDetails
 		for i := 0; i < len(proofs); i++ {
+			if len(verifyResults) > 45 {
+				break
+			}
+			goeson = false
+			code = 0
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
 				Tvp.Sugar().Infof(" [Err] [%v] Marshal: %v", proofs[i].Miner_id, err)
 			}
 
-			for j := 0; j < 5; j++ {
+			for j := 0; j < 3; j++ {
 				minerDetails, code, err = chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
 				if err != nil {
 					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", proofs[i].Miner_id, err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				}
-				if code == configs.Code_404 {
-					goeson = false
-					go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, false)
+				if code == configs.Code_200 {
+					goeson = true
 					break
 				}
 			}
 
 			if !goeson {
+				resultTemp := chain.VerifyResult{}
+				resultTemp.MinerId = proofs[i].Miner_id
+				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Result = false
+				verifyResults = append(verifyResults, resultTemp)
 				continue
 			}
 
-			for j := 0; j < 5; j++ {
+			goeson = false
+			for j := 0; j < 3; j++ {
 				respData, err = rpc.WriteData(string(minerDetails.ServiceAddr), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 				if err != nil {
 					Tvp.Sugar().Infof(" [Err] [%v] [%v] WriteData: %v", proofs[i].Miner_id, string(minerDetails.ServiceAddr), err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				} else {
-					break
-				}
-				if j == 4 {
-					goeson = false
-					go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, false)
+					goeson = true
 					break
 				}
 			}
 
 			if !goeson {
+				resultTemp := chain.VerifyResult{}
+				resultTemp.MinerId = proofs[i].Miner_id
+				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Result = false
+				verifyResults = append(verifyResults, resultTemp)
 				continue
 			}
 
@@ -181,28 +196,33 @@ func task_ValidateProof(ch chan bool) {
 				ch <- result
 			}(gWait)
 			result := <-gWait
-			go processProofResult(proofs[i].Miner_id, proofs[i].Challenge_info.File_id, result)
+			resultTemp := chain.VerifyResult{}
+			resultTemp.MinerId = proofs[i].Miner_id
+			resultTemp.FileId = proofs[i].Challenge_info.File_id
+			resultTemp.Result = types.Bool(result)
+			verifyResults = append(verifyResults, resultTemp)
 		}
+		go processProofResult(verifyResults)
 	}
 }
 
-func processProofResult(minerId types.U64, fileid types.Bytes, result bool) {
+func processProofResult(data []chain.VerifyResult) {
 	var (
 		err  error
 		ts   = time.Now().Unix()
 		code = 0
 	)
 	for code != int(configs.Code_200) && code != int(configs.Code_600) {
-		code, err = chain.PutProofResult(configs.C.CtrlPrk, minerId, fileid, result)
+		code, err = chain.PutProofResult(configs.C.CtrlPrk, data)
 		if err == nil {
-			Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] [%v] Proof result submitted successfully", minerId, string(fileid), result, err)
+			Tvp.Info("[ok] Proof result submitted successfully")
 			break
 		}
-		if time.Since(time.Unix(ts, 0)).Minutes() > 3.0 {
-			Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] [%v] Proof result submitted timeout", minerId, string(fileid), result, err)
+		if time.Since(time.Unix(ts, 0)).Minutes() > 2.0 {
+			Tvp.Info(" [Err] Proof result submitted timeout")
 			break
 		}
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
 	}
 }
 
