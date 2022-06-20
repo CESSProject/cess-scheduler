@@ -26,10 +26,11 @@ message RespBody {
 message auth_req {
     string file_id     = 1;
     string file_name   = 2;
-    uint32 block_total = 3;
-    bytes  public_key  = 4;
-    bytes  msg         = 5;
-    bytes  sign        = 6;
+    uint64 file_size   = 3;
+    uint32 block_total = 4;
+    bytes  public_key  = 5;
+    bytes  msg         = 6;
+    bytes  sign        = 7;
 }
 
 message file_upload_req {

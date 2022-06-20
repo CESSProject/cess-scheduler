@@ -201,6 +201,13 @@ type Event_ReceiveSpace struct {
 	Topics []types.Hash
 }
 
+type Event_UploadDeclaration struct {
+	Phase     types.Phase
+	File_hash types.Bytes
+	File_name types.Bytes
+	Topics    []types.Hash
+}
+
 //------------------------FileMap--------------------------------
 type Event_RegistrationScheduler struct {
 	Phase  types.Phase
@@ -263,7 +270,6 @@ type MyEventRecords struct {
 	FileBank_DeleteFile           []Event_DeleteFile
 	FileBank_BuySpace             []Event_BuySpace
 	FileBank_FileUpload           []Event_FileUpload
-	FileBank_FileUpdate           []Event_FileUpdate
 	FileBank_LeaseExpireIn24Hours []Event_LeaseExpireIn24Hours
 	FileBank_FileChangeState      []Event_FileChangeState
 	FileBank_BuyFile              []Event_BuyFile
@@ -274,6 +280,7 @@ type MyEventRecords struct {
 	FileBank_ClearInvalidFile     []Event_ClearInvalidFile
 	FileBank_RecoverFile          []Event_RecoverFile
 	FileBank_ReceiveSpace         []Event_ReceiveSpace
+	FileBank_UploadDeclaration    []Event_UploadDeclaration
 	//FileMap
 	FileMap_RegistrationScheduler []Event_RegistrationScheduler
 	//other system

@@ -58,6 +58,8 @@ func Chain_Main() {
 func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
+		goeson      bool
+		code        int
 		puk         chain.Chain_SchedulerPuk
 		poDR2verify api.PoDR2Verify
 		reqtag      p.ReadTagReq
@@ -94,7 +96,7 @@ func task_ValidateProof(ch chan bool) {
 
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
-
+		var verifyResults = make([]chain.VerifyResult, 0)
 		proofs, _, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
 			Tvp.Sugar().Infof(" [Err] %v", err)
@@ -106,12 +108,15 @@ func task_ValidateProof(ch chan bool) {
 
 		Tvp.Sugar().Infof("--> Ready to verify %v proofs", len(proofs))
 
-		var goeson bool = true
-		var code int
 		var respData []byte
 		var tag TagInfo
-		var minerDetails chain.Chain_MinerDetails
+		var minerInfo chain.MinerInfo
 		for i := 0; i < len(proofs); i++ {
+			if len(verifyResults) > 45 {
+				break
+			}
+			goeson = false
+			code = 0
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
@@ -119,9 +124,9 @@ func task_ValidateProof(ch chan bool) {
 			}
 
 			for j := 0; j < 5; j++ {
-				minerDetails, code, err = chain.GetMinerDetailsById(uint64(proofs[i].Miner_id))
+				minerInfo, code, err = chain.GetMinerInfo(proofs[i].Miner_pubkey[:])
 				if err != nil {
-					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", proofs[i].Miner_id, err)
+					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", string(proofs[i].Challenge_info.File_id), err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				}
 				if code == configs.Code_404 {

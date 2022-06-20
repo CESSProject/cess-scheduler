@@ -161,7 +161,7 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 }
 
 // Update file meta information
-func PutMetaInfoToChain(transactionPrK, fid string, info FileMetaInfo) (bool, error) {
+func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size, segment_size int64, miner_acc, miner_ip, user []byte) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -183,7 +183,18 @@ func PutMetaInfoToChain(transactionPrK, fid string, info FileMetaInfo) (bool, er
 		return false, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
-	c, err := types.NewCall(meta, ChainTx_FileBank_PutMetaInfo, types.NewBytes([]byte(fid)), info)
+	c, err := types.NewCall(
+		meta,
+		Tx_FileBank_Upload,
+		types.NewBytes([]byte(fid)),
+		types.U64(fsize),
+		types.U32(block_num),
+		types.U32(scan_size),
+		types.U32(segment_size),
+		types.NewAccountID(miner_acc),
+		types.Bytes(miner_ip),
+		types.NewAccountID(user),
+	)
 	if err != nil {
 		return false, errors.Wrap(err, "NewCall err")
 	}
