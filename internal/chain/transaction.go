@@ -300,7 +300,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size,
 }
 
 // Update file meta information
-func PutSpaceTagInfoToChain(transactionPrK string, mid types.U64, info []SpaceFileInfo) (string, int, error) {
+func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []SpaceFileInfo) (string, int, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -322,7 +322,7 @@ func PutSpaceTagInfoToChain(transactionPrK string, mid types.U64, info []SpaceFi
 		return "", configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	c, err := types.NewCall(meta, ChainTx_FileBank_UploadFiller, mid, info)
+	c, err := types.NewCall(meta, ChainTx_FileBank_UploadFiller, types.NewAccountID(miner_acc), info)
 	if err != nil {
 		return "", configs.Code_500, errors.Wrap(err, "[NewCall]")
 	}

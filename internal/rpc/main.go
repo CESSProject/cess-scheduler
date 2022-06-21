@@ -660,7 +660,7 @@ type RespSpacetagInfo struct {
 	Sigmas  [][]byte       `json:"sigmas"`
 }
 
-var spaceFileMap = make(map[uint64]int64, 10)
+var spaceFileMap = make(map[string]int64, 10)
 
 // SpacefileAction is used to handle miner requests to download space files.
 // The return code is 200 for success, non-200 for failure.
@@ -677,24 +677,25 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
-	if b.Minerid == 0 {
-		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
-	}
-
 	//Prohibit frequent requests
-	v, ok := spaceFileMap[b.Minerid]
+	v, ok := spaceFileMap[string(b.Publickey)]
 	if ok {
 		if time.Since(time.Unix(v, 0)).Seconds() < 10 {
 			return &RespBody{Code: 403, Msg: "Requests too frequently"}, nil
 		}
 	}
-	spaceFileMap[b.Minerid] = time.Now().Unix()
+	spaceFileMap[string(b.Publickey)] = time.Now().Unix()
+
+	addr, err := tools.EncodeToCESSAddr(b.Publickey)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
+	}
 
 	//Log valid requests
 	if b.Fileid == "" {
-		Spc.Sugar().Infof("[C%v] Get space file", b.Minerid)
+		Spc.Sugar().Infof("[%v] Get space file", addr)
 	} else {
-		Spc.Sugar().Infof("[C%v] Uplink space file meta", b.Minerid)
+		Spc.Sugar().Infof("[%v] Uplink space file meta", addr)
 	}
 
 	//Verify miner identity
@@ -712,23 +713,21 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
 
-	mid := "C" + fmt.Sprintf("%v", b.Minerid)
-
-	filebasedir := filepath.Join(configs.SpaceCacheDir, mid)
+	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
 	_, err = os.Stat(filebasedir)
 	if err != nil {
 		err = os.MkdirAll(filebasedir, os.ModeDir)
 		if err != nil {
-			Spc.Sugar().Infof("[C%v] mkdir [%v] err: %v", b.Minerid, filebasedir, err)
+			Spc.Sugar().Infof("[%v] mkdir [%v] err: %v", addr, filebasedir, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
-	filename := fmt.Sprintf("%v_%d", mid, time.Now().Unix())
+	filename := fmt.Sprintf("%d", time.Now().Unix())
 	filefullpath := filepath.Join(filebasedir, filename)
 
 	if b.Fileid != "" {
-		txhash, err := upChainSpaceFileMeta(b.Minerid, b.Fileid, filefullpath, b.Publickey)
+		txhash, err := upChainSpaceFileMeta(addr, b.Fileid, filefullpath, b.Publickey)
 		if err != nil {
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
@@ -744,7 +743,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	//Generate space file
 	err = genSpaceFile(filefullpath, baseStr, reg)
 	if err != nil {
-		Spc.Sugar().Infof("[C%v] [%v] Stat err: %v", b.Minerid, filefullpath, err)
+		Spc.Sugar().Infof("[%v] [%v] Stat err: %v", addr, filefullpath, err)
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
@@ -784,7 +783,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	}(gWait)
 
 	if !<-gWait {
-		Spc.Sugar().Infof("[C%v] PoDR2ProofCommit false", b.Minerid)
+		Spc.Sugar().Infof("[%v] PoDR2ProofCommit false", addr)
 		return &RespBody{Code: 500, Msg: "unexpected system error"}, nil
 	}
 
@@ -796,11 +795,11 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	resp.Sigmas = commitResponse.Sigmas
 	resp_b, err := json.Marshal(resp)
 	if err != nil {
-		Spc.Sugar().Infof("[C%v] Marshal err: %v", b.Minerid, err)
+		Spc.Sugar().Infof("[%v] Marshal err: %v", addr, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
-	Spc.Sugar().Infof("[C%v] Generat space file [%v]", b.Minerid, filename)
+	Spc.Sugar().Infof("[%v] Generat space file [%v]", addr, filename)
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
@@ -1384,26 +1383,25 @@ func genSpaceFile(fpath, content string, rule []byte) error {
 	return f.Sync()
 }
 
-func upChainSpaceFileMeta(minerid uint64, fileid, fpath string, pubkey []byte) (string, error) {
+func upChainSpaceFileMeta(addr, fileid, fpath string, pubkey []byte) (string, error) {
 	// up-chain meta info
 	var metainfo = make([]chain.SpaceFileInfo, 1)
 	metainfo[0].FileId = []byte(fileid)
 	fstat, err := os.Stat(fpath)
 	if err != nil {
-		Spc.Sugar().Infof("[C%v] os.Stat [%v] err: %v", minerid, fpath, err)
+		Spc.Sugar().Infof("[%v] os.Stat [%v] err: %v", addr, fpath, err)
 		return "", err
 	}
 
 	hash, err := tools.CalcFileHash(fpath)
 	if err != nil {
-		Spc.Sugar().Infof("[C%v] CalcFileHash [%v] err: %v", minerid, fpath, err)
+		Spc.Sugar().Infof("[%v] CalcFileHash [%v] err: %v", addr, fpath, err)
 		return "", err
 	}
 
 	metainfo[0].FileHash = []byte(hash)
 	metainfo[0].FileSize = types.U64(uint64(fstat.Size()))
 	metainfo[0].Acc = types.NewAccountID(pubkey)
-	metainfo[0].MinerId = types.U64(minerid)
 
 	blocknum := uint64(math.Ceil(float64(fstat.Size() / configs.BlockSize)))
 	if blocknum == 0 {
@@ -1418,7 +1416,7 @@ func upChainSpaceFileMeta(minerid uint64, fileid, fpath string, pubkey []byte) (
 	for i := 0; i < 3; i++ {
 		txhash, code, _ = chain.PutSpaceTagInfoToChain(
 			configs.C.CtrlPrk,
-			types.U64(minerid),
+			pubkey,
 			metainfo,
 		)
 		if txhash != "" || code == configs.Code_200 || code == configs.Code_600 {
@@ -1427,10 +1425,10 @@ func upChainSpaceFileMeta(minerid uint64, fileid, fpath string, pubkey []byte) (
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 	}
 	if txhash != "" {
-		Spc.Sugar().Infof("[C%v] Uplink file meta failed", minerid)
+		Spc.Sugar().Infof("[%v] Uplink file meta failed", addr)
 		return "", errors.New("Uplink file meta failed")
 	}
 	os.Remove(fpath)
-	Spc.Sugar().Infof("[C%v] Uplink file meta [%v]", minerid, txhash)
+	Spc.Sugar().Infof("[%v] Uplink file meta [%v]", addr, txhash)
 	return txhash, nil
 }

@@ -86,7 +86,6 @@ type CessChain_EtcdItems struct {
 }
 
 type SpaceFileInfo struct {
-	MinerId   types.U64
 	FileSize  types.U64
 	BlockNum  types.U32
 	BlockSize types.U32

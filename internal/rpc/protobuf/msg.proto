@@ -54,7 +54,6 @@ message file_download_req{
 }
 
 message space_file_req{
-    uint64 minerid   = 1;
     string fileid    = 2;
     bytes  publickey = 3;
     bytes  msg       = 4;
