@@ -134,20 +134,20 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:GetMetadataLatest]", State_FileMap, FileMap_SchedulerInfo)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_FileMap, FileMap_SchedulerInfo)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:CreateStorageKey]", State_FileMap, FileMap_SchedulerInfo)
+		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrapf(err, "[%v.%v:GetStorageLatest]", State_FileMap, FileMap_SchedulerInfo)
+		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.Errorf("[%v.%v:value is empty]", State_FileMap, FileMap_SchedulerInfo)
+		return mdata, configs.Code_404, errors.New("[Not found]")
 	}
 	return mdata, configs.Code_200, nil
 }
@@ -230,7 +230,7 @@ func GetAddressByPrk(prk string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
 	}
-	acc, err := tools.Encode(keyring.PublicKey, tools.ChainCessTestPrefix)
+	acc, err := tools.EncodeToCESSAddr(keyring.PublicKey)
 	if err != nil {
 		return "", errors.Wrap(err, "[Encode]")
 	}

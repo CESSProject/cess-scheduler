@@ -261,26 +261,34 @@ func register_if() {
 		rgst()
 		return
 	}
-	hashs, err := tools.CalcHash([]byte(configs.C.CtrlPrk))
+	addr, err := chain.GetAddressByPrk(configs.C.CtrlPrk)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
 
-	baseDir := filepath.Join(configs.C.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
-	f, err := os.Stat(baseDir)
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' not found\n", 41, baseDir)
-		os.Exit(1)
-	}
-	if !f.IsDir() {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' is not a directory\n", 41, baseDir)
-		os.Exit(1)
-	}
+	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
+
 	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
+	if err = tools.CreatDirIfNotExist(configs.LogFileDir); err != nil {
+		goto Err
+	}
 	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
+	if err = tools.CreatDirIfNotExist(configs.FileCacheDir); err != nil {
+		goto Err
+	}
 	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
+	if err = tools.CreatDirIfNotExist(configs.DbFileDir); err != nil {
+		goto Err
+	}
 	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
+	if err = tools.CreatDirIfNotExist(configs.SpaceCacheDir); err != nil {
+		goto Err
+	}
+	return
+Err:
+	fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+	os.Exit(1)
 }
 
 func rgst() {
@@ -290,13 +298,13 @@ func rgst() {
 		os.Exit(1)
 	}
 
-	hashs, err := tools.CalcHash([]byte(configs.C.CtrlPrk))
+	addr, err := chain.GetAddressByPrk(configs.C.CtrlPrk)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
 
-	baseDir := filepath.Join(configs.C.DataDir, tools.GetStringWithoutNumbers(hashs), configs.BaseDir)
+	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
 	_, err = os.Stat(baseDir)
 	if err == nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m '%v' directory conflict\n", 41, baseDir)
@@ -310,15 +318,15 @@ func rgst() {
 		}
 	}
 
-	res := base58.Encode([]byte(configs.C.ServiceAddr + ":" + configs.C.ServicePort))
+	res := base58.Encode([]byte(eip + ":" + configs.C.ServicePort))
 
-	_, err = chain.RegisterToChain(
+	txhash, _, _ := chain.RegisterToChain(
 		configs.C.CtrlPrk,
 		chain.ChainTx_FileMap_Add_schedule,
 		configs.C.StashAcc,
 		res,
 	)
-	if err != nil {
+	if txhash == "" {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed, Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
 	}

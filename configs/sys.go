@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.1.1"
+const Version = "cess-scheduler v0.5.0 pre-release"
 
 // rpc
 const (
@@ -12,7 +12,7 @@ const (
 	RpcMethod_Miner_WriteFileTag = "writefiletag"
 	RpcMethod_Miner_ReadFileTag  = "readfiletag"
 	RpcFileBuffer                = 1024 * 1024 //1MB
-	RpcSpaceBuffer               = 16 * 1024   //16KB
+	RpcSpaceBuffer               = 512 * 1024  //512KB
 )
 
 // return state code
