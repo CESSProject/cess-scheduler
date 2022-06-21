@@ -42,13 +42,25 @@ type authinfo struct {
 	blockTotal uint32
 }
 
+type authspaceinfo struct {
+	publicKey  string
+	updateTime int64
+}
+
 type authmap struct {
 	lock   *sync.Mutex
 	users  map[string]string
 	tokens map[string]authinfo
 }
 
+type spacemap struct {
+	lock   *sync.Mutex
+	miners map[string]string
+	tokens map[string]authspaceinfo
+}
+
 var am *authmap
+var sm *spacemap
 
 func (this *authmap) Delete(key string) {
 	this.lock.Lock()
@@ -100,11 +112,38 @@ func (this *authmap) UpdateTime(key string) (uint32, string, string, string, err
 	return v.blockTotal, v.fileId, v.publicKey, v.fileName, nil
 }
 
+func (this *spacemap) UpdateTimeIfExists(key string) (string, int, error) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	v, ok := this.miners[key]
+	if ok {
+		info := this.tokens[v]
+		if time.Since(time.Unix(info.updateTime, 0)).Seconds() < 10 {
+			return v, configs.Code_403, errors.New("Requests too frequently")
+		}
+		info.updateTime = time.Now().Unix()
+		this.tokens[v] = info
+		return v, configs.Code_200, nil
+	}
+	token := tools.RandStr(16)
+	data := authspaceinfo{}
+	data.publicKey = key
+	data.updateTime = time.Now().Unix()
+	this.miners[key] = token
+	this.tokens[token] = data
+	return token, configs.Code_200, nil
+}
+
 func init() {
 	am = new(authmap)
 	am.lock = new(sync.Mutex)
 	am.users = make(map[string]string, 10)
 	am.tokens = make(map[string]authinfo, 10)
+	sm = new(spacemap)
+	sm.lock = new(sync.Mutex)
+	sm.miners = make(map[string]string, 10)
+	sm.tokens = make(map[string]authspaceinfo, 10)
 }
 
 // Start tcp service.
@@ -652,50 +691,40 @@ func storeFiles(fid, fpath, name, pubkey string) {
 // 	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
 // }
 
-type RespSpacetagInfo struct {
-	FileId  string         `json:"fileId"`
-	Content string         `json:"content"`
-	Rule    []byte         `json:"rule"`
-	T       proof.FileTagT `json:"file_tag_t"`
-	Sigmas  [][]byte       `json:"sigmas"`
+type RespSpaceInfo struct {
+	FileId string         `json:"fileId"`
+	Token  string         `json:"token"`
+	T      proof.FileTagT `json:"file_tag_t"`
+	Sigmas [][]byte       `json:"sigmas"`
 }
 
-var spaceFileMap = make(map[string]int64, 10)
-
-// SpacefileAction is used to handle miner requests to download space files.
+// SpaceAction is used to handle miner requests to download space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
-func (WService) SpacefileAction(body []byte) (proto.Message, error) {
+func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
 		}
 	}()
-	var b SpaceFileReq
+
+	if len(sm.miners) > 2000 {
+		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
+	}
+
+	var b SpaceReq
 	err := proto.Unmarshal(body, &b)
 	if err != nil {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
-	//Prohibit frequent requests
-	v, ok := spaceFileMap[string(b.Publickey)]
-	if ok {
-		if time.Since(time.Unix(v, 0)).Seconds() < 10 {
-			return &RespBody{Code: 403, Msg: "Requests too frequently"}, nil
-		}
+	if len(b.Publickey) == 0 || len(b.Msg) == 0 || len(b.Sign) == 0 {
+		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
-	spaceFileMap[string(b.Publickey)] = time.Now().Unix()
 
 	addr, err := tools.EncodeToCESSAddr(b.Publickey)
 	if err != nil {
 		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
-	}
-
-	//Log valid requests
-	if b.Fileid == "" {
-		Spc.Sugar().Infof("[%v] Get space file", addr)
-	} else {
-		Spc.Sugar().Infof("[%v] Uplink space file meta", addr)
 	}
 
 	//Verify miner identity
@@ -708,10 +737,19 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	for i := 0; i < 64; i++ {
 		sign[i] = b.Sign[i]
 	}
-	ok = verkr.Verify(verkr.SigningContext(b.Msg), sign)
+	ok := verkr.Verify(verkr.SigningContext(b.Msg), sign)
 	if !ok {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
+
+	//Prohibit frequent requests
+	token, code, err := sm.UpdateTimeIfExists(string(b.Publickey))
+	if err != nil {
+		Spc.Sugar().Infof("[%v] UpdateTimeIfExists err: %v", addr, err)
+		return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+	}
+
+	Spc.Sugar().Infof("[%v] Space request", addr)
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
 	_, err = os.Stat(filebasedir)
@@ -726,24 +764,10 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	filename := fmt.Sprintf("%d", time.Now().Unix())
 	filefullpath := filepath.Join(filebasedir, filename)
 
-	if b.Fileid != "" {
-		txhash, err := upChainSpaceFileMeta(addr, b.Fileid, filefullpath, b.Publickey)
-		if err != nil {
-			return &RespBody{Code: 500, Msg: err.Error()}, nil
-		}
-		return &RespBody{Code: 200, Msg: txhash}, nil
-	}
-
-	baseStr := tools.RandStr(configs.LengthOfALine)
-	reg := make([]uint8, 1023)
-	for i := 0; i < len(reg); i++ {
-		reg[i] = uint8(tools.RandomInRange(1, 64))
-	}
-
 	//Generate space file
-	err = genSpaceFile(filefullpath, baseStr, reg)
+	err = genSpaceFile(filefullpath)
 	if err != nil {
-		Spc.Sugar().Infof("[%v] [%v] Stat err: %v", addr, filefullpath, err)
+		Spc.Sugar().Infof("[%v] genSpaceFile err: %v", addr, err)
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
@@ -787,10 +811,9 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 500, Msg: "unexpected system error"}, nil
 	}
 
-	var resp RespSpacetagInfo
+	var resp RespSpaceInfo
 	resp.FileId = filename
-	resp.Content = baseStr
-	resp.Rule = reg
+	resp.Token = token
 	resp.T = commitResponse.T
 	resp.Sigmas = commitResponse.Sigmas
 	resp_b, err := json.Marshal(resp)
@@ -798,9 +821,17 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		Spc.Sugar().Infof("[%v] Marshal err: %v", addr, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
-
 	Spc.Sugar().Infof("[%v] Generat space file [%v]", addr, filename)
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
+}
+
+func SpacefileAction() {
+
+	txhash, err := upChainSpaceFileMeta(addr, b.Fileid, filefullpath, b.Publickey)
+	if err != nil {
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
+	}
+	return &RespBody{Code: 200, Msg: txhash}, nil
 }
 
 //
@@ -1356,30 +1387,16 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	}
 }
 
-func genSpaceFile(fpath, content string, rule []byte) error {
-	if len(content) != 4096 || len(rule) != 1023 {
-		return errors.New("content err")
-	}
-
+func genSpaceFile(fpath string) error {
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
-	for i := 0; i < len(rule); i++ {
-		f.WriteString(content[rule[i]:])
-		f.WriteString(content[:rule[i]])
-		f.WriteString("\n")
-		f.WriteString(content[rule[i]*rule[i]:])
-		f.WriteString(content[:rule[i]*rule[i]])
-		f.WriteString("\n")
-		if i+1 == len(rule) {
-			f.WriteString(content)
-			f.WriteString("\n")
-			f.WriteString(content[3884:])
-		}
+	for i := 0; i < 2047; i++ {
+		f.WriteString(tools.RandStr(4096) + "\n")
 	}
+	f.WriteString(tools.RandStr(212))
 	return f.Sync()
 }
 
