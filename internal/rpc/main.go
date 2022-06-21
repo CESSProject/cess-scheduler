@@ -3,7 +3,6 @@ package rpc
 import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
-	"cess-scheduler/internal/encryption"
 	. "cess-scheduler/internal/logger"
 	proof "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/tools"
@@ -413,245 +412,245 @@ func storeFiles(fid, fpath, name, pubkey string) {
 // ReadfileAction is used to handle client requests to download files.
 // The return code is 0 for success, non-0 for failure.
 // The returned Msg indicates the result reason.
-func (WService) ReadfileAction(body []byte) (proto.Message, error) {
-	var (
-		err error
-		b   FileDownloadReq
-	)
-	defer func() {
-		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
-		}
-	}()
-	err = proto.Unmarshal(body, &b)
-	if err != nil {
-		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
-	}
+// func (WService) ReadfileAction(body []byte) (proto.Message, error) {
+// 	var (
+// 		err error
+// 		b   FileDownloadReq
+// 	)
+// 	defer func() {
+// 		if err := recover(); err != nil {
+// 			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+// 		}
+// 	}()
+// 	err = proto.Unmarshal(body, &b)
+// 	if err != nil {
+// 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+// 	}
 
-	if b.FileId == "" || b.BlockIndex == 0 {
-		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
-	}
+// 	if b.FileId == "" || b.BlockIndex == 0 {
+// 		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
+// 	}
 
-	Dld.Sugar().Infof("---> Download [%v] %v", b.FileId, b.BlockIndex)
+// 	Dld.Sugar().Infof("---> Download [%v] %v", b.FileId, b.BlockIndex)
 
-	if b.BlockIndex == 1 {
-		uspace, code, err := chain.GetUserSpaceOnChain(b.WalletAddress)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] GetUserSpaceOnChain err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-		}
+// 	if b.BlockIndex == 1 {
+// 		uspace, code, err := chain.GetUserSpaceOnChain(b.WalletAddress)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] GetUserSpaceOnChain err: %v", b.FileId, err)
+// 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+// 		}
 
-		fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-		}
+// 		fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+// 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+// 		}
 
-		if uspace.PurchasedSpace.CmpAbs(new(big.Int).SetBytes(uspace.UsedSpace.Bytes())) < 0 {
-			Dld.Sugar().Infof("[%v] Not enough space", b.FileId)
-			return &RespBody{Code: 403, Msg: "Not enough space"}, nil
-		}
+// 		if uspace.PurchasedSpace.CmpAbs(new(big.Int).SetBytes(uspace.UsedSpace.Bytes())) < 0 {
+// 			Dld.Sugar().Infof("[%v] Not enough space", b.FileId)
+// 			return &RespBody{Code: 403, Msg: "Not enough space"}, nil
+// 		}
 
-		if string(fmeta.FileState) != "active" {
-			Dld.Sugar().Infof("[%v] Please download later", b.FileId)
-			return &RespBody{Code: 403, Msg: "Please download later"}, nil
-		}
-	}
+// 		if string(fmeta.FileState) != "active" {
+// 			Dld.Sugar().Infof("[%v] Please download later", b.FileId)
+// 			return &RespBody{Code: 403, Msg: "Please download later"}, nil
+// 		}
+// 	}
 
-	path := filepath.Join(configs.FileCacheDir, b.FileId)
-	_, err = os.Stat(path)
-	if err != nil {
-		os.MkdirAll(path, os.ModeDir)
-	}
-	filefullname := filepath.Join(path, b.FileId+".u")
-	_, err = os.Stat(filefullname)
-	if err != nil {
-		// file not exist, query dupl file
-		fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
-		}
-		for i := 0; i < len(fmeta.FileDupl); i++ {
-			duplname := filepath.Join(path, string(fmeta.FileDupl[i].DuplId))
-			_, err = os.Stat(duplname)
-			if err == nil {
-				buf, err := ioutil.ReadFile(duplname)
-				if err != nil {
-					Dld.Sugar().Infof("[%v] [%v] ReadFile-1 err: %v", b.FileId, duplname, err)
-					os.Remove(duplname)
-					continue
-				}
+// 	path := filepath.Join(configs.FileCacheDir, b.FileId)
+// 	_, err = os.Stat(path)
+// 	if err != nil {
+// 		os.MkdirAll(path, os.ModeDir)
+// 	}
+// 	filefullname := filepath.Join(path, b.FileId+".u")
+// 	_, err = os.Stat(filefullname)
+// 	if err != nil {
+// 		// file not exist, query dupl file
+// 		fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+// 			return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+// 		}
+// 		for i := 0; i < len(fmeta.FileDupl); i++ {
+// 			duplname := filepath.Join(path, string(fmeta.FileDupl[i].DuplId))
+// 			_, err = os.Stat(duplname)
+// 			if err == nil {
+// 				buf, err := ioutil.ReadFile(duplname)
+// 				if err != nil {
+// 					Dld.Sugar().Infof("[%v] [%v] ReadFile-1 err: %v", b.FileId, duplname, err)
+// 					os.Remove(duplname)
+// 					continue
+// 				}
 
-				//aes decryption
-				ivkey := fmeta.FileDupl[i].RandKey[:16]
-				bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
-				decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), ivkey)
-				if err != nil {
-					Dld.Sugar().Infof("[%v] [%v] AesCtrDecrypt-1 err: ", b.FileId, duplname, err)
-					os.Remove(duplname)
-					continue
-				}
-				fu, err := os.OpenFile(filefullname, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
-				if err != nil {
-					Dld.Sugar().Infof("[%v] [%v] OpenFile-1 err: %v", b.FileId, filefullname, err)
-					continue
-				}
-				fu.Write(decrypted)
-				err = fu.Sync()
-				if err != nil {
-					Dld.Sugar().Infof("[%v] [%v] fu.Sync err: %v", b.FileId, filefullname, err)
-					fu.Close()
-					os.Remove(filefullname)
-					continue
-				}
-				fu.Close()
-				break
-			}
-		}
-	}
+// 				//aes decryption
+// 				ivkey := fmeta.FileDupl[i].RandKey[:16]
+// 				bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
+// 				decrypted, err := encryption.AesCtrDecrypt(buf, []byte(bkey), ivkey)
+// 				if err != nil {
+// 					Dld.Sugar().Infof("[%v] [%v] AesCtrDecrypt-1 err: ", b.FileId, duplname, err)
+// 					os.Remove(duplname)
+// 					continue
+// 				}
+// 				fu, err := os.OpenFile(filefullname, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+// 				if err != nil {
+// 					Dld.Sugar().Infof("[%v] [%v] OpenFile-1 err: %v", b.FileId, filefullname, err)
+// 					continue
+// 				}
+// 				fu.Write(decrypted)
+// 				err = fu.Sync()
+// 				if err != nil {
+// 					Dld.Sugar().Infof("[%v] [%v] fu.Sync err: %v", b.FileId, filefullname, err)
+// 					fu.Close()
+// 					os.Remove(filefullname)
+// 					continue
+// 				}
+// 				fu.Close()
+// 				break
+// 			}
+// 		}
+// 	}
 
-	fstat, err := os.Stat(filefullname)
-	if err == nil {
-		fuser, err := os.OpenFile(filefullname, os.O_RDONLY, os.ModePerm)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] [%v] OpenFile-2 err: %v", b.FileId, filefullname, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		defer fuser.Close()
-		blockTotal := fstat.Size() / configs.RpcFileBuffer
-		if fstat.Size()%configs.RpcFileBuffer != 0 {
-			blockTotal += 1
-		}
-		var tmp = make([]byte, configs.RpcFileBuffer)
-		var blockSize int32
-		var n int
+// 	fstat, err := os.Stat(filefullname)
+// 	if err == nil {
+// 		fuser, err := os.OpenFile(filefullname, os.O_RDONLY, os.ModePerm)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] [%v] OpenFile-2 err: %v", b.FileId, filefullname, err)
+// 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+// 		}
+// 		defer fuser.Close()
+// 		blockTotal := fstat.Size() / configs.RpcFileBuffer
+// 		if fstat.Size()%configs.RpcFileBuffer != 0 {
+// 			blockTotal += 1
+// 		}
+// 		var tmp = make([]byte, configs.RpcFileBuffer)
+// 		var blockSize int32
+// 		var n int
 
-		fuser.Seek(int64((b.BlockIndex-1)*configs.RpcFileBuffer), 0)
-		n, _ = fuser.Read(tmp)
-		blockSize = int32(n)
+// 		fuser.Seek(int64((b.BlockIndex-1)*configs.RpcFileBuffer), 0)
+// 		n, _ = fuser.Read(tmp)
+// 		blockSize = int32(n)
 
-		respb := &FileDownloadInfo{
-			FileId:     b.FileId,
-			BlockTotal: int32(blockTotal),
-			BlockSize:  blockSize,
-			BlockIndex: b.BlockIndex,
-			Data:       tmp[:n],
-		}
-		protob, err := proto.Marshal(respb)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] [%v] Marshal err: ", b.FileId, filefullname, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		Dld.Sugar().Infof("[%v] [%v] download successful", b.FileId)
-		return &RespBody{Code: 200, Msg: "success", Data: protob}, nil
-	}
+// 		respb := &FileDownloadInfo{
+// 			FileId:     b.FileId,
+// 			BlockTotal: int32(blockTotal),
+// 			BlockSize:  blockSize,
+// 			BlockIndex: b.BlockIndex,
+// 			Data:       tmp[:n],
+// 		}
+// 		protob, err := proto.Marshal(respb)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] [%v] Marshal err: ", b.FileId, filefullname, err)
+// 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+// 		}
+// 		Dld.Sugar().Infof("[%v] [%v] download successful", b.FileId)
+// 		return &RespBody{Code: 200, Msg: "success", Data: protob}, nil
+// 	}
 
-	// download dupl
-	fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
-	if err != nil {
-		Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
-		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
-	}
+// 	// download dupl
+// 	fmeta, code, err := chain.GetFileMetaInfoOnChain(b.FileId)
+// 	if err != nil {
+// 		Dld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+// 		return &RespBody{Code: int32(code), Msg: err.Error(), Data: nil}, nil
+// 	}
 
-	var client *Client
-	var index int = -1
-	for i := 0; i < len(fmeta.FileDupl); i++ {
-		dstip := "ws://" + string(base58.Decode(string(fmeta.FileDupl[i].MinerIp)))
-		ctx, _ := context.WithTimeout(context.Background(), 6*time.Second)
-		client, err = DialWebsocket(ctx, dstip, "")
-		if err != nil {
-			continue
-		}
-		index = i
-		break
-	}
+// 	var client *Client
+// 	var index int = -1
+// 	for i := 0; i < len(fmeta.FileDupl); i++ {
+// 		dstip := "ws://" + string(base58.Decode(string(fmeta.FileDupl[i].MinerIp)))
+// 		ctx, _ := context.WithTimeout(context.Background(), 6*time.Second)
+// 		client, err = DialWebsocket(ctx, dstip, "")
+// 		if err != nil {
+// 			continue
+// 		}
+// 		index = i
+// 		break
+// 	}
 
-	if client != nil && index != -1 {
-		err = ReadFile2(client, path, string(fmeta.FileDupl[index].DuplId), b.WalletAddress)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] ReadFile2 err: %v", b.FileId, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-	} else {
-		Dld.Sugar().Infof("[%v] All miners connection failed", b.FileId)
-		return &RespBody{Code: 500, Msg: "No miners available", Data: nil}, nil
-	}
+// 	if client != nil && index != -1 {
+// 		err = ReadFile2(client, path, string(fmeta.FileDupl[index].DuplId), b.WalletAddress)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] ReadFile2 err: %v", b.FileId, err)
+// 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+// 		}
+// 	} else {
+// 		Dld.Sugar().Infof("[%v] All miners connection failed", b.FileId)
+// 		return &RespBody{Code: 500, Msg: "No miners available", Data: nil}, nil
+// 	}
 
-	// file not exist, query dupl file
-	for i := 0; i < len(fmeta.FileDupl); i++ {
-		duplname := filepath.Join(path, string(fmeta.FileDupl[i].DuplId))
-		_, err = os.Stat(duplname)
-		if err == nil {
-			buf, err := ioutil.ReadFile(duplname)
-			if err != nil {
-				Dld.Sugar().Infof("[%v] [%v] ReadFile-3 err: ", b.FileId, duplname, err)
-				os.Remove(duplname)
-				continue
-			}
-			//aes decryption
-			ivkey := fmeta.FileDupl[i].RandKey[:16]
-			bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
-			decrypted, err := encryption.AesCtrDecrypt(buf, bkey, ivkey)
-			if err != nil {
-				Dld.Sugar().Infof("[%v] [%v] AesCtrDecrypt-2 err: %v", b.FileId, duplname, err)
-				os.Remove(duplname)
-				continue
-			}
-			fu, err := os.OpenFile(filefullname, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
-			if err != nil {
-				Dld.Sugar().Infof("[%v] [%v] OpenFile-3 err: %v", b.FileId, filefullname, err)
-				continue
-			}
-			fu.Write(decrypted)
-			err = fu.Sync()
-			if err != nil {
-				Dld.Sugar().Infof("[%v] [%v] fu.Sync err: %v", b.FileId, filefullname, err)
-				fu.Close()
-				os.Remove(filefullname)
-				continue
-			}
-			fu.Close()
-			break
-		}
-	}
+// 	// file not exist, query dupl file
+// 	for i := 0; i < len(fmeta.FileDupl); i++ {
+// 		duplname := filepath.Join(path, string(fmeta.FileDupl[i].DuplId))
+// 		_, err = os.Stat(duplname)
+// 		if err == nil {
+// 			buf, err := ioutil.ReadFile(duplname)
+// 			if err != nil {
+// 				Dld.Sugar().Infof("[%v] [%v] ReadFile-3 err: ", b.FileId, duplname, err)
+// 				os.Remove(duplname)
+// 				continue
+// 			}
+// 			//aes decryption
+// 			ivkey := fmeta.FileDupl[i].RandKey[:16]
+// 			bkey := base58.Decode(string(fmeta.FileDupl[i].RandKey))
+// 			decrypted, err := encryption.AesCtrDecrypt(buf, bkey, ivkey)
+// 			if err != nil {
+// 				Dld.Sugar().Infof("[%v] [%v] AesCtrDecrypt-2 err: %v", b.FileId, duplname, err)
+// 				os.Remove(duplname)
+// 				continue
+// 			}
+// 			fu, err := os.OpenFile(filefullname, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+// 			if err != nil {
+// 				Dld.Sugar().Infof("[%v] [%v] OpenFile-3 err: %v", b.FileId, filefullname, err)
+// 				continue
+// 			}
+// 			fu.Write(decrypted)
+// 			err = fu.Sync()
+// 			if err != nil {
+// 				Dld.Sugar().Infof("[%v] [%v] fu.Sync err: %v", b.FileId, filefullname, err)
+// 				fu.Close()
+// 				os.Remove(filefullname)
+// 				continue
+// 			}
+// 			fu.Close()
+// 			break
+// 		}
+// 	}
 
-	fstat, err = os.Stat(filefullname)
-	if err == nil {
-		fuser, err := os.OpenFile(filefullname, os.O_RDONLY, os.ModePerm)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] [%v] ReadFile-4 err: ", b.FileId, filefullname, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		defer fuser.Close()
-		blockTotal := fstat.Size() / configs.RpcFileBuffer
-		if fstat.Size()%configs.RpcFileBuffer != 0 {
-			blockTotal += 1
-		}
-		var tmp = make([]byte, configs.RpcFileBuffer)
-		var blockSize int32
-		var n int
-		fuser.Seek(int64(b.BlockIndex*configs.RpcFileBuffer), 0)
-		n, _ = fuser.Read(tmp)
-		blockSize = int32(n)
-		respb := &FileDownloadInfo{
-			FileId:     b.FileId,
-			BlockTotal: int32(blockTotal),
-			BlockSize:  blockSize,
-			BlockIndex: b.BlockIndex,
-			Data:       tmp[:n],
-		}
-		protob, err := proto.Marshal(respb)
-		if err != nil {
-			Dld.Sugar().Infof("[%v] [%v] Marshal-2 err: %v", b.FileId, filefullname, err)
-			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
-		}
-		Dld.Sugar().Infof("[%v] Download successful", b.FileId)
-		return &RespBody{Code: 200, Msg: "success", Data: protob}, nil
-	}
-	Dld.Sugar().Infof("[%v] Download failed", b.FileId)
-	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
-}
+// 	fstat, err = os.Stat(filefullname)
+// 	if err == nil {
+// 		fuser, err := os.OpenFile(filefullname, os.O_RDONLY, os.ModePerm)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] [%v] ReadFile-4 err: ", b.FileId, filefullname, err)
+// 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+// 		}
+// 		defer fuser.Close()
+// 		blockTotal := fstat.Size() / configs.RpcFileBuffer
+// 		if fstat.Size()%configs.RpcFileBuffer != 0 {
+// 			blockTotal += 1
+// 		}
+// 		var tmp = make([]byte, configs.RpcFileBuffer)
+// 		var blockSize int32
+// 		var n int
+// 		fuser.Seek(int64(b.BlockIndex*configs.RpcFileBuffer), 0)
+// 		n, _ = fuser.Read(tmp)
+// 		blockSize = int32(n)
+// 		respb := &FileDownloadInfo{
+// 			FileId:     b.FileId,
+// 			BlockTotal: int32(blockTotal),
+// 			BlockSize:  blockSize,
+// 			BlockIndex: b.BlockIndex,
+// 			Data:       tmp[:n],
+// 		}
+// 		protob, err := proto.Marshal(respb)
+// 		if err != nil {
+// 			Dld.Sugar().Infof("[%v] [%v] Marshal-2 err: %v", b.FileId, filefullname, err)
+// 			return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
+// 		}
+// 		Dld.Sugar().Infof("[%v] Download successful", b.FileId)
+// 		return &RespBody{Code: 200, Msg: "success", Data: protob}, nil
+// 	}
+// 	Dld.Sugar().Infof("[%v] Download failed", b.FileId)
+// 	return &RespBody{Code: 500, Msg: "fail", Data: nil}, nil
+// }
 
 type RespSpacetagInfo struct {
 	FileId  string         `json:"fileId"`
