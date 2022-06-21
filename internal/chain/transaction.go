@@ -22,7 +22,7 @@ type CessInfo struct {
 	ChainModuleMethod      string
 }
 
-func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) (bool, error) {
+func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) (string, int, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -37,55 +37,55 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
 	if err != nil {
-		return false, errors.Wrap(err, "KeyringPairFromSecret err")
+		return "", configs.Code_500, errors.Wrap(err, "KeyringPairFromSecret err")
 	}
 
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return false, errors.Wrap(err, "GetMetadataLatest err")
+		return "", configs.Code_500, errors.Wrap(err, "GetMetadataLatest err")
 	}
 
 	bytes, err := tools.DecodeToPub(stash_acc, tools.ChainCessTestPrefix)
 	if err != nil {
-		return false, errors.Wrap(err, "DecodeToPub")
+		return "", configs.Code_500, errors.Wrap(err, "DecodeToPub")
 	}
 
 	c, err := types.NewCall(meta, TransactionName, types.NewAccountID(bytes), types.Bytes([]byte(ipAddr)))
 	if err != nil {
-		return false, errors.Wrap(err, "NewCall err")
+		return "", configs.Code_500, errors.Wrap(err, "NewCall err")
 	}
 
 	ext := types.NewExtrinsic(c)
 	if err != nil {
-		return false, errors.Wrap(err, "NewExtrinsic err")
+		return "", configs.Code_500, errors.Wrap(err, "NewExtrinsic err")
 	}
 
 	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
 	if err != nil {
-		return false, errors.Wrap(err, "GetBlockHash err")
+		return "", configs.Code_500, errors.Wrap(err, "GetBlockHash err")
 	}
 
 	rv, err := api.RPC.State.GetRuntimeVersionLatest()
 	if err != nil {
-		return false, errors.Wrap(err, "GetRuntimeVersionLatest err")
+		return "", configs.Code_500, errors.Wrap(err, "GetRuntimeVersionLatest err")
 	}
 
 	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
 	if err != nil {
-		return false, errors.Wrap(err, "CreateStorageKey System  Account err")
+		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey System  Account err")
 	}
 
 	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
 	if err != nil {
-		return false, errors.Wrap(err, "CreateStorageKey System Events err")
+		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey System Events err")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
-		return false, errors.Wrap(err, "GetStorageLatest err")
+		return "", configs.Code_500, errors.Wrap(err, "GetStorageLatest err")
 	}
 	if !ok {
-		return false, errors.New("GetStorageLatest return value is empty")
+		return "", configs.Code_500, errors.New("GetStorageLatest return value is empty")
 	}
 
 	o := types.SignatureOptions{
@@ -101,61 +101,44 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	// Sign the transaction
 	err = ext.Sign(keyring, o)
 	if err != nil {
-		return false, errors.Wrap(err, "Sign err")
+		return "", configs.Code_500, errors.Wrap(err, "Sign err")
 	}
 
 	// Do the transfer and track the actual status
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
-		return false, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+		return "", configs.Code_500, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
 	}
 	defer sub.Unsubscribe()
-	var head *types.Header
 	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
 	for {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
 				events := MyEventRecords{}
-				head, _ = api.RPC.Chain.GetHeader(status.AsInBlock)
+				txhash := fmt.Sprintf("%#x", status.AsInBlock)
 				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
 				if err != nil {
-					if head != nil {
-						return false, errors.Wrapf(err, "[%v]", head.Number)
-					} else {
-						return false, err
-					}
+					return txhash, configs.Code_600, err
 				}
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
-					if head != nil {
-						Out.Sugar().Infof("[%v]Decode event err:%v", head.Number, err)
-					} else {
-						Out.Sugar().Infof("Decode event err:%v", err)
+					Out.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
+				}
+
+				for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
+					if events.FileMap_RegistrationScheduler[i].Acc == types.NewAccountID(keyring.PublicKey) {
+						return txhash, configs.Code_200, nil
 					}
 				}
-				if events.FileMap_RegistrationScheduler != nil {
-					for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
-						if events.FileMap_RegistrationScheduler[i].Acc == types.NewAccountID(keyring.PublicKey) {
-							return true, nil
-						}
-					}
-					if head != nil {
-						return false, errors.Errorf("[%v]events.FileMap_RegistrationScheduler data err", head.Number)
-					} else {
-						return false, errors.New("events.FileMap_RegistrationScheduler data err")
-					}
-				}
-				if head != nil {
-					return false, errors.Errorf("[%v]events.FileMap_RegistrationScheduler not found", head.Number)
-				} else {
-					return false, errors.New("events.FileMap_RegistrationScheduler not found")
-				}
+
+				return txhash, configs.Code_600, errors.New("events.FileMap_RegistrationScheduler not found")
+
 			}
 		case err = <-sub.Err():
-			return false, err
+			return "", configs.Code_500, err
 		case <-timeout:
-			return false, errors.Errorf("[%v] tx timeout", TransactionName)
+			return "", configs.Code_500, errors.Errorf("[%v] tx timeout", TransactionName)
 		}
 	}
 }
