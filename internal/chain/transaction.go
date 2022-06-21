@@ -399,15 +399,13 @@ func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []Spac
 					Out.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
 				}
 
-				if events.FileBank_FillerUpload != nil {
-					for i := 0; i < len(events.FileBank_FillerUpload); i++ {
-						if events.FileBank_FillerUpload[i].Acc == types.NewAccountID(keyring.PublicKey) {
-							return txhash, configs.Code_200, nil
-						}
+				for i := 0; i < len(events.FileBank_FillerUpload); i++ {
+					if events.FileBank_FillerUpload[i].Acc == types.NewAccountID(keyring.PublicKey) {
+						return txhash, configs.Code_200, nil
 					}
-					return txhash, configs.Code_600, errors.Errorf("events.FileBank_FillerUpload data err")
 				}
-				return txhash, configs.Code_600, errors.Errorf("events.Sminer_Registered not found")
+
+				return txhash, configs.Code_600, errors.Errorf("events.FileBank_FillerUpload not found")
 			}
 		case err = <-sub.Err():
 			return "", configs.Code_500, err

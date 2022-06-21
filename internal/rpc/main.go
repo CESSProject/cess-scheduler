@@ -44,6 +44,7 @@ type authinfo struct {
 
 type authspaceinfo struct {
 	publicKey  string
+	fid        string
 	updateTime int64
 }
 
@@ -112,7 +113,7 @@ func (this *authmap) UpdateTime(key string) (uint32, string, string, string, err
 	return v.blockTotal, v.fileId, v.publicKey, v.fileName, nil
 }
 
-func (this *spacemap) UpdateTimeIfExists(key string) (string, int, error) {
+func (this *spacemap) UpdateTimeIfExists(key, fname string) (string, int, error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
@@ -122,6 +123,7 @@ func (this *spacemap) UpdateTimeIfExists(key string) (string, int, error) {
 		if time.Since(time.Unix(info.updateTime, 0)).Seconds() < 10 {
 			return v, configs.Code_403, errors.New("Requests too frequently")
 		}
+		info.fid = fname
 		info.updateTime = time.Now().Unix()
 		this.tokens[v] = info
 		return v, configs.Code_200, nil
@@ -129,10 +131,44 @@ func (this *spacemap) UpdateTimeIfExists(key string) (string, int, error) {
 	token := tools.RandStr(16)
 	data := authspaceinfo{}
 	data.publicKey = key
+	data.fid = fname
 	data.updateTime = time.Now().Unix()
 	this.miners[key] = token
 	this.tokens[token] = data
 	return token, configs.Code_200, nil
+}
+
+func (this *spacemap) VerifyToken(token string) (string, string, error) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	v, ok := this.tokens[token]
+	if !ok {
+		return "", "", errors.New("Invalid token")
+	}
+	return v.publicKey, v.fid, nil
+}
+
+func (this *spacemap) Delete(key string) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	v, ok := this.tokens[key]
+	if ok {
+		delete(this.miners, v.publicKey)
+		delete(this.tokens, key)
+	}
+}
+
+func (this *spacemap) DeleteExpired() {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	for k, v := range this.tokens {
+		if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 2 {
+			delete(this.miners, v.publicKey)
+			delete(this.tokens, k)
+		}
+	}
 }
 
 func init() {
@@ -187,6 +223,7 @@ func task_ClearAuthMap(ch chan bool) {
 	for {
 		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(2, 5)))
 		am.DeleteExpired()
+		sm.DeleteExpired()
 	}
 }
 
@@ -698,7 +735,12 @@ type RespSpaceInfo struct {
 	Sigmas [][]byte       `json:"sigmas"`
 }
 
-// SpaceAction is used to handle miner requests to download space files.
+type RespSpaceFileInfo struct {
+	BlockTotal uint32 `json:"blockTotal"`
+	Data       []byte `json:"data"`
+}
+
+// SpaceAction is used to handle miner requests to space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
@@ -742,13 +784,6 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
 
-	//Prohibit frequent requests
-	token, code, err := sm.UpdateTimeIfExists(string(b.Publickey))
-	if err != nil {
-		Spc.Sugar().Infof("[%v] UpdateTimeIfExists err: %v", addr, err)
-		return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-	}
-
 	Spc.Sugar().Infof("[%v] Space request", addr)
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
@@ -764,12 +799,26 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	filename := fmt.Sprintf("%d", time.Now().Unix())
 	filefullpath := filepath.Join(filebasedir, filename)
 
+	//Prohibit frequent requests
+	token, code, err := sm.UpdateTimeIfExists(string(b.Publickey), filename)
+	if err != nil {
+		Spc.Sugar().Infof("[%v] UpdateTimeIfExists err: %v", addr, err)
+		return &RespBody{Code: int32(code), Msg: err.Error()}, nil
+	}
+
 	//Generate space file
 	err = genSpaceFile(filefullpath)
 	if err != nil {
 		Spc.Sugar().Infof("[%v] genSpaceFile err: %v", addr, err)
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
+	}
+
+	fstat, _ := os.Stat(filefullpath)
+	if fstat.Size() != 8386771 {
+		Spc.Sugar().Infof("[%v] file size err: %v", addr, err)
+		os.Remove(filefullpath)
+		return &RespBody{Code: 500, Msg: "file size err"}, nil
 	}
 
 	// calculate file tag info
@@ -825,13 +874,72 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
-func SpacefileAction() {
+// SpacefileAction is used to handle miner requests to download space files.
+// The return code is 200 for success, non-200 for failure.
+// The returned Msg indicates the result reason.
+func (WService) SpacefileAction(body []byte) (proto.Message, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
 
-	txhash, err := upChainSpaceFileMeta(addr, b.Fileid, filefullpath, b.Publickey)
+	if len(sm.miners) > 2000 {
+		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
+	}
+
+	var b SpaceFileReq
+	err := proto.Unmarshal(body, &b)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if b.BlockIndex > 16 {
+		return &RespBody{Code: 400, Msg: "Invalid blocknum"}, nil
+	}
+
+	if b.Token == "" {
+		return &RespBody{Code: 400, Msg: "Empty token"}, nil
+	}
+
+	pubkey, fname, err := sm.VerifyToken(b.Token)
+	if err != nil {
+		return &RespBody{Code: 403, Msg: err.Error()}, nil
+	}
+
+	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
+	}
+
+	filefullpath := filepath.Join(configs.SpaceCacheDir, addr, fname)
+	if b.BlockIndex == 16 {
+		sm.Delete(b.Token)
+		txhash, err := upChainSpaceFileMeta(addr, fname, filefullpath, []byte(pubkey))
+		if err != nil {
+			return &RespBody{Code: 500, Msg: err.Error()}, nil
+		}
+		return &RespBody{Code: 200, Msg: "success", Data: []byte(txhash)}, nil
+	}
+
+	f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
-	return &RespBody{Code: 200, Msg: txhash}, nil
+	defer f.Close()
+	var n = 0
+	var resp RespSpaceFileInfo
+	var buf = make([]byte, configs.RpcSpaceBuffer)
+	f.Seek(int64(b.BlockIndex)*configs.RpcSpaceBuffer, 0)
+	n, _ = f.Read(buf)
+	resp.BlockTotal = 16
+	resp.Data = buf[:n]
+	resp_b, err := json.Marshal(resp)
+	if err != nil {
+		Spc.Sugar().Infof("[%v] Marshal err: %v", addr, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
+	}
+	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
 //
@@ -1442,10 +1550,10 @@ func upChainSpaceFileMeta(addr, fileid, fpath string, pubkey []byte) (string, er
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 	}
 	if txhash != "" {
-		Spc.Sugar().Infof("[%v] Uplink file meta failed", addr)
-		return "", errors.New("Uplink file meta failed")
+		Spc.Sugar().Infof("[%v] Uplink space file meta failed", addr)
+		return "", errors.New("Uplink space file meta failed")
 	}
 	os.Remove(fpath)
-	Spc.Sugar().Infof("[%v] Uplink file meta [%v]", addr, txhash)
+	Spc.Sugar().Infof("[%v] Uplink space file meta [%v]", addr, txhash)
 	return txhash, nil
 }
