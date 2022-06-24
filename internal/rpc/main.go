@@ -298,7 +298,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		if code != configs.Code_200 {
 			time.Sleep(time.Second * 3)
 		} else {
-			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.RemainingSpace.Bytes())) == -1 {
+			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.RemainingSpace.Bytes())) == 1 {
 				return &RespBody{Code: 403, Msg: "Not enough space"}, nil
 			}
 		}
@@ -1033,7 +1033,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	var (
 		err            error
-		allMinerPubkey []types.Bytes
+		allMinerPubkey []types.AccountID
 	)
 	defer func() {
 		if err := recover(); err != nil {

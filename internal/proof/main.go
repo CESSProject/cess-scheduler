@@ -122,7 +122,7 @@ func task_ValidateProof(ch chan bool) {
 			}
 
 			for j := 0; j < 3; j++ {
-				minerInfo, code, err = chain.GetMinerInfo(proofs[i].Miner_pubkey[:])
+				minerInfo, code, err = chain.GetMinerInfo(proofs[i].Miner_pubkey)
 				if err != nil {
 					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", addr, err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
@@ -792,12 +792,13 @@ func task_SyncMinersInfo(ch chan bool) {
 
 		allMinerAcc, _, _ := chain.GetAllMinerDataOnChain()
 		for i := 0; i < len(allMinerAcc); i++ {
-			addr, err := tools.EncodeToCESSAddr(allMinerAcc[i])
+			b := allMinerAcc[i][:]
+			addr, err := tools.EncodeToCESSAddr(b)
 			if err != nil {
 				Tsmi.Sugar().Infof(" [Err] [%v] EncodeToCESSAddr: %v", allMinerAcc[i], err)
 				continue
 			}
-			ok, err := c.Has(allMinerAcc[i])
+			ok, err := c.Has(b)
 			if err != nil {
 				Tsmi.Sugar().Infof(" [Err] [%v] c.Has: %v", addr, err)
 				continue
@@ -816,14 +817,14 @@ func task_SyncMinersInfo(ch chan bool) {
 			}
 			cm.Peerid = uint64(mdata.PeerId)
 			cm.Ip = string(mdata.Ip)
-			cm.Pubkey = allMinerAcc[i]
+			cm.Pubkey = b
 
 			value, err := json.Marshal(&cm)
 			if err != nil {
 				Tsmi.Sugar().Infof(" [Err] [%v] json.Marshal: %v", addr, err)
 				continue
 			}
-			err = c.Put(allMinerAcc[i], value)
+			err = c.Put(b, value)
 			if err != nil {
 				Tsmi.Sugar().Infof(" [Err] [%v] c.Put: %v", addr, err)
 			}
