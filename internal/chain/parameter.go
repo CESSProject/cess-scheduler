@@ -21,7 +21,7 @@ const (
 	FileMap_SchedulerInfo     = "SchedulerMap"
 	FileBank_UserSpaceList    = "UserSpaceList"
 	FileBank_UserSpaceInfo    = "UserHoldSpaceDetails"
-	FileBank_UserFilelistInfo = "UserHoldFileList"
+	FileBank_UserFilelist     = "UserHoldFileList"
 	Sminer_PurchasedSpace     = "PurchasedSpace"
 	Sminer_TotalSpace         = "AvailableSpace"
 	FileMap_SchedulerPuk      = "SchedulerPuk"
@@ -31,9 +31,8 @@ const (
 
 // cess chain Transaction name
 const (
-	ChainTx_FileBank_Update      = "FileBank.update"
-	ChainTx_FileMap_Add_schedule = "FileMap.registration_scheduler"
-	//ChainTx_FileBank_PutMetaInfo  = "FileBank.update_dupl"
+	ChainTx_FileBank_Update       = "FileBank.update"
+	ChainTx_FileMap_Add_schedule  = "FileMap.registration_scheduler"
 	Tx_FileBank_Upload            = "FileBank.upload"
 	ChainTx_FileBank_UploadFiller = "FileBank.upload_filler"
 	SegmentBook_VerifyProof       = "SegmentBook.verify_proof"
@@ -64,15 +63,16 @@ type Cache_MinerInfo struct {
 }
 
 type FileMetaInfo struct {
-	FileSize    types.U64       `json:"File_size"`
-	BlockNum    types.U32       `json:"Block_num"`
-	ScanSize    types.U32       `json:"Scan_size"`
-	SegmentSize types.U32       `json:"Segment_size"`
-	MinerAcc    types.AccountID `json:"Miner_acc"`
-	MinerIp     types.Bytes     `json:"Miner_ip"`
-	FileState   types.Bytes     `json:"File_state"`
-	Users       []types.Bytes   `json:"Users"`
-	Names       []types.Bytes   `json:"Names"`
+	MinerId     types.U64         `json:"Miner_id"`
+	FileSize    types.U64         `json:"File_size"`
+	BlockNum    types.U32         `json:"Block_num"`
+	ScanSize    types.U32         `json:"Scan_size"`
+	SegmentSize types.U32         `json:"Segment_size"`
+	MinerAcc    types.AccountID   `json:"Miner_acc"`
+	MinerIp     types.Bytes       `json:"Miner_ip"`
+	Users       []types.AccountID `json:"Users"`
+	Names       []types.Bytes     `json:"Names"`
+	FileState   types.Bytes       `json:"File_state"`
 }
 
 type SchedulerInfo struct {

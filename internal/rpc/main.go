@@ -298,7 +298,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		if code != configs.Code_200 {
 			time.Sleep(time.Second * 3)
 		} else {
-			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.RemainingSpace.Bytes())) == -1 {
+			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.RemainingSpace.Bytes())) == 1 {
 				return &RespBody{Code: 403, Msg: "Not enough space"}, nil
 			}
 		}
@@ -310,7 +310,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	code = configs.Code_404
 	fmeta := chain.FileMetaInfo{}
 	for code != configs.Code_200 {
-		fmeta, code, err = chain.GetFileMetaInfoOnChain(b.FileId)
+		fmeta, code, err = chain.GetFileMetaInfo(b.FileId)
 		if count > 3 && code != configs.Code_200 {
 			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
@@ -1033,7 +1033,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	var (
 		err            error
-		allMinerPubkey []types.Bytes
+		allMinerPubkey []types.AccountID
 	)
 	defer func() {
 		if err := recover(); err != nil {
@@ -1227,7 +1227,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 
 	// Upload the file meta information to the chain
 	for i := 0; i < 3; i++ {
-		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, fstat.Size(), blocknum, sbs, bs, allMinerPubkey[index], minerInfo.Ip, []byte(userkey))
+		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, fstat.Size(), blocknum, sbs, bs, minerInfo.PeerId, allMinerPubkey[index], minerInfo.Ip, []byte(userkey))
 		if !ok || err != nil {
 			if i == 2 {
 				Uld.Sugar().Infof("[%v] File meta info on the chain failed: %v", fid, err)

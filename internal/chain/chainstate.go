@@ -11,7 +11,7 @@ import (
 )
 
 // Get miner information on the chain
-func GetMinerInfo(pubkey []byte) (MinerInfo, int, error) {
+func GetMinerInfo(pubkey types.AccountID) (MinerInfo, int, error) {
 	var (
 		err   error
 		mdata MinerInfo
@@ -28,12 +28,12 @@ func GetMinerInfo(pubkey []byte) (MinerInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	// b, err := types.EncodeToBytes(types.NewAccountID(pubkey))
-	// if err != nil {
-	// 	return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
-	// }
+	b, err := types.EncodeToBytes(pubkey)
+	if err != nil {
+		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+	}
 
-	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, pubkey)
+	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
@@ -49,10 +49,10 @@ func GetMinerInfo(pubkey []byte) (MinerInfo, int, error) {
 }
 
 // Get all miner information on the cess chain
-func GetAllMinerDataOnChain() ([]types.Bytes, int, error) {
+func GetAllMinerDataOnChain() ([]types.AccountID, int, error) {
 	var (
 		err   error
-		mdata []types.Bytes
+		mdata []types.AccountID
 	)
 	api := getSubstrateApi_safe()
 	defer func() {
@@ -82,7 +82,7 @@ func GetAllMinerDataOnChain() ([]types.Bytes, int, error) {
 }
 
 // Query file meta info
-func GetFileMetaInfoOnChain(fid string) (FileMetaInfo, int, error) {
+func GetFileMetaInfo(fid string) (FileMetaInfo, int, error) {
 	var (
 		err   error
 		mdata FileMetaInfo
@@ -104,7 +104,7 @@ func GetFileMetaInfoOnChain(fid string) (FileMetaInfo, int, error) {
 		return mdata, configs.Code_400, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
-	key, err := types.CreateStorageKey(meta, State_FileBank, FileMap_FileMetaInfo, types.NewBytes(b))
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileMap_FileMetaInfo, b)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}
