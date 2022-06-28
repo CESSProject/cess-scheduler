@@ -144,7 +144,7 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 }
 
 // Update file meta information
-func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size, segment_size int64, miner_acc types.AccountID, miner_ip, user []byte) (bool, error) {
+func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size, segment_size int64, miner_id types.U64, miner_acc types.AccountID, miner_ip, user []byte) (bool, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
@@ -175,6 +175,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size,
 		types.U32(scan_size),
 		types.U32(segment_size),
 		miner_acc,
+		miner_id,
 		types.Bytes(miner_ip),
 		types.NewAccountID(user),
 	)

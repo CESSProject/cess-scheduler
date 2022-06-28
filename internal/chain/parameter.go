@@ -21,7 +21,7 @@ const (
 	FileMap_SchedulerInfo     = "SchedulerMap"
 	FileBank_UserSpaceList    = "UserSpaceList"
 	FileBank_UserSpaceInfo    = "UserHoldSpaceDetails"
-	FileBank_UserFilelistInfo = "UserHoldFileList"
+	FileBank_UserFilelist     = "UserHoldFileList"
 	Sminer_PurchasedSpace     = "PurchasedSpace"
 	Sminer_TotalSpace         = "AvailableSpace"
 	FileMap_SchedulerPuk      = "SchedulerPuk"
@@ -63,6 +63,7 @@ type Cache_MinerInfo struct {
 }
 
 type FileMetaInfo struct {
+	MinerId     types.U64         `json:"Miner_id"`
 	FileSize    types.U64         `json:"File_size"`
 	BlockNum    types.U32         `json:"Block_num"`
 	ScanSize    types.U32         `json:"Scan_size"`

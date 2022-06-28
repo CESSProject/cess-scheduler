@@ -1,6 +1,8 @@
 package main
 
-import "cess-scheduler/cmd"
+import (
+	"cess-scheduler/cmd"
+)
 
 // program entry
 func main() {

@@ -82,7 +82,7 @@ func GetAllMinerDataOnChain() ([]types.AccountID, int, error) {
 }
 
 // Query file meta info
-func GetFileMetaInfoOnChain(fid string) (FileMetaInfo, int, error) {
+func GetFileMetaInfo(fid string) (FileMetaInfo, int, error) {
 	var (
 		err   error
 		mdata FileMetaInfo
