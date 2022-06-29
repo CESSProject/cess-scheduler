@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -51,8 +52,8 @@ func init() {
 		Command_Default(),
 		Command_Version(),
 		Command_Register(),
-		Command_Obtain(),
 		Command_Run(),
+		Command_Update(),
 	)
 	rootCmd.PersistentFlags().StringVarP(&configs.ConfigFilePath, "config", "c", "", "Custom profile")
 }
@@ -87,11 +88,11 @@ func Command_Register() *cobra.Command {
 	return cc
 }
 
-func Command_Obtain() *cobra.Command {
+func Command_Update() *cobra.Command {
 	cc := &cobra.Command{
-		Use:                   "obtain <pubkey> <faucet address>",
-		Short:                 "Get cess test coin",
-		Run:                   Command_Obtain_Runfunc,
+		Use:                   "update <publicIp>",
+		Short:                 "Update scheduling service ip address",
+		Run:                   Command_Update_Runfunc,
 		DisableFlagsInUseLine: true,
 	}
 	return cc
@@ -124,23 +125,6 @@ func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	chain.ChainInit()
 	register()
-}
-
-// obtain tCESS
-func Command_Obtain_Runfunc(cmd *cobra.Command, args []string) {
-	//refreshProfile(cmd)
-	if len(os.Args) < 3 {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Please enter the faucet token address.\n", 41)
-		os.Exit(1)
-	}
-	err := chain.ObtainFromFaucet(os.Args[3], os.Args[2])
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err.Error())
-		os.Exit(1)
-	} else {
-		fmt.Println("success")
-		os.Exit(0)
-	}
 }
 
 // start service
@@ -371,4 +355,30 @@ func exit_interrupt() {
 			panic(signalChan)
 		}
 	}()
+}
+
+// Schedule update ip function
+func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
+	if len(os.Args) < 3 {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m You should enter something like 'scheduler update x.x.x.x:x'\n", 41)
+		os.Exit(1)
+	}
+	eip, err := tools.GetExternalIp()
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
+	ips := strings.Split(os.Args[2], ":")
+	if ips[0] != eip {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please check your external network\n", 41)
+		os.Exit(1)
+	}
+	res := base58.Encode([]byte(os.Args[2]))
+	txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
+	if txhash == "" {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later. [%v]\n", 41, err)
+		os.Exit(1)
+	}
+	fmt.Printf("\x1b[%dm[ok]\x1b[0m Success\n", 42)
+	os.Exit(0)
 }
