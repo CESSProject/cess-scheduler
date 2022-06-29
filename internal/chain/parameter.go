@@ -37,6 +37,7 @@ const (
 	ChainTx_FileBank_UploadFiller = "FileBank.upload_filler"
 	SegmentBook_VerifyProof       = "SegmentBook.verify_proof"
 	FileBank_ClearRecoveredFile   = "FileBank.recover_file"
+	FileMap_UpdateScheduler       = "FileMap.update_scheduler"
 )
 
 type MinerInfo struct {

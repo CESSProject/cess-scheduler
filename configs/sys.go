@@ -1,9 +1,9 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.5.0.220628.1045 pre-release"
+const Version = "cess-scheduler v0.4.3.220629"
 
-// rpc
+// rpc service and method
 const (
 	RpcService_Scheduler         = "wservice"
 	RpcService_Miner             = "mservice"
@@ -15,28 +15,31 @@ const (
 	RpcSpaceBuffer               = 512 * 1024  //512KB
 )
 
-// return state code
+// return code
 const (
+	//success
 	Code_200 = 200
+	//bad request
 	Code_400 = 400
+	//forbidden
 	Code_403 = 403
+	//not found
 	Code_404 = 404
+	//server internal error
 	Code_500 = 500
+	//The block was produced but the event was not resolved
 	Code_600 = 600
 )
 
 //
 const (
-	LengthOfALine            = 4096
-	BYTE_SIZE_1GB            = 1024 * 1024 * 1024
-	BlockSize                = 1024 * 1024 //1MB
-	ScanBlockSize            = 512 * 1024  //512KB
-	ByteSize_1Kb             = 1024        //1KB
-	TimeToWaitEvents_S       = 20
-	Backups_Min        uint8 = 1
-	Backups_Max        uint8 = 6
-	BaseDir                  = "scheduler"
-	NewTestAddr              = true
+	LengthOfALine      = 4096
+	BYTE_SIZE_1GB      = 1024 * 1024 * 1024
+	BlockSize          = 1024 * 1024 //1MB
+	ScanBlockSize      = 512 * 1024  //512KB
+	ByteSize_1Kb       = 1024        //1KB
+	TimeToWaitEvents_S = 20
+	BaseDir            = "scheduler"
 )
 
 var (

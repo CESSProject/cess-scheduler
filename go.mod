@@ -6,7 +6,6 @@ require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/CESSProject/go-keyring v0.0.0-20220614131247-ee3a8da30fde
 	github.com/Nik-U/pbc v0.0.0-20181205041846-3e516ca0c5d6
-	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/centrifuge/go-substrate-rpc-client/v4 v4.0.0
 	github.com/deckarep/golang-set v1.7.1
@@ -14,7 +13,6 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/gorilla/websocket v1.5.0
-	github.com/klauspost/reedsolomon v1.9.14
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/onsi/gomega v1.17.0 // indirect
