@@ -1,12 +1,14 @@
 package rpc
 
 import (
+	"bytes"
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
 	. "cess-scheduler/internal/logger"
 	proof "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/tools"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -67,8 +69,14 @@ type spacemap struct {
 	tokens map[string]authspaceinfo
 }
 
+type connmap struct {
+	lock  *sync.Mutex
+	conns map[string]int64
+}
+
 var am *authmap
 var sm *spacemap
+var co *connmap
 
 func (this *authmap) Delete(key string) {
 	this.lock.Lock()
@@ -178,6 +186,23 @@ func (this *spacemap) DeleteExpired() {
 	}
 }
 
+func (this *connmap) UpdateTime(key string) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.conns[key] = time.Now().Unix()
+}
+
+func (this *connmap) DeleteExpired() {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	for k, v := range this.conns {
+		if time.Since(time.Unix(v, 0)).Minutes() > 1 {
+			delete(this.conns, k)
+		}
+	}
+}
+
 func init() {
 	am = new(authmap)
 	am.lock = new(sync.Mutex)
@@ -187,6 +212,9 @@ func init() {
 	sm.lock = new(sync.Mutex)
 	sm.miners = make(map[string]string, 10)
 	sm.tokens = make(map[string]authspaceinfo, 10)
+	co = new(connmap)
+	co.lock = new(sync.Mutex)
+	co.conns = make(map[string]int64, 10)
 }
 
 // Start tcp service.
@@ -231,6 +259,7 @@ func task_ClearAuthMap(ch chan bool) {
 		time.Sleep(time.Minute * time.Duration(tools.RandomInRange(2, 5)))
 		am.DeleteExpired()
 		sm.DeleteExpired()
+		co.DeleteExpired()
 	}
 }
 
@@ -418,6 +447,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		go storeFiles(fid, fileAbsPath, fname, pubkey)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
+	co.UpdateTime(pubkey)
 	Uld.Sugar().Infof("[%v] The %v chunk saved successfully", fid, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }
@@ -659,6 +689,8 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
 
+	co.UpdateTime(pubkey)
+
 	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
 	if err != nil {
 		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
@@ -687,7 +719,23 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	var buf = make([]byte, configs.RpcSpaceBuffer)
 	f.Seek(int64(b.BlockIndex)*configs.RpcSpaceBuffer, 0)
 	n, _ = f.Read(buf)
+	co.conns[pubkey] = time.Now().Unix()
 	return &RespBody{Code: 200, Msg: "success", Data: buf[:n]}, nil
+}
+
+// SpacefileAction is used to handle miner requests to download space files.
+// The return code is 200 for success, non-200 for failure.
+// The returned Msg indicates the result reason.
+func (WService) StateAction(body []byte) (proto.Message, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+		}
+	}()
+	l := len(co.conns)
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	binary.Write(bytesBuffer, binary.BigEndian, &l)
+	return &RespBody{Code: 200, Msg: "success", Data: bytesBuffer.Bytes()}, nil
 }
 
 //
