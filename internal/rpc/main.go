@@ -250,7 +250,7 @@ func task_Management() {
 func task_ClearAuthMap(ch chan bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 		ch <- true
 	}()
@@ -269,7 +269,7 @@ func task_ClearAuthMap(ch chan bool) {
 func (WService) AuthAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -374,7 +374,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -497,7 +497,7 @@ func storeFiles(fid, fpath, name, pubkey string) {
 	)
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	Uld.Sugar().Infof("[%v] Start the file backup management process", fid)
@@ -528,7 +528,7 @@ func storeFiles(fid, fpath, name, pubkey string) {
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -566,14 +566,14 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
 
-	Spc.Sugar().Infof("[%v] Filler tag", addr)
+	Flr.Sugar().Infof("[%v] Filler tag", addr)
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
 	_, err = os.Stat(filebasedir)
 	if err != nil {
 		err = os.MkdirAll(filebasedir, os.ModeDir)
 		if err != nil {
-			Spc.Sugar().Infof("[%v] mkdir [%v] err: %v", addr, filebasedir, err)
+			Flr.Sugar().Infof("[%v] mkdir [%v] err: %v", addr, filebasedir, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
@@ -584,21 +584,21 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	//Prohibit frequent requests
 	token, code, err := sm.UpdateTimeIfExists(string(b.Publickey), filename)
 	if err != nil {
-		Spc.Sugar().Infof("[%v] UpdateTimeIfExists err: %v", addr, err)
+		Flr.Sugar().Errorf("[%v] UpdateTimeIfExists err: %v", addr, err)
 		return &RespBody{Code: int32(code), Msg: err.Error()}, nil
 	}
 
 	//Generate space file
 	err = genSpaceFile(filefullpath)
 	if err != nil {
-		Spc.Sugar().Infof("[%v] genSpaceFile err: %v", addr, err)
+		Flr.Sugar().Errorf("[%v] genSpaceFile err: %v", addr, err)
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
 	fstat, _ := os.Stat(filefullpath)
 	if fstat.Size() != 8386771 {
-		Spc.Sugar().Infof("[%v] file size err: %v", addr, err)
+		Flr.Sugar().Errorf("[%v] file size err: %v", addr, err)
 		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: "file size err"}, nil
 	}
@@ -615,7 +615,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		defer func() {
 			if err := recover(); err != nil {
 				ch <- true
-				Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+				Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 			}
 		}()
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
@@ -638,7 +638,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}(gWait)
 
 	if !<-gWait {
-		Spc.Sugar().Infof("[%v] PoDR2ProofCommit false", addr)
+		Flr.Sugar().Errorf("[%v] PoDR2ProofCommit false", addr)
 		return &RespBody{Code: 500, Msg: "unexpected system error"}, nil
 	}
 
@@ -649,10 +649,10 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	resp.Sigmas = commitResponse.Sigmas
 	resp_b, err := json.Marshal(resp)
 	if err != nil {
-		Spc.Sugar().Infof("[%v] Marshal err: %v", addr, err)
+		Flr.Sugar().Errorf("[%v] Marshal err: %v", addr, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
-	Spc.Sugar().Infof("[%v] Generate filler: %v", addr, filename)
+	Flr.Sugar().Infof("[%v] Generate filler: %v", addr, filename)
 	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 }
 
@@ -662,7 +662,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -697,7 +697,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	}
 
 	if b.BlockIndex == 0 {
-		Spc.Sugar().Infof("[%v] Filler content", addr)
+		Flr.Sugar().Errorf("[%v] Filler content", addr)
 	}
 
 	filefullpath := filepath.Join(configs.SpaceCacheDir, addr, fname)
@@ -729,7 +729,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 func (WService) StateAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	l := len(co.conns)
@@ -826,7 +826,7 @@ func ReadFile(dst string, path, fid, walletaddr string) error {
 			break
 		}
 		if count > 10 {
-			Err.Sugar().Errorf("DialWebsocket failed more than 10 times:%v", err)
+			Com.Sugar().Errorf("DialWebsocket failed more than 10 times:%v", err)
 			return err
 		}
 	}
@@ -1085,7 +1085,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	)
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 		result := <-ch
 		if result == 0 {
@@ -1310,13 +1310,13 @@ func upChainSpaceFileMeta(addr, fileid, fpath string, pubkey []byte) (string, er
 	metainfo[0].FileId = []byte(fileid)
 	fstat, err := os.Stat(fpath)
 	if err != nil {
-		Spc.Sugar().Infof("[%v] os.Stat [%v] err: %v", addr, fpath, err)
+		Flr.Sugar().Errorf("[%v] os.Stat [%v] err: %v", addr, fpath, err)
 		return "", err
 	}
 
 	hash, err := tools.CalcFileHash(fpath)
 	if err != nil {
-		Spc.Sugar().Infof("[%v] CalcFileHash [%v] err: %v", addr, fpath, err)
+		Flr.Sugar().Errorf("[%v] CalcFileHash [%v] err: %v", addr, fpath, err)
 		return "", err
 	}
 
@@ -1346,10 +1346,10 @@ func upChainSpaceFileMeta(addr, fileid, fpath string, pubkey []byte) (string, er
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 	}
 	if txhash == "" {
-		Spc.Sugar().Infof("[%v] %v filler meta on chain failed", addr, fileid)
+		Flr.Sugar().Errorf("[%v] %v filler meta on chain failed", addr, fileid)
 		return "", errors.Errorf(" %v filler meta on chain failed", fileid)
 	}
 	os.Remove(fpath)
-	Spc.Sugar().Infof("[%v] %v filler meta on chain: %v", addr, fileid, txhash)
+	Flr.Sugar().Infof("[%v] %v filler meta on chain: %v", addr, fileid, txhash)
 	return txhash, nil
 }

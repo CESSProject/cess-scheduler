@@ -31,7 +31,7 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -123,7 +123,7 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 				}
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
-					Out.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
+					Com.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
 				}
 
 				for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
@@ -153,7 +153,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size,
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
@@ -257,9 +257,9 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize, block_num, scan_size,
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
 					if head != nil {
-						Out.Sugar().Infof("[%v]Decode event err:%v", head.Number, err)
+						Com.Sugar().Errorf("[%v]Decode event err:%v", head.Number, err)
 					} else {
-						Out.Sugar().Infof("Decode event err:%v", err)
+						Com.Sugar().Infof("Decode event err:%v", err)
 					}
 				}
 
@@ -293,7 +293,7 @@ func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []Spac
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
@@ -380,7 +380,7 @@ func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []Spac
 
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
-					Out.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
+					Com.Sugar().Errorf("[%v]Decode event err:%v", txhash, err)
 				}
 
 				for i := 0; i < len(events.FileBank_FillerUpload); i++ {
@@ -445,7 +445,7 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -529,9 +529,9 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 				events := MyEventRecords{}
 				head, err = api.RPC.Chain.GetHeader(status.AsInBlock)
 				if err == nil {
-					Out.Sugar().Infof("[T:%v] [BN:%v]", t, head.Number)
+					Com.Sugar().Infof("[T:%v] [BN:%v]", t, head.Number)
 				} else {
-					Out.Sugar().Infof("[T:%v] [BH:%#x]", t, status.AsInBlock)
+					Com.Sugar().Infof("[T:%v] [BH:%#x]", t, status.AsInBlock)
 				}
 				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
 				if err != nil {
@@ -539,10 +539,10 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 				}
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
-					Out.Sugar().Infof("[T:%v]Decode event err:%v", t, err)
+					Com.Sugar().Errorf("[T:%v]Decode event err:%v", t, err)
 				}
 				if len(events.SegmentBook_VerifyProof) > 0 {
-					Out.Sugar().Infof("[T:%v] Submit prove success", t)
+					Com.Sugar().Infof("[T:%v] Submit prove success", t)
 					return configs.Code_200, nil
 				}
 				return configs.Code_600, errors.Errorf("[T:%v] events.SegmentBook_VerifyProof not found", t)
@@ -565,7 +565,7 @@ func ClearRecoveredFileNoChain(signaturePrk string, duplid types.Bytes) (int, er
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -649,9 +649,9 @@ func ClearRecoveredFileNoChain(signaturePrk string, duplid types.Bytes) (int, er
 				events := MyEventRecords{}
 				head, err = api.RPC.Chain.GetHeader(status.AsInBlock)
 				if err == nil {
-					Out.Sugar().Infof("[T:%v] [BN:%v]", t, head.Number)
+					Com.Sugar().Infof("[T:%v] [BN:%v]", t, head.Number)
 				} else {
-					Out.Sugar().Infof("[T:%v] [BH:%#x]", t, status.AsInBlock)
+					Com.Sugar().Infof("[T:%v] [BH:%#x]", t, status.AsInBlock)
 				}
 				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
 				if err != nil {
@@ -659,12 +659,12 @@ func ClearRecoveredFileNoChain(signaturePrk string, duplid types.Bytes) (int, er
 				}
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
-					Out.Sugar().Infof("[T:%v]Decode event err:%v", t, err)
+					Com.Sugar().Errorf("[T:%v]Decode event err:%v", t, err)
 				}
 				if events.FileBank_ClearInvalidFile != nil {
 					for i := 0; i < len(events.FileBank_ClearInvalidFile); i++ {
 						if events.FileBank_ClearInvalidFile[i].Acc == types.NewAccountID(keyring.PublicKey) {
-							Out.Sugar().Infof("[T:%v] Submit prove success", t)
+							Com.Sugar().Infof("[T:%v] Submit prove success", t)
 							return configs.Code_200, nil
 						}
 					}
@@ -689,7 +689,7 @@ func UpdatePublicIp(transactionPrK, ipAddr string) (string, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -776,7 +776,7 @@ func UpdatePublicIp(transactionPrK, ipAddr string) (string, int, error) {
 				}
 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 				if err != nil {
-					Out.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
+					Com.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
 				}
 
 				for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {

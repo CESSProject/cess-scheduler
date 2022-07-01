@@ -134,7 +134,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	register_if()
 
 	// start-up
-	logger.LoggerInit()
+	logger.Logger_Init()
 	//exit_interrupt()
 	go proof.Chain_Main()
 
@@ -332,13 +332,13 @@ func rgst() {
 	if err = tools.CreatDirIfNotExist(configs.SpaceCacheDir); err != nil {
 		goto Err
 	}
-	logger.LoggerInit()
-	Out.Sugar().Infof("Registration message:")
-	Out.Sugar().Infof("ChainAddr:%v", configs.C.RpcAddr)
-	Out.Sugar().Infof("ServiceAddr:%v", res)
-	Out.Sugar().Infof("DataDir:%v", configs.C.DataDir)
-	Out.Sugar().Infof("ControllerAccountPhrase:%v", configs.C.CtrlPrk)
-	Out.Sugar().Infof("StashAccountAddress:%v", configs.C.StashAcc)
+	logger.Logger_Init()
+	Com.Sugar().Infof("Registration message:")
+	Com.Sugar().Infof("ChainAddr:%v", configs.C.RpcAddr)
+	Com.Sugar().Infof("ServiceAddr:%v", res)
+	Com.Sugar().Infof("DataDir:%v", configs.C.DataDir)
+	Com.Sugar().Infof("ControllerAccountPhrase:%v", configs.C.CtrlPrk)
+	Com.Sugar().Infof("StashAccountAddress:%v", configs.C.StashAcc)
 	return
 Err:
 	fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)

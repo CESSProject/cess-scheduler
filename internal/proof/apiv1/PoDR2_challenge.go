@@ -1,7 +1,6 @@
 package proof
 
 import (
-	"cess-scheduler/tools"
 	"crypto/rand"
 	"errors"
 	"math/big"
@@ -59,14 +58,17 @@ func PoDR2ChallengeGenerate(N int64, SharedParams string) []QElement {
 // 	}
 // 	return challenge, nil
 // }
-func PoDR2ChallengeGenerateFromChain(blockindex, blockrandom []types.Bytes) ([]QElement, error) {
+func PoDR2ChallengeGenerateFromChain(blockindex types.Bytes, blockrandom []types.Bytes) ([]QElement, error) {
 	if len(blockindex) != len(blockrandom) {
 		return nil, errors.New("The number of blocks and the number of random numbers are not equal")
 	}
 	challenge := make([]QElement, len(blockindex))
 	for j := 0; j < len(blockindex); j++ {
-		index, _ := tools.BytesToInteger(blockindex[j])
-		challenge[j].I = int64(index)
+		if int64(blockindex[j]) == 0 {
+			challenge[j].I = 1
+		} else {
+			challenge[j].I = int64(blockindex[j])
+		}
 		challenge[j].V = blockrandom[j]
 	}
 	return challenge, nil

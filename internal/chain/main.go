@@ -46,7 +46,7 @@ func substrateAPIKeepAlive() {
 			count_r = 2
 			r, err = gsrpc.NewSubstrateAPI(configs.C.RpcAddr)
 			if err != nil {
-				Err.Sugar().Errorf("%v", err)
+				Com.Sugar().Errorf("%v", err)
 			} else {
 				count_r = 0
 			}
@@ -57,7 +57,7 @@ func substrateAPIKeepAlive() {
 func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	h, err := a.RPC.System.Health()
