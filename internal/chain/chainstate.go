@@ -20,7 +20,7 @@ func GetMinerInfo(pubkey types.AccountID) (MinerInfo, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -58,7 +58,7 @@ func GetAllMinerDataOnChain() ([]types.AccountID, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -91,7 +91,7 @@ func GetFileMetaInfo(fid string) (FileMetaInfo, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -129,7 +129,7 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -162,7 +162,7 @@ func GetSchedulerPukFromChain() (Chain_SchedulerPuk, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -195,7 +195,7 @@ func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -256,7 +256,7 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
@@ -295,7 +295,7 @@ func GetUserSpaceOnChain(account string) (UserSpaceInfo, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()
@@ -338,7 +338,7 @@ func GetUserSpaceByPuk(puk types.AccountID) (UserSpaceInfo, int, error) {
 	defer func() {
 		releaseSubstrateApi()
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	meta, err := api.RPC.State.GetMetadataLatest()

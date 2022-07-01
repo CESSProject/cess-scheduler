@@ -60,7 +60,7 @@ func task_ValidateProof(ch chan bool) {
 	)
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 		ch <- true
 	}()
@@ -191,7 +191,7 @@ func task_ValidateProof(ch chan bool) {
 				defer func() {
 					if err := recover(); err != nil {
 						ch <- true
-						Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+						Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 					}
 				}()
 				result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
@@ -775,7 +775,7 @@ func processProofResult(data []chain.VerifyResult) {
 func task_SyncMinersInfo(ch chan bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			Gpnc.Sugar().Infof("%v", tools.RecoverError(err))
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 		ch <- true
 	}()
