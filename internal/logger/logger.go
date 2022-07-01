@@ -46,25 +46,34 @@ func Logger_Init() {
 
 	for i := 0; i < len(log_file); i++ {
 		Encoder := GetEncoder()
-		WriteSyncer := GetWriteSyncer(filepath.Join(configs.LogFileDir, log_file[i]))
+		fpath := filepath.Join(configs.LogFileDir, log_file[i])
+		WriteSyncer := GetWriteSyncer(fpath)
 		newCore := zapcore.NewTee(zapcore.NewCore(Encoder, WriteSyncer, zap.NewAtomicLevel()))
 		switch i {
 		case 0:
 			Com = zap.New(newCore, zap.AddCaller())
+			Com.Sugar().Infof("%v", fpath)
 		case 1:
 			Uld = zap.New(newCore, zap.AddCaller())
+			Uld.Sugar().Infof("%v", fpath)
 		case 2:
 			Dld = zap.New(newCore, zap.AddCaller())
+			Dld.Sugar().Infof("%v", fpath)
 		case 3:
 			Flr = zap.New(newCore, zap.AddCaller())
+			Flr.Sugar().Infof("%v", fpath)
 		case 4:
 			Tvp = zap.New(newCore, zap.AddCaller())
+			Tvp.Sugar().Infof("%v", fpath)
 		case 5:
-			Tvp = zap.New(newCore, zap.AddCaller())
+			Trf = zap.New(newCore, zap.AddCaller())
+			Trf.Sugar().Infof("%v", fpath)
 		case 6:
 			Tsmi = zap.New(newCore, zap.AddCaller())
+			Tsmi.Sugar().Infof("%v", fpath)
 		case 7:
 			Pnc = zap.New(newCore, zap.AddCaller())
+			Pnc.Sugar().Infof("%v", fpath)
 		}
 
 	}
@@ -91,7 +100,7 @@ func GetEncoder() zapcore.Encoder {
 func GetWriteSyncer(fpath string) zapcore.WriteSyncer {
 	lumberJackLogger := &lumberjack.Logger{
 		Filename:   fpath,
-		MaxSize:    200,
+		MaxSize:    30,
 		MaxBackups: 99,
 		MaxAge:     180,
 		LocalTime:  true,
