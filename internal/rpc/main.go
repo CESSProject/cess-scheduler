@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/fileHandling"
 	. "cess-scheduler/internal/logger"
 	proof "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/tools"
@@ -388,7 +389,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
 	}
 
-	if b.BlockIndex == 0 {
+	if b.BlockIndex == 0 || len(b.FileData) == 0 {
 		return &RespBody{Code: 400, Msg: "Invalid parameter"}, nil
 	}
 
@@ -400,17 +401,17 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	fileAbsPath := filepath.Join(configs.FileCacheDir, fid)
 
 	if b.BlockIndex == 1 {
-		Uld.Sugar().Infof("+++> Upload file [%v] ", fid)
+		Uld.Sugar().Infof("++> Upload file [%v] ", fid)
 		_, err = os.Create(fileAbsPath)
 		if err != nil {
-			Uld.Sugar().Infof("[%v] Create file err: %v", fid, err)
+			Uld.Sugar().Errorf("[%v] Create: %v", fid, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 	}
 
 	f, err := os.OpenFile(fileAbsPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		Uld.Sugar().Infof("[%v] OpenFile err: %v", fid, err)
+		Uld.Sugar().Errorf("[%v] OpenFile: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
@@ -418,7 +419,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(fileAbsPath)
-		Uld.Sugar().Infof("[%v] f.Write err: %v", fid, err)
+		Uld.Sugar().Errorf("[%v] Write: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
@@ -426,29 +427,29 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		f.Close()
 		os.Remove(fileAbsPath)
-		Uld.Sugar().Infof("[%v] f.Sync err: %v", fid, err)
+		Uld.Sugar().Errorf("[%v] Sync: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error(), Data: nil}, nil
 	}
 
 	f.Close()
 
 	if b.BlockIndex == blockTotal {
-		Uld.Sugar().Infof("[%v] All %v chunks saved successfully", fid, blockTotal)
+		Uld.Sugar().Infof("[%v] Receive all %v blocks", fid, blockTotal)
 		am.Delete(string(b.Auth))
-		filehash, err := calcFileHashByChunks(fileAbsPath, configs.BYTE_SIZE_1GB)
+		filehash, err := calcFileHashByChunks(fileAbsPath, configs.SIZE_1GB)
 		if err != nil {
-			Uld.Sugar().Infof("[%v] calcFileHashByChunks err: %v", fid, err)
+			Uld.Sugar().Errorf("[%v] CalcFileHash: %v", fid, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 		if filehash != fid[4:] {
-			Uld.Sugar().Infof("[%v] Invalid file hash", fid)
+			Uld.Sugar().Errorf("[%v] Invalid file hash", fid)
 			return &RespBody{Code: 400, Msg: "Invalid file hash"}, nil
 		}
 		go storeFiles(fid, fileAbsPath, fname, pubkey)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
 	co.UpdateTime(pubkey)
-	Uld.Sugar().Infof("[%v] The %v chunk saved successfully", fid, b.BlockIndex)
+	Uld.Sugar().Infof("[%v] %vnd block received", fid, b.BlockIndex)
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
@@ -492,9 +493,6 @@ func calcFileHashByChunks(fpath string, chunksize int64) (string, error) {
 }
 
 func storeFiles(fid, fpath, name, pubkey string) {
-	var (
-		channel_map = make(chan uint8, 1)
-	)
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -502,24 +500,59 @@ func storeFiles(fid, fpath, name, pubkey string) {
 	}()
 	Uld.Sugar().Infof("[%v] Start the file backup management process", fid)
 
-	go backupFile(channel_map, fid, fpath, name, pubkey)
+	fstat, err := os.Stat(fpath)
+	if err != nil {
+		Uld.Sugar().Errorf("[%v] Stat: %v", fid, err)
+		return
+	}
+
+	// redundant coding
+	chunkspath, datachunks, rduchunks, err := fileHandling.ReedSolomon(fpath, fstat.Size())
+	if err != nil {
+		Uld.Sugar().Errorf("[%v] ReedSolomon: %v", fid, err)
+		return
+	}
+
+	Uld.Sugar().Infof("[%v] D: %v  R: %v", fid, datachunks, rduchunks)
+
+	var chunksInfo = make([]chain.ChunkInfo, datachunks+rduchunks)
+	var channel_chunks = make(map[int]chan chain.ChunkInfo, datachunks+rduchunks)
+
+	for i := 0; i < len(chunkspath); i++ {
+		channel_chunks[i] = make(chan chain.ChunkInfo, 1)
+		go backupFile(channel_chunks[i], chunkspath[i], pubkey, i)
+	}
 
 	for {
-		select {
-		case result := <-channel_map:
-			if result == 1 {
-				go backupFile(channel_map, fid, fpath, name, pubkey)
-			}
-			if result == 2 {
-				Uld.Sugar().Infof("[%v] File save successfully", fid)
-				return
-			}
-			if result == 3 {
-				Uld.Sugar().Infof("[%v] File save failed", fid)
-				return
+		for k, v := range channel_chunks {
+			result := <-v
+			if !result.IsEmpty() {
+				Uld.Sugar().Infof("[%v.%v] Chunk storage successfully", fid, k)
+				chunksInfo[k] = result
+				delete(channel_chunks, k)
+			} else {
+				Uld.Sugar().Warnf("[%v.%v] Try storage again", fid, k)
+				go backupFile(channel_chunks[k], chunkspath[k], pubkey, k)
 			}
 		}
+		if len(channel_chunks) == 0 {
+			break
+		}
 	}
+
+	var txhash string
+	// Upload the file meta information to the chain
+	for txhash == "" {
+		txhash, err = chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, uint64(fstat.Size()), []byte(pubkey), chunksInfo)
+		if err != nil {
+			Uld.Sugar().Errorf("[%v] FileMeta On-chain fail: %v", fid, err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+			continue
+		}
+		break
+	}
+	Uld.Sugar().Infof("[%v] FileMeta On-chain [%v]", fid, txhash)
+	return
 }
 
 // SpaceAction is used to handle miner requests to space files.
@@ -1064,7 +1097,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 		blockSize     int64
 		scanBlockSize int64
 	)
-	if fsize < configs.ByteSize_1Kb {
+	if fsize < configs.Size_1KB {
 		return fsize, fsize
 	}
 	if fsize > math.MaxUint32 {
@@ -1078,7 +1111,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
+func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) {
 	var (
 		err            error
 		allMinerPubkey []types.AccountID
@@ -1087,13 +1120,9 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
-		result := <-ch
-		if result == 0 {
-			ch <- 1
-		}
 	}()
-
-	Uld.Sugar().Infof("[%v] Start to store files", fid)
+	fname := filepath.Base(fpath)
+	Uld.Sugar().Infof("[%v] Ready to store the chunk", fname)
 
 	for len(allMinerPubkey) == 0 {
 		allMinerPubkey, _, err = chain.GetAllMinerDataOnChain()
@@ -1102,22 +1131,17 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 		}
 	}
 
-	Uld.Sugar().Infof("[%v] %v miners found", fid, len(allMinerPubkey))
-	// for i := 0; i < len(mDatas); i++ {
-	// 	Uld.Sugar().Infof("   %v: %v", i, string(mDatas[i].Ip))
-	// }
+	Uld.Sugar().Infof("[%v] %v miners found", fname, len(allMinerPubkey))
 
 	fstat, err := os.Stat(fpath)
 	if err != nil {
-		ch <- 3
-		Uld.Sugar().Infof("[%v] The file was deleted and cannot be stored: %v", fid, err)
+		Uld.Sugar().Errorf("[%v] The chunk not found: %v", fname, err)
 		return
 	}
 
 	f, err := os.OpenFile(fpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		ch <- 3
-		Uld.Sugar().Infof("[%v] OpenFile err: %v", fid, err)
+		Uld.Sugar().Errorf("[%v] OpenFile: %v", fname, err)
 		return
 	}
 
@@ -1136,7 +1160,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 
 	var bo = PutFileToBucket{}
 	bo.BlockTotal = uint32(blockTotal)
-	bo.FileId = fid
+	bo.FileId = fname
 	bo.Publickey = puk
 
 	for j := int64(0); j < blockTotal; j++ {
@@ -1149,8 +1173,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 
 		bob, _ := proto.Marshal(&bo)
 		if err != nil {
-			ch <- 3
-			Uld.Sugar().Infof("[%v] Marshal err: %v", fid, err)
+			Uld.Sugar().Errorf("[%v] Marshal: %v", fname, err)
 			return
 		}
 		var failcount uint8
@@ -1161,7 +1184,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 					for k, _ := range filedIndex {
 						delete(filedIndex, k)
 					}
-					Uld.Sugar().Infof("[%v] All miners cannot store, refresh the miner list", fid)
+					Uld.Sugar().Errorf("[%v] All miners cannot store and refresh miner list", fname)
 					allMinerPubkey, _, err = chain.GetAllMinerDataOnChain()
 					if err != nil {
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -1176,21 +1199,15 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 				minerInfo, _, err = chain.GetMinerInfo(allMinerPubkey[index])
 				if err != nil {
 					filedIndex[index] = struct{}{}
-					Uld.Sugar().Infof("[%v] GetMinerInfo err: %v", fid, err)
+					Uld.Sugar().Errorf("[%v] GetMinerInfo: %v", fname, err)
 					continue
 				}
-
-				// if minerInfo.Power.CmpAbs(new(big.Int).SetBytes(minerInfo.Space.Bytes())) < 0 {
-				// 	filedIndex[index] = struct{}{}
-				// 	Uld.Sugar().Infof("[%v] [%v] [%v] [%v] Abnormal size of space", fid, uint64(minerInfo.PeerId), minerInfo.Power, minerInfo.Space)
-				// 	continue
-				// }
 
 				var temp = new(big.Int)
 				temp.Sub(new(big.Int).SetBytes(minerInfo.Power.Bytes()), new(big.Int).SetBytes(minerInfo.Space.Bytes()))
 				if temp.CmpAbs(new(big.Int).SetInt64(fstat.Size())) <= 0 {
 					filedIndex[index] = struct{}{}
-					Uld.Sugar().Infof("[%v] [%v] Not enough space", fid, fstat.Size())
+					Uld.Sugar().Errorf("[%v] [%v] Not enough space", fname, fstat.Size())
 					continue
 				}
 
@@ -1201,11 +1218,11 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 					filedIndex[index] = struct{}{}
 					continue
 				}
-				Uld.Sugar().Infof("[%v] [%v] connection suc", fid, mip)
+				Uld.Sugar().Infof("[%v] connected [%v]", fname, string(minerInfo.Ip))
 				_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFile, bob)
 				if err == nil {
 					mip = string(minerInfo.Ip)
-					Uld.Sugar().Infof("[%v] [%v] transfer suc", fid, j)
+					Uld.Sugar().Infof("[%v] transferred [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex)
 					break
 				}
 				filedIndex[index] = struct{}{}
@@ -1214,13 +1231,13 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 				if err != nil {
 					failcount++
 					if failcount >= 5 {
-						ch <- 1
-						Uld.Sugar().Infof("[%v] [%v] transfer failed: %v", fid, j)
+						Uld.Sugar().Errorf("[%v] [%v] transfer failed [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex)
 						return
 					}
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 					continue
 				}
+				Uld.Sugar().Infof("[%v] transferred [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex)
 				break
 			}
 		}
@@ -1232,7 +1249,7 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	if n == 0 {
 		n = 1
 	}
-
+	Uld.Sugar().Infof("[%v] Calculate tag information", fname)
 	// calculate file tag info
 	var PoDR2commit proof.PoDR2Commit
 	var commitResponse proof.PoDR2CommitResponse
@@ -1240,20 +1257,18 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	PoDR2commit.BlockSize = bs
 	commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), sbs)
 	if err != nil {
-		ch <- 1
-		Uld.Sugar().Infof("[%v] [%v] PoDR2ProofCommit err: %v", fid, sbs, err)
+		Uld.Sugar().Errorf("[%v] [%v] PoDR2ProofCommit: %v", fname, sbs, err)
 		return
 	}
 	select {
 	case commitResponse = <-commitResponseCh:
 	}
 	if commitResponse.StatueMsg.StatusCode != proof.Success {
-		ch <- 1
-		Uld.Sugar().Infof("[%v] [%v] PoDR2ProofCommit failed", fid, sbs)
+		Uld.Sugar().Errorf("[%v] [%v] PoDR2ProofCommit failed", fname, sbs)
 		return
 	}
 	var resp PutTagToBucket
-	resp.FileId = fid
+	resp.FileId = fname
 	resp.Name = commitResponse.T.Name
 	resp.N = commitResponse.T.N
 	resp.U = commitResponse.T.U
@@ -1261,34 +1276,26 @@ func backupFile(ch chan uint8, fid, fpath, name, userkey string) {
 	resp.Sigmas = commitResponse.Sigmas
 	resp_proto, err := proto.Marshal(&resp)
 	if err != nil {
-		ch <- 1
-		Uld.Sugar().Infof("[%v] Marshal resp err: %v", fid, err)
+		Uld.Sugar().Errorf("[%v] Marshal: %v", fname, err)
 		return
 	}
 
 	_, err = WriteData2(client, configs.RpcService_Miner, configs.RpcMethod_Miner_WriteFileTag, resp_proto)
 	if err != nil {
-		ch <- 1
-		Uld.Sugar().Infof("[%v] [%v] WriteData2 tag err: %v", fid, mip, err)
+		Uld.Sugar().Errorf("[%v] Failed to transfer tag: %v", fname, err)
 		return
 	}
 
-	// Upload the file meta information to the chain
-	for i := 0; i < 3; i++ {
-		ok, err := chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, fstat.Size(), blocknum, sbs, bs, minerInfo.PeerId, allMinerPubkey[index], minerInfo.Ip, []byte(userkey))
-		if !ok || err != nil {
-			if i == 2 {
-				Uld.Sugar().Infof("[%v] File meta info on the chain failed: %v", fid, err)
-				ch <- 1
-				break
-			}
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
-			continue
-		}
-		Uld.Sugar().Infof("[%v] File meta info on the chain successfully", fid)
-		ch <- 2
-		break
-	}
+	Uld.Sugar().Infof("[%v] Transfer tag completed", fname)
+
+	var chunk chain.ChunkInfo
+	chunk.ChunkId = types.NewBytes([]byte(fname))
+	chunk.ChunkSize = types.U64(fstat.Size())
+	chunk.MinerAcc = allMinerPubkey[index]
+	chunk.MinerIp = types.NewBytes([]byte(mip))
+	chunk.MinerId = minerInfo.PeerId
+	chunk.BlockNum = types.U32(blocknum)
+	ch <- chunk
 }
 
 func genSpaceFile(fpath string) error {

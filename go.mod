@@ -13,6 +13,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/gorilla/websocket v1.5.0
+	github.com/klauspost/reedsolomon v1.10.0
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/onsi/gomega v1.17.0 // indirect

@@ -1,6 +1,8 @@
 package chain
 
 import (
+	"reflect"
+
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
@@ -64,26 +66,26 @@ type Cache_MinerInfo struct {
 }
 
 type FileMetaInfo struct {
-	MinerId     types.U64         `json:"Miner_id"`
-	FileSize    types.U64         `json:"File_size"`
-	BlockNum    types.U32         `json:"Block_num"`
-	ScanSize    types.U32         `json:"Scan_size"`
-	SegmentSize types.U32         `json:"Segment_size"`
-	MinerAcc    types.AccountID   `json:"Miner_acc"`
-	MinerIp     types.Bytes       `json:"Miner_ip"`
-	Users       []types.AccountID `json:"Users"`
-	Names       []types.Bytes     `json:"Names"`
-	FileState   types.Bytes       `json:"File_state"`
+	FileSize  types.U64
+	FileState types.Bytes
+	Users     []types.AccountID
+	Names     []types.Bytes
+	ChunkInfo []ChunkInfo
+}
+
+type ChunkInfo struct {
+	MinerId   types.U64
+	ChunkSize types.U64
+	BlockNum  types.U32
+	ChunkId   types.Bytes
+	MinerIp   types.Bytes
+	MinerAcc  types.AccountID
 }
 
 type SchedulerInfo struct {
 	Ip             types.Bytes
 	StashUser      types.AccountID
 	ControllerUser types.AccountID
-}
-
-type CessChain_EtcdItems struct {
-	Ip types.Bytes `json:"ip"`
 }
 
 type SpaceFileInfo struct {
@@ -130,4 +132,8 @@ type VerifyResult struct {
 	Miner_pubkey types.AccountID
 	FileId       types.Bytes
 	Result       types.Bool
+}
+
+func (this ChunkInfo) IsEmpty() bool {
+	return reflect.DeepEqual(this, ChunkInfo{})
 }
