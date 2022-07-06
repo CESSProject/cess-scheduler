@@ -1097,7 +1097,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 		blockSize     int64
 		scanBlockSize int64
 	)
-	if fsize < configs.Size_1KB {
+	if fsize < configs.SIZE_1KB {
 		return fsize, fsize
 	}
 	if fsize > math.MaxUint32 {

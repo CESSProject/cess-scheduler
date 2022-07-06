@@ -1,7 +1,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.4.3.220705 dev-rs"
+const Version = "cess-scheduler v0.4.3.220706 dev-rs"
 
 // rpc service and method
 const (
@@ -37,7 +37,7 @@ const (
 	SIZE_1TB      = 1024 * 1024 * 1024 * 1024
 	SIZE_1GB      = 1024 * 1024 * 1024
 	SIZE_1MB      = 1024 * 1024
-	Size_1KB      = 1024
+	SIZE_1KB      = 1024
 	BlockSize     = 1024 * 1024
 	ScanBlockSize = 512 * 1024
 

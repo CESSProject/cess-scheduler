@@ -12,63 +12,34 @@ import (
 	"github.com/klauspost/reedsolomon"
 )
 
-func reedSolomonRule(size int64) (int, int, error) {
-	fsize := size
+func reedSolomonRule(fsize int64) (int, int, error) {
+	var count int64
 	datachunk := int64(1)
-	if fsize <= 1 {
-		return 1, 0, nil
-	}
 
-	if fsize <= 8*configs.SIZE_1GB {
-		if fsize <= 4*configs.SIZE_1GB {
-			if fsize <= configs.SIZE_1MB {
-				datachunk = 2
-				goto result
-			}
-
-			if fsize <= configs.SIZE_1GB {
-				datachunk = 4
-				goto result
-			}
-
-			if fsize <= 2*configs.SIZE_1GB {
-				datachunk = 6
-				goto result
-			}
-
-			datachunk = 8
-			goto result
+	if fsize <= configs.SIZE_1KB {
+		if fsize <= 1 {
+			return 1, 0, nil
 		}
-		if fsize <= 6*configs.SIZE_1GB {
-			datachunk = 10
-			goto result
+		datachunk = 2
+		goto result
+	}
+
+	count = fsize / configs.SIZE_1GB
+	if count <= 1 {
+		datachunk = 4
+	} else {
+		if count%2 == 0 {
+			datachunk = count + 4
+		} else {
+			datachunk = count + 3
 		}
-		datachunk = 12
-		goto result
 	}
 
-	if fsize <= 10*configs.SIZE_1GB {
-		datachunk = 14
-		goto result
-	}
-
-	if fsize <= 12*configs.SIZE_1GB {
-		datachunk = 16
-		goto result
-	}
-
-	if fsize <= 14*configs.SIZE_1GB {
-		datachunk = 18
-		goto result
-	}
-
-	if fsize <= 16*configs.SIZE_1GB {
-		datachunk = 20
-		goto result
-	}
-
-	datachunk = 30
 result:
+
+	if datachunk > 20 {
+		datachunk = 20
+	}
 
 	rdchunks := datachunk / 2
 
@@ -85,7 +56,7 @@ func ReedSolomon(fpath string, size int64) ([]string, int, int, error) {
 		return shardspath, datashards, rdunshards, err
 	}
 
-	if datashards+rdunshards <= 9 {
+	if datashards+rdunshards <= 3 {
 		enc, err := reedsolomon.New(datashards, rdunshards)
 		if err != nil {
 			return shardspath, datashards, rdunshards, err
