@@ -16,9 +16,9 @@ func GetMinerInfo(pubkey types.AccountID) (MinerInfo, int, error) {
 		err   error
 		mdata MinerInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -54,9 +54,9 @@ func GetAllMinerDataOnChain() ([]types.AccountID, int, error) {
 		err   error
 		mdata []types.AccountID
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -87,9 +87,9 @@ func GetFileMetaInfo(fid string) (FileMetaInfo, int, error) {
 		err   error
 		mdata FileMetaInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -125,9 +125,9 @@ func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
 		err   error
 		mdata = make([]SchedulerInfo, 0)
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -158,9 +158,9 @@ func GetSchedulerPukFromChain() (Chain_SchedulerPuk, int, error) {
 		err  error
 		data Chain_SchedulerPuk
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -191,9 +191,9 @@ func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
 		err  error
 		data []Chain_Proofs
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -252,9 +252,9 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 		err  error
 		data []types.Bytes
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -291,9 +291,9 @@ func GetUserSpaceOnChain(account string) (UserSpaceInfo, int, error) {
 		err   error
 		mdata UserSpaceInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -334,9 +334,9 @@ func GetUserSpaceByPuk(puk types.AccountID) (UserSpaceInfo, int, error) {
 		err   error
 		mdata UserSpaceInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}

@@ -78,6 +78,7 @@ type connmap struct {
 var am *authmap
 var sm *spacemap
 var co *connmap
+var chan_FillerMeta chan chain.SpaceFileInfo
 
 func (this *authmap) Delete(key string) {
 	this.lock.Lock()
@@ -216,6 +217,7 @@ func init() {
 	co = new(connmap)
 	co.lock = new(sync.Mutex)
 	co.conns = make(map[string]int64, 10)
+	chan_FillerMeta = make(chan chain.SpaceFileInfo, 20)
 }
 
 // Start tcp service.
@@ -238,12 +240,16 @@ func Rpc_Main() {
 func task_Management() {
 	var (
 		channel_1 = make(chan bool, 1)
+		channel_2 = make(chan bool, 1)
 	)
 	go task_ClearAuthMap(channel_1)
+	go task_SubmitFillerMeta(channel_2)
 	for {
 		select {
 		case <-channel_1:
 			go task_ClearAuthMap(channel_1)
+		case <-channel_2:
+			go task_SubmitFillerMeta(channel_2)
 		}
 	}
 }
@@ -736,11 +742,14 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	filefullpath := filepath.Join(configs.SpaceCacheDir, addr, fname)
 	if b.BlockIndex == 16 {
 		sm.Delete(b.Token)
-		txhash, err := upChainSpaceFileMeta(addr, fname, filefullpath, []byte(pubkey))
+		var data chain.SpaceFileInfo
+		data, err = CombineFillerMeta(addr, fname, filefullpath, []byte(pubkey))
 		if err != nil {
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
-		return &RespBody{Code: 200, Msg: "success", Data: []byte(txhash)}, nil
+		chan_FillerMeta <- data
+		os.Remove(filefullpath)
+		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
 
 	f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
@@ -1311,52 +1320,93 @@ func genSpaceFile(fpath string) error {
 	return f.Sync()
 }
 
-func upChainSpaceFileMeta(addr, fileid, fpath string, pubkey []byte) (string, error) {
-	// up-chain meta info
-	var metainfo = make([]chain.SpaceFileInfo, 1)
-	metainfo[0].FileId = []byte(fileid)
+func task_SubmitFillerMeta(ch chan bool) {
+	defer func() {
+		ch <- true
+		if err := recover(); err != nil {
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+		}
+	}()
+
+	Tsfm.Info("-----> Start task_SubmitFillerMeta")
+
+	var (
+		err         error
+		txhash      string
+		fillermetas = make(map[types.AccountID][]chain.SpaceFileInfo, 10)
+	)
+	t_active := time.Now()
+	t_inactive := time.Now()
+	for {
+		time.Sleep(time.Second)
+		if len(chan_FillerMeta) > 0 {
+			tmp := <-chan_FillerMeta
+			_, ok := fillermetas[tmp.Acc]
+			if !ok {
+				fillermetas[tmp.Acc] = make([]chain.SpaceFileInfo, 0)
+			}
+			fillermetas[tmp.Acc] = append(fillermetas[tmp.Acc], tmp)
+		}
+		if time.Since(t_active).Minutes() > 1 {
+			t_active = time.Now()
+			for k, v := range fillermetas {
+				if len(v) > 8 {
+					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, k, v[:8])
+					if txhash != "" || err != nil {
+						Tsfm.Sugar().Errorf("%v", err)
+						continue
+					}
+					fillermetas[k] = v[8:]
+					miner_addr, _ := tools.EncodeToCESSAddr(k[:])
+					Tsfm.Sugar().Infof("[%v] %v", miner_addr, txhash)
+				}
+			}
+		}
+		if time.Since(t_inactive).Minutes() > 30 {
+			t_inactive = time.Now()
+			for k, v := range fillermetas {
+				_, ok := co.conns[string(k[:])]
+				if !ok && len(v) > 0 {
+					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, k, v[:])
+					if txhash != "" || err != nil {
+						Tsfm.Sugar().Errorf("%v", err)
+						continue
+					}
+					delete(fillermetas, k)
+					miner_addr, _ := tools.EncodeToCESSAddr(k[:])
+					Tsfm.Sugar().Infof("[%v] %v", miner_addr, txhash)
+				}
+			}
+		}
+	}
+}
+
+func CombineFillerMeta(addr, fileid, fpath string, pubkey []byte) (chain.SpaceFileInfo, error) {
+	var metainfo chain.SpaceFileInfo
+	metainfo.FileId = []byte(fileid)
 	fstat, err := os.Stat(fpath)
 	if err != nil {
 		Flr.Sugar().Errorf("[%v] os.Stat [%v] err: %v", addr, fpath, err)
-		return "", err
+		return metainfo, err
 	}
 
 	hash, err := tools.CalcFileHash(fpath)
 	if err != nil {
 		Flr.Sugar().Errorf("[%v] CalcFileHash [%v] err: %v", addr, fpath, err)
-		return "", err
+		return metainfo, err
 	}
 
-	metainfo[0].FileHash = []byte(hash)
-	metainfo[0].FileSize = 8388608
-	metainfo[0].Acc = types.NewAccountID(pubkey)
+	metainfo.FileHash = []byte(hash)
+	metainfo.FileSize = 8388608
+	metainfo.Acc = types.NewAccountID(pubkey)
 
 	blocknum := uint64(math.Ceil(float64(fstat.Size() / configs.BlockSize)))
 	if blocknum == 0 {
 		blocknum = 1
 	}
-	metainfo[0].BlockNum = types.U32(blocknum)
-	metainfo[0].BlockSize = types.U32(uint32(configs.BlockSize))
-	metainfo[0].ScanSize = types.U32(uint32(configs.ScanBlockSize))
+	metainfo.BlockNum = types.U32(blocknum)
+	metainfo.BlockSize = types.U32(uint32(configs.BlockSize))
+	metainfo.ScanSize = types.U32(uint32(configs.ScanBlockSize))
 
-	var txhash = ""
-	var code int
-	for i := 0; i < 3; i++ {
-		txhash, code, _ = chain.PutSpaceTagInfoToChain(
-			configs.C.CtrlPrk,
-			pubkey,
-			metainfo,
-		)
-		if txhash != "" || code == configs.Code_200 || code == configs.Code_600 {
-			break
-		}
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
-	}
-	if txhash == "" {
-		Flr.Sugar().Errorf("[%v] %v filler meta on chain failed", addr, fileid)
-		return "", errors.Errorf(" %v filler meta on chain failed", fileid)
-	}
-	os.Remove(fpath)
-	Flr.Sugar().Infof("[%v] %v filler meta on chain: %v", addr, fileid, txhash)
-	return txhash, nil
+	return metainfo, nil
 }

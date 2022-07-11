@@ -27,9 +27,9 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 		err         error
 		accountInfo types.AccountInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -150,9 +150,9 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, c
 		txhash      string
 		accountInfo types.AccountInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -246,64 +246,59 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, c
 }
 
 // Update file meta information
-func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []SpaceFileInfo) (string, int, error) {
+func PutSpaceTagInfoToChain(transactionPrK string, miner_acc types.AccountID, info []SpaceFileInfo) (string, error) {
 	var (
 		err         error
 		accountInfo types.AccountInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[KeyringPairFromSecret]")
+		return "", errors.Wrap(err, "[KeyringPairFromSecret]")
 	}
 
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return "", errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
-	c, err := types.NewCall(meta, ChainTx_FileBank_UploadFiller, types.NewAccountID(miner_acc), info)
+	c, err := types.NewCall(meta, ChainTx_FileBank_UploadFiller, miner_acc, info)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[NewCall]")
+		return "", errors.Wrap(err, "[NewCall]")
 	}
 
 	ext := types.NewExtrinsic(c)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[NewExtrinsic]")
+		return "", errors.Wrap(err, "[NewExtrinsic]")
 	}
 
 	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[GetBlockHash]")
+		return "", errors.Wrap(err, "[GetBlockHash]")
 	}
 
 	rv, err := api.RPC.State.GetRuntimeVersionLatest()
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[GetRuntimeVersionLatest]")
+		return "", errors.Wrap(err, "[GetRuntimeVersionLatest]")
 	}
 
 	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[CreateStorageKey System  Account]")
-	}
-
-	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
-	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[CreateStorageKey System Events]")
+		return "", errors.Wrap(err, "[CreateStorageKey System  Account]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return "", errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return "", configs.Code_500, errors.New("[GetStorageLatest value is empty]")
+		return "", errors.New("[GetStorageLatest value is empty]")
 	}
 
 	o := types.SignatureOptions{
@@ -319,13 +314,13 @@ func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []Spac
 	// Sign the transaction
 	err = ext.Sign(keyring, o)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[Sign]")
+		return "", errors.Wrap(err, "[Sign]")
 	}
 
 	// Do the transfer and track the actual status
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
+		return "", errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
 	}
 	defer sub.Unsubscribe()
 	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
@@ -333,30 +328,13 @@ func PutSpaceTagInfoToChain(transactionPrK string, miner_acc []byte, info []Spac
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := MyEventRecords{}
-				txhash := fmt.Sprintf("%#x", status.AsInBlock)
-				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-				if err != nil {
-					return txhash, configs.Code_600, err
-				}
-
-				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-				if err != nil {
-					Com.Sugar().Errorf("[%v]Decode event err:%v", txhash, err)
-				}
-
-				for i := 0; i < len(events.FileBank_FillerUpload); i++ {
-					if events.FileBank_FillerUpload[i].Acc == types.NewAccountID(keyring.PublicKey) {
-						return txhash, configs.Code_200, nil
-					}
-				}
-
-				return txhash, configs.Code_600, errors.Errorf("events.FileBank_FillerUpload not found")
+				txhash, _ := types.EncodeToHexString(status.AsInBlock)
+				return txhash, nil
 			}
 		case err = <-sub.Err():
-			return "", configs.Code_500, err
+			return "", err
 		case <-timeout:
-			return "", configs.Code_500, errors.New("Timeout")
+			return "", errors.New("Timeout")
 		}
 	}
 }
@@ -403,9 +381,9 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 		err         error
 		accountInfo types.AccountInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -523,9 +501,9 @@ func ClearRecoveredFileNoChain(signaturePrk string, duplid types.Bytes) (int, er
 		err         error
 		accountInfo types.AccountInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -647,9 +625,9 @@ func UpdatePublicIp(transactionPrK, ipAddr string) (string, int, error) {
 		err         error
 		accountInfo types.AccountInfo
 	)
-	api := getSubstrateApi_safe()
+	api := SubApi.getApi()
 	defer func() {
-		releaseSubstrateApi()
+		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}

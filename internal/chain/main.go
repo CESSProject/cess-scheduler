@@ -12,23 +12,42 @@ import (
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 )
 
-var (
-	wlock *sync.Mutex
-	r     *gsrpc.SubstrateAPI
-)
+type SubstrateApi struct {
+	l *sync.Mutex
+	r *gsrpc.SubstrateAPI
+}
+
+var SubApi *SubstrateApi
 
 func ChainInit() {
 	var err error
-	wlock = new(sync.Mutex)
-	r, err = gsrpc.NewSubstrateAPI(configs.C.RpcAddr)
+	SubApi, err = NewSubApi(configs.C.RpcAddr)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
-	go substrateAPIKeepAlive()
+	go SubApi.keepAlive()
 }
 
-func substrateAPIKeepAlive() {
+func NewSubApi(rpcaddr string) (*SubstrateApi, error) {
+	var err error
+	if SubApi == nil {
+		SubApi = new(SubstrateApi)
+		SubApi.l = new(sync.Mutex)
+		SubApi.r, err = gsrpc.NewSubstrateAPI(rpcaddr)
+		return SubApi, err
+	}
+	if SubApi.l == nil {
+		SubApi.l = new(sync.Mutex)
+	}
+	if SubApi.r == nil {
+		SubApi.r, err = gsrpc.NewSubstrateAPI(rpcaddr)
+		return SubApi, err
+	}
+	return SubApi, nil
+}
+
+func (this *SubstrateApi) keepAlive() {
 	var (
 		err     error
 		count_r uint8  = 0
@@ -37,21 +56,34 @@ func substrateAPIKeepAlive() {
 
 	for range time.Tick(time.Second * 25) {
 		if count_r <= 1 {
-			peer, err = healthchek(r)
+			this.l.Lock()
+			peer, err = healthchek(this.r)
 			if err != nil || peer == 0 {
+				Com.Sugar().Errorf("[%v] %v", peer, err)
 				count_r++
 			}
+			this.l.Unlock()
 		}
 		if count_r > 1 {
 			count_r = 2
-			r, err = gsrpc.NewSubstrateAPI(configs.C.RpcAddr)
+			this.l.Lock()
+			this.r, err = gsrpc.NewSubstrateAPI(configs.C.RpcAddr)
 			if err != nil {
 				Com.Sugar().Errorf("%v", err)
 			} else {
 				count_r = 0
 			}
+			this.l.Unlock()
 		}
 	}
+}
+
+func (this *SubstrateApi) getApi() *gsrpc.SubstrateAPI {
+	this.l.Lock()
+	return this.r
+}
+func (this *SubstrateApi) free() {
+	this.l.Unlock()
 }
 
 func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
@@ -62,12 +94,4 @@ func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
 	}()
 	h, err := a.RPC.System.Health()
 	return uint64(h.Peers), err
-}
-
-func getSubstrateApi_safe() *gsrpc.SubstrateAPI {
-	wlock.Lock()
-	return r
-}
-func releaseSubstrateApi() {
-	wlock.Unlock()
 }
