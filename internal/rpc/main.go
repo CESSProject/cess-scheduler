@@ -605,7 +605,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
 
-	Flr.Sugar().Infof("[%v] Filler tag", addr)
+	//Flr.Sugar().Infof("[%v] Filler tag", addr)
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
 	_, err = os.Stat(filebasedir)
@@ -735,13 +735,10 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
 	}
 
-	if b.BlockIndex == 0 {
-		Flr.Sugar().Errorf("[%v] Filler content", addr)
-	}
-
 	filefullpath := filepath.Join(configs.SpaceCacheDir, addr, fname)
 	if b.BlockIndex == 16 {
 		sm.Delete(b.Token)
+		Flr.Sugar().Infof("[%v] Transferred filler: %v", addr, fname)
 		var data chain.SpaceFileInfo
 		data, err = CombineFillerMeta(addr, fname, filefullpath, []byte(pubkey))
 		if err != nil {
@@ -1352,7 +1349,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 			for k, v := range fillermetas {
 				if len(v) > 8 {
 					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, k, v[:8])
-					if txhash != "" || err != nil {
+					if txhash == "" || err != nil {
 						Tsfm.Sugar().Errorf("%v", err)
 						continue
 					}
@@ -1368,7 +1365,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 				_, ok := co.conns[string(k[:])]
 				if !ok && len(v) > 0 {
 					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, k, v[:])
-					if txhash != "" || err != nil {
+					if txhash == "" || err != nil {
 						Tsfm.Sugar().Errorf("%v", err)
 						continue
 					}

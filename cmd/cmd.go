@@ -14,9 +14,8 @@ import (
 	"cess-scheduler/tools"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"strings"
+	"strconv"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -90,8 +89,8 @@ func Command_Register() *cobra.Command {
 
 func Command_Update() *cobra.Command {
 	cc := &cobra.Command{
-		Use:                   "update <publicIp>",
-		Short:                 "Update scheduling service ip address",
+		Use:                   "update <ip> [port]",
+		Short:                 "Update Scheduling Service IP or Domain Name",
 		Run:                   Command_Update_Runfunc,
 		DisableFlagsInUseLine: true,
 	}
@@ -189,6 +188,31 @@ func parseProfile() {
 		os.Exit(1)
 	}
 
+	if configs.C.CtrlPrk == "" ||
+		configs.C.DataDir == "" ||
+		configs.C.RpcAddr == "" ||
+		configs.C.ServiceAddr == "" ||
+		configs.C.StashAcc == "" {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m The configuration file cannot have empty entries.\n", 41)
+		os.Exit(1)
+	}
+
+	if configs.C.ServicePort != "" {
+		port, err := strconv.Atoi(configs.C.ServicePort)
+		if err != nil {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Please fill in the correct port number.\n", 41)
+			os.Exit(1)
+		}
+		if port < 1024 {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Prohibit the use of system reserved port: %v.\n", 41, port)
+			os.Exit(1)
+		}
+		if port > 65535 {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m The port number cannot exceed 65535.\n", 41)
+			os.Exit(1)
+		}
+	}
+
 	err = tools.CreatDirIfNotExist(configs.C.DataDir)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
@@ -276,12 +300,6 @@ Err:
 }
 
 func rgst() {
-	eip, err := tools.GetExternalIp()
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
-
 	addr, err := chain.GetAddressByPrk(configs.C.CtrlPrk)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
@@ -295,14 +313,12 @@ func rgst() {
 		os.Exit(1)
 	}
 
-	if configs.C.ServiceAddr != "" {
-		if eip != configs.C.ServiceAddr {
-			fmt.Printf("\x1b[%dm[err]\x1b[0m Please check your external network\n", 41)
-			os.Exit(1)
-		}
+	var res string
+	if configs.C.ServicePort != "" {
+		res = base58.Encode([]byte(configs.C.ServiceAddr + ":" + configs.C.ServicePort))
+	} else {
+		res = base58.Encode([]byte(configs.C.ServiceAddr))
 	}
-
-	res := base58.Encode([]byte(eip + ":" + configs.C.ServicePort))
 
 	txhash, _, _ := chain.RegisterToChain(
 		configs.C.CtrlPrk,
@@ -345,40 +361,33 @@ Err:
 	os.Exit(1)
 }
 
-// Catch the system unexpected exit signal.
-// Execute defer statement.
-func exit_interrupt() {
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	go func() {
-		for range signalChan {
-			panic(signalChan)
-		}
-	}()
-}
-
 // Schedule update ip function
 func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
-	if len(os.Args) < 3 {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m You should enter something like 'scheduler update x.x.x.x:x'\n", 41)
-		os.Exit(1)
+	if len(os.Args) == 4 {
+		_, err := strconv.Atoi(os.Args[3])
+		if err != nil {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Please fill in the correct port number.\n", 41)
+			os.Exit(1)
+		}
+		res := base58.Encode([]byte(os.Args[2] + ":" + os.Args[3]))
+		txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
+		if txhash == "" {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later.\n", 41)
+			os.Exit(1)
+		}
+		fmt.Printf("\x1b[%dm[ok]\x1b[0m success\n", 42)
+		os.Exit(0)
 	}
-	eip, err := tools.GetExternalIp()
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
+	if len(os.Args) == 3 {
+		res := base58.Encode([]byte(os.Args[2]))
+		txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
+		if txhash == "" {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later.\n", 41)
+			os.Exit(1)
+		}
+		fmt.Printf("\x1b[%dm[ok]\x1b[0m success\n", 42)
+		os.Exit(0)
 	}
-	ips := strings.Split(os.Args[2], ":")
-	if ips[0] != eip {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Please check your external network\n", 41)
-		os.Exit(1)
-	}
-	res := base58.Encode([]byte(os.Args[2]))
-	txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
-	if txhash == "" {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later. [%v]\n", 41, err)
-		os.Exit(1)
-	}
-	fmt.Printf("\x1b[%dm[ok]\x1b[0m Success\n", 42)
-	os.Exit(0)
+	fmt.Printf("\x1b[%dm[err]\x1b[0m You should enter something like 'scheduler update ip(domain) [port]'\n", 41)
+	os.Exit(1)
 }
