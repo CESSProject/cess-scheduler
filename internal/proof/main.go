@@ -79,6 +79,7 @@ func task_ValidateProof(ch chan bool) {
 		puk, _, err = chain.GetSchedulerPukFromChain()
 		if err != nil {
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+			continue
 		}
 		Tvp.Info("--> Successfully found puk")
 		Tvp.Sugar().Infof("--> %v", puk.Shared_g)
@@ -90,9 +91,11 @@ func task_ValidateProof(ch chan bool) {
 	for {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
 		var verifyResults = make([]chain.VerifyResult, 0)
-		proofs, _, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
+		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
-			Tvp.Sugar().Infof(" [Err] %v", err)
+			if code != configs.Code_404 {
+				Tvp.Sugar().Errorf("%v", err)
+			}
 			continue
 		}
 		if len(proofs) == 0 {
@@ -113,18 +116,18 @@ func task_ValidateProof(ch chan bool) {
 
 			addr, err := tools.EncodeToCESSAddr(proofs[i].Miner_pubkey[:])
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] EncodeToCESSAddr: %v", proofs[i].Miner_pubkey, err)
+				Tvp.Sugar().Errorf("%v EncodeToCESSAddr: %v", proofs[i].Miner_pubkey, err)
 			}
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] Marshal: %v", addr, err)
+				Tvp.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 			}
 
 			for j := 0; j < 3; j++ {
 				minerInfo, code, err = chain.GetMinerInfo(proofs[i].Miner_pubkey)
 				if err != nil {
-					Tvp.Sugar().Infof(" [Err] [%v] GetMinerDetailsById: %v", addr, err)
+					Tvp.Sugar().Errorf("[%v] GetMinerDetailsById: %v", addr, err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				}
 				if code == configs.Code_404 {
@@ -150,7 +153,7 @@ func task_ValidateProof(ch chan bool) {
 			for j := 0; j < 3; j++ {
 				respData, err = rpc.WriteData(string(minerInfo.Ip), configs.RpcService_Miner, configs.RpcMethod_Miner_ReadFileTag, req_proto)
 				if err != nil {
-					Tvp.Sugar().Infof(" [Err] [%v] [%v] WriteData: %v", addr, string(minerInfo.Ip), err)
+					Tvp.Sugar().Errorf("[%v] [%v] WriteData: %v", addr, string(minerInfo.Ip), err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				} else {
 					goeson = true
@@ -169,11 +172,11 @@ func task_ValidateProof(ch chan bool) {
 
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] [%v] Unmarshal: %v", addr, string(minerInfo.Ip), err)
+				Tvp.Sugar().Errorf("[%v] [%v] Unmarshal: %v", addr, string(minerInfo.Ip), err)
 			}
 			qSlice, err := api.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
 			if err != nil {
-				Tvp.Sugar().Infof(" [Err] [%v] [%v] [%v] qslice: %v", addr, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
+				Tvp.Sugar().Errorf("[%v] [%v] [%v] qslice: %v", addr, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
 			}
 
 			poDR2verify.QSlice = qSlice
@@ -217,11 +220,11 @@ func processProofResult(data []chain.VerifyResult) {
 	for code != int(configs.Code_200) && code != int(configs.Code_600) {
 		code, err = chain.PutProofResult(configs.C.CtrlPrk, data)
 		if err == nil {
-			Tvp.Info("[ok] Proof result submitted successfully")
+			Tvp.Info("Proof result submitted successfully")
 			break
 		}
 		if time.Since(time.Unix(ts, 0)).Minutes() > 2.0 {
-			Tvp.Info(" [Err] Proof result submitted timeout")
+			Tvp.Error("Proof result submitted timeout")
 			break
 		}
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
@@ -785,7 +788,7 @@ func task_SyncMinersInfo(ch chan bool) {
 	for {
 		c, err := db.GetCache()
 		if c == nil || err != nil {
-			Tsmi.Sugar().Infof(" [Err] GetCache: %v", err)
+			Tsmi.Sugar().Errorf("GetCache: %v", err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
 			continue
 		}
@@ -795,12 +798,12 @@ func task_SyncMinersInfo(ch chan bool) {
 			b := allMinerAcc[i][:]
 			addr, err := tools.EncodeToCESSAddr(b)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] EncodeToCESSAddr: %v", allMinerAcc[i], err)
+				Tsmi.Sugar().Errorf("[%v] EncodeToCESSAddr: %v", allMinerAcc[i], err)
 				continue
 			}
 			ok, err := c.Has(b)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] c.Has: %v", addr, err)
+				Tsmi.Sugar().Errorf("[%v] c.Has: %v", addr, err)
 				continue
 			}
 
@@ -812,7 +815,7 @@ func task_SyncMinersInfo(ch chan bool) {
 
 			mdata, _, err := chain.GetMinerInfo(allMinerAcc[i])
 			if err != nil {
-				Tsmi.Sugar().Infof("[Err] [%v] GetMinerInfo: %v", addr, err)
+				Tsmi.Sugar().Errorf("[%v] GetMinerInfo: %v", addr, err)
 				continue
 			}
 			cm.Peerid = uint64(mdata.PeerId)
@@ -821,14 +824,14 @@ func task_SyncMinersInfo(ch chan bool) {
 
 			value, err := json.Marshal(&cm)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] json.Marshal: %v", addr, err)
+				Tsmi.Sugar().Errorf("[%v] json.Marshal: %v", addr, err)
 				continue
 			}
 			err = c.Put(b, value)
 			if err != nil {
-				Tsmi.Sugar().Infof(" [Err] [%v] c.Put: %v", addr, err)
+				Tsmi.Sugar().Errorf("[%v] c.Put: %v", addr, err)
 			}
-			Tsmi.Sugar().Infof(" [OK] [C%v] Cache succeeded", mdata.PeerId)
+			Tsmi.Sugar().Infof("[C%v] Cache succeeded", mdata.PeerId)
 		}
 
 		if len(allMinerAcc) > 0 {

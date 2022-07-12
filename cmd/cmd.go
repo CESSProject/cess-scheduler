@@ -320,14 +320,14 @@ func rgst() {
 		res = base58.Encode([]byte(configs.C.ServiceAddr))
 	}
 
-	txhash, _, _ := chain.RegisterToChain(
+	txhash, _, err := chain.RegisterToChain(
 		configs.C.CtrlPrk,
 		chain.ChainTx_FileMap_Add_schedule,
 		configs.C.StashAcc,
 		res,
 	)
 	if txhash == "" {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed, Please try again later. [%v]\n", 41, err)
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Registration failed: %v\n", 41, err)
 		os.Exit(1)
 	}
 	fmt.Printf("\x1b[%dm[ok]\x1b[0m Registration success\n", 42)

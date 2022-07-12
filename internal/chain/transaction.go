@@ -37,12 +37,12 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 
 	keyring, err := signature.KeyringPairFromSecret(transactionPrK, 0)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "KeyringPairFromSecret err")
+		return "", configs.Code_500, errors.Wrap(err, "KeyringPairFromSecret")
 	}
 
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "GetMetadataLatest err")
+		return "", configs.Code_500, errors.Wrap(err, "GetMetadataLatest")
 	}
 
 	bytes, err := tools.DecodeToPub(stash_acc, tools.ChainCessTestPrefix)
@@ -52,40 +52,35 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 
 	c, err := types.NewCall(meta, TransactionName, types.NewAccountID(bytes), types.Bytes([]byte(ipAddr)))
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "NewCall err")
+		return "", configs.Code_500, errors.Wrap(err, "NewCall")
 	}
 
 	ext := types.NewExtrinsic(c)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "NewExtrinsic err")
+		return "", configs.Code_500, errors.Wrap(err, "NewExtrinsic")
 	}
 
 	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "GetBlockHash err")
+		return "", configs.Code_500, errors.Wrap(err, "GetBlockHash")
 	}
 
 	rv, err := api.RPC.State.GetRuntimeVersionLatest()
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "GetRuntimeVersionLatest err")
+		return "", configs.Code_500, errors.Wrap(err, "GetRuntimeVersionLatest")
 	}
 
 	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey System  Account err")
-	}
-
-	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
-	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey System Events err")
+		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "GetStorageLatest err")
+		return "", configs.Code_500, errors.Wrap(err, "GetStorageLatest")
 	}
 	if !ok {
-		return "", configs.Code_500, errors.New("GetStorageLatest return value is empty")
+		return "", configs.Code_500, errors.New("GetStorageLatest value is empty")
 	}
 
 	o := types.SignatureOptions{
@@ -101,13 +96,13 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 	// Sign the transaction
 	err = ext.Sign(keyring, o)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "Sign err")
+		return "", configs.Code_500, errors.Wrap(err, "Sign")
 	}
 
 	// Do the transfer and track the actual status
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+		return "", configs.Code_500, errors.Wrap(err, "SubmitAndWatchExtrinsic")
 	}
 	defer sub.Unsubscribe()
 	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
@@ -115,30 +110,14 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := MyEventRecords{}
-				txhash := fmt.Sprintf("%#x", status.AsInBlock)
-				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-				if err != nil {
-					return txhash, configs.Code_600, err
-				}
-				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-				if err != nil {
-					Com.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
-				}
-
-				for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
-					if events.FileMap_RegistrationScheduler[i].Acc == types.NewAccountID(keyring.PublicKey) {
-						return txhash, configs.Code_200, nil
-					}
-				}
-
-				return txhash, configs.Code_600, errors.New("events.FileMap_RegistrationScheduler not found")
-
+				txhash, _ := types.EncodeToHexString(status.AsInBlock)
+				return txhash, configs.Code_600, nil
 			}
+			return "", configs.Code_500, errors.New("Block failure")
 		case err = <-sub.Err():
 			return "", configs.Code_500, err
 		case <-timeout:
-			return "", configs.Code_500, errors.Errorf("[%v] tx timeout", TransactionName)
+			return "", configs.Code_500, errors.Errorf("timeout")
 		}
 	}
 }
