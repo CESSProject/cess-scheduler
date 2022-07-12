@@ -90,6 +90,7 @@ type SchedulerInfo struct {
 
 type SpaceFileInfo struct {
 	FileSize  types.U64
+	Index     types.U32
 	BlockNum  types.U32
 	BlockSize types.U32
 	ScanSize  types.U32

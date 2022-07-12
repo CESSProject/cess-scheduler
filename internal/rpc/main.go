@@ -1381,6 +1381,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 func CombineFillerMeta(addr, fileid, fpath string, pubkey []byte) (chain.SpaceFileInfo, error) {
 	var metainfo chain.SpaceFileInfo
 	metainfo.FileId = []byte(fileid)
+	metainfo.Index = 0
 	fstat, err := os.Stat(fpath)
 	if err != nil {
 		Flr.Sugar().Errorf("[%v] os.Stat [%v] err: %v", addr, fpath, err)

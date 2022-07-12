@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -116,6 +117,13 @@ func Command_Version_Runfunc(cmd *cobra.Command, args []string) {
 // Generate configuration file template
 func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 	tools.WriteStringtoFile(configs.ConfigFile_Templete, configs.DefaultConfigurationFileName)
+	pwd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
+	path := filepath.Join(pwd, configs.DefaultConfigurationFileName)
+	fmt.Println("[ok] ", path)
 	os.Exit(0)
 }
 
@@ -123,6 +131,18 @@ func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	chain.ChainInit()
+	for {
+		ok, err := chain.SyncState()
+		if err != nil {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Network Error: %v\n", 41, err)
+			os.Exit(1)
+		}
+		if !ok {
+			break
+		}
+		fmt.Println("In sync block...")
+		time.Sleep(time.Minute)
+	}
 	register()
 }
 
@@ -130,6 +150,17 @@ func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	chain.ChainInit()
+	for {
+		ok, err := chain.SyncState()
+		if err != nil {
+			fmt.Printf("\x1b[%dm[err]\x1b[0m Network Error: %v\n", 41, err)
+			os.Exit(1)
+		}
+		if !ok {
+			break
+		}
+		time.Sleep(time.Minute)
+	}
 	register_if()
 
 	// start-up
