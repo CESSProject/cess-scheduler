@@ -242,6 +242,9 @@ func parseProfile() {
 			fmt.Printf("\x1b[%dm[err]\x1b[0m The port number cannot exceed 65535.\n", 41)
 			os.Exit(1)
 		}
+	} else {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m Please set the port number.\n", 41)
+		os.Exit(1)
 	}
 
 	err = tools.CreatDirIfNotExist(configs.C.DataDir)
@@ -344,12 +347,7 @@ func rgst() {
 		os.Exit(1)
 	}
 
-	var res string
-	if configs.C.ServicePort != "" {
-		res = base58.Encode([]byte(configs.C.ServiceAddr + ":" + configs.C.ServicePort))
-	} else {
-		res = base58.Encode([]byte(configs.C.ServiceAddr))
-	}
+	res := base58.Encode([]byte(configs.C.ServiceAddr + ":" + configs.C.ServicePort))
 
 	txhash, _, err := chain.RegisterToChain(
 		configs.C.CtrlPrk,
