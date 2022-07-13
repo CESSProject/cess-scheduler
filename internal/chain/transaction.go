@@ -113,7 +113,6 @@ func RegisterToChain(transactionPrK, TransactionName, stash_acc, ipAddr string) 
 				txhash, _ := types.EncodeToHexString(status.AsInBlock)
 				return txhash, configs.Code_600, nil
 			}
-			return "", configs.Code_500, errors.New("Block failure")
 		case err = <-sub.Err():
 			return "", configs.Code_500, err
 		case <-timeout:

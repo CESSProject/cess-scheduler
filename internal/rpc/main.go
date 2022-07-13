@@ -1,19 +1,19 @@
 package rpc
 
 import (
-	"bytes"
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/db"
 	"cess-scheduler/internal/fileHandling"
 	. "cess-scheduler/internal/logger"
 	proof "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/tools"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"math/big"
 	"net/http"
@@ -230,6 +230,7 @@ func Rpc_Main() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
+	log.Println("Start and listen on port ", configs.C.ServicePort, "...")
 	err = http.ListenAndServe(":"+configs.C.ServicePort, srv.WebsocketHandler([]string{"*"}))
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
@@ -605,7 +606,13 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
 	}
 
-	//Flr.Sugar().Infof("[%v] Filler tag", addr)
+	c, err := db.GetCache()
+	if err == nil {
+		ok, err := c.Has(b.Publickey)
+		if err == nil && !ok {
+			return &RespBody{Code: 404, Msg: "Not found"}, nil
+		}
+	}
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
 	_, err = os.Stat(filebasedir)
@@ -772,9 +779,12 @@ func (WService) StateAction(body []byte) (proto.Message, error) {
 		}
 	}()
 	l := len(co.conns)
-	bytesBuffer := bytes.NewBuffer([]byte{})
-	binary.Write(bytesBuffer, binary.BigEndian, &l)
-	return &RespBody{Code: 200, Msg: "success", Data: bytesBuffer.Bytes()}, nil
+	bb := make([]byte, 4)
+	bb[0] = uint8(l >> 24)
+	bb[1] = uint8(l >> 26)
+	bb[2] = uint8(l >> 8)
+	bb[3] = uint8(l)
+	return &RespBody{Code: 200, Msg: "success", Data: bb}, nil
 }
 
 //
@@ -1384,13 +1394,13 @@ func CombineFillerMeta(addr, fileid, fpath string, pubkey []byte) (chain.SpaceFi
 	metainfo.Index = 0
 	fstat, err := os.Stat(fpath)
 	if err != nil {
-		Flr.Sugar().Errorf("[%v] os.Stat [%v] err: %v", addr, fpath, err)
+		Flr.Sugar().Errorf("[%v] Stat: %v", addr, err)
 		return metainfo, err
 	}
 
 	hash, err := tools.CalcFileHash(fpath)
 	if err != nil {
-		Flr.Sugar().Errorf("[%v] CalcFileHash [%v] err: %v", addr, fpath, err)
+		Flr.Sugar().Errorf("[%v] CalcFileHash: %v", addr, err)
 		return metainfo, err
 	}
 

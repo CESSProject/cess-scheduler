@@ -89,13 +89,13 @@ func task_ValidateProof(ch chan bool) {
 	}
 
 	for {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(200, 300)))
 		var verifyResults = make([]chain.VerifyResult, 0)
 		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
 			if code != configs.Code_404 {
 				Tvp.Sugar().Errorf("%v", err)
 			}
+			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
 		if len(proofs) == 0 {
@@ -793,7 +793,45 @@ func task_SyncMinersInfo(ch chan bool) {
 			continue
 		}
 
-		allMinerAcc, _, _ := chain.GetAllMinerDataOnChain()
+		keys, err := c.IteratorKeys()
+		if err != nil {
+			Tsmi.Sugar().Errorf("IteratorKeys: %v", err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+			continue
+		}
+
+		allMinerAcc, code, _ := chain.GetAllMinerDataOnChain()
+		if code != configs.Code_500 {
+			if len(allMinerAcc) == 0 {
+				for i := 0; i < len(keys); i++ {
+					addr, _ := tools.EncodeToCESSAddr(keys[i])
+					err = c.Delete(keys[i])
+					if err != nil {
+						Tsmi.Sugar().Errorf("[%v] Delete failed: %v", addr, err)
+					} else {
+						Tsmi.Sugar().Infof("[%v] Delete suc: %v", addr, err)
+					}
+				}
+			} else {
+				for i := 0; i < len(allMinerAcc); i++ {
+					b := allMinerAcc[i][:]
+					addr, err := tools.EncodeToCESSAddr(b)
+					ok, err := c.Has(b)
+					if err != nil {
+						Tsmi.Sugar().Errorf("[%v] c.Has: %v", addr, err)
+						continue
+					}
+					if !ok {
+						err = c.Delete(b)
+						if err != nil {
+							Tsmi.Sugar().Errorf("[%v] Delete failed: %v", addr, err)
+						} else {
+							Tsmi.Sugar().Infof("[%v] Delete suc: %v", addr, err)
+						}
+					}
+				}
+			}
+		}
 		for i := 0; i < len(allMinerAcc); i++ {
 			b := allMinerAcc[i][:]
 			addr, err := tools.EncodeToCESSAddr(b)

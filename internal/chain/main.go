@@ -70,22 +70,23 @@ func (this *SubstrateApi) keepAlive() {
 		if count_r <= 1 {
 			this.l.Lock()
 			peer, err = healthchek(this.r)
+			this.l.Unlock()
 			if err != nil || peer == 0 {
 				Com.Sugar().Errorf("[%v] %v", peer, err)
 				count_r++
 			}
-			this.l.Unlock()
 		}
 		if count_r > 1 {
 			count_r = 2
 			this.l.Lock()
 			this.r, err = gsrpc.NewSubstrateAPI(configs.C.RpcAddr)
+			this.l.Unlock()
 			if err != nil {
 				Com.Sugar().Errorf("%v", err)
+				time.Sleep(time.Minute * time.Duration(tools.RandomInRange(2, 5)))
 			} else {
 				count_r = 0
 			}
-			this.l.Unlock()
 		}
 	}
 }
