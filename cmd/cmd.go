@@ -91,8 +91,8 @@ func Command_Register() *cobra.Command {
 
 func Command_Update() *cobra.Command {
 	cc := &cobra.Command{
-		Use:                   "update <ip> [port]",
-		Short:                 "Update Scheduling Service IP or Domain Name",
+		Use:                   "update <ip> <port>",
+		Short:                 "Update scheduling service ip and port",
 		Run:                   Command_Update_Runfunc,
 		DisableFlagsInUseLine: true,
 	}
@@ -400,6 +400,7 @@ Err:
 
 // Schedule update ip function
 func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
+	refreshProfile(cmd)
 	if len(os.Args) == 4 {
 		_, err := strconv.Atoi(os.Args[3])
 		if err != nil {
@@ -407,16 +408,6 @@ func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 		res := base58.Encode([]byte(os.Args[2] + ":" + os.Args[3]))
-		txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
-		if txhash == "" {
-			log.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later.\n", 41)
-			os.Exit(1)
-		}
-		log.Printf("\x1b[%dm[ok]\x1b[0m success\n", 42)
-		os.Exit(0)
-	}
-	if len(os.Args) == 3 {
-		res := base58.Encode([]byte(os.Args[2]))
 		txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
 		if txhash == "" {
 			log.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later.\n", 41)
