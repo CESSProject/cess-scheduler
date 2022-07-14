@@ -107,6 +107,7 @@ type Chain_SchedulerPuk struct {
 }
 
 type Chain_Proofs struct {
+	FileId         types.Bytes
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes

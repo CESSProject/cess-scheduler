@@ -67,7 +67,7 @@ func task_ValidateProof(ch chan bool) {
 
 	Tvp.Info("--> Start task_ValidateProof")
 
-	reqtag.Acc, err = chain.GetAddressByPrk(configs.C.CtrlPrk)
+	reqtag.Acc, err = chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
 	if err != nil {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
