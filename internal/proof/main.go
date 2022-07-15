@@ -21,8 +21,8 @@ import (
 )
 
 type TagInfo struct {
-	T      api.FileTagT `json:"file_tag_t"`
-	Sigmas [][]byte     `json:"sigmas"`
+	T      api.FileTagT
+	Sigmas [][]byte `json:"sigmas"`
 }
 
 // Enable the verification proof module
@@ -99,6 +99,7 @@ func task_ValidateProof(ch chan bool) {
 			continue
 		}
 		if len(proofs) == 0 {
+			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
 
@@ -213,18 +214,19 @@ func task_ValidateProof(ch chan bool) {
 
 func processProofResult(data []chain.VerifyResult) {
 	var (
-		err  error
-		ts   = time.Now().Unix()
-		code = 0
+		err    error
+		txhash string
+		ts     = time.Now().Unix()
+		code   = 0
 	)
 	for code != int(configs.Code_200) && code != int(configs.Code_600) {
-		code, err = chain.PutProofResult(configs.C.CtrlPrk, data)
-		if err == nil {
-			Tvp.Info("Proof result submitted successfully")
+		txhash, err = chain.PutProofResult(configs.C.CtrlPrk, data)
+		if txhash != "" {
+			Tvp.Sugar().Infof("Proof result submitted: %v", txhash)
 			break
 		}
 		if time.Since(time.Unix(ts, 0)).Minutes() > 2.0 {
-			Tvp.Error("Proof result submitted timeout")
+			Tvp.Sugar().Errorf("Proof result submitted timeout: %v", err)
 			break
 		}
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))

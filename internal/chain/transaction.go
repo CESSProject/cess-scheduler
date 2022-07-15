@@ -354,9 +354,9 @@ func ObtainFromFaucet(faucetaddr, pbk string) error {
 }
 
 //
-func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
+func PutProofResult(signaturePrk string, data []VerifyResult) (string, error) {
 	var (
-		err         error
+		txhash      string
 		accountInfo types.AccountInfo
 	)
 	api := SubApi.getApi()
@@ -369,50 +369,45 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 
 	keyring, err := signature.KeyringPairFromSecret(signaturePrk, 0)
 	if err != nil {
-		return configs.Code_400, errors.Wrap(err, "[KeyringPairFromSecret]")
+		return txhash, errors.Wrap(err, "[KeyringPairFromSecret]")
 	}
 
 	meta, err := api.RPC.State.GetMetadataLatest()
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return txhash, errors.Wrap(err, "[GetMetadataLatest]")
 	}
 
 	c, err := types.NewCall(meta, SegmentBook_VerifyProof, data)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[NewCall]")
+		return txhash, errors.Wrap(err, "[NewCall]")
 	}
 
 	ext := types.NewExtrinsic(c)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[NewExtrinsic]")
+		return txhash, errors.Wrap(err, "[NewExtrinsic]")
 	}
 
 	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[GetBlockHash]")
+		return txhash, errors.Wrap(err, "[GetBlockHash]")
 	}
 
 	rv, err := api.RPC.State.GetRuntimeVersionLatest()
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[GetRuntimeVersionLatest]")
+		return txhash, errors.Wrap(err, "[GetRuntimeVersionLatest]")
 	}
 
 	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[CreateStorageKey System Account]")
-	}
-
-	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
-	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[CreateStorageKey System Events]")
+		return txhash, errors.Wrap(err, "[CreateStorageKey System Account]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return txhash, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return configs.Code_500, errors.New("[GetStorageLatest return value is empty]")
+		return txhash, errors.New("[GetStorageLatest return value is empty]")
 	}
 
 	o := types.SignatureOptions{
@@ -428,47 +423,27 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (int, error) {
 	// Sign the transaction
 	err = ext.Sign(keyring, o)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[Sign]")
+		return txhash, errors.Wrap(err, "[Sign]")
 	}
 
 	// Do the transfer and track the actual status
 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
-		return configs.Code_500, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
+		return txhash, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
 	}
 	defer sub.Unsubscribe()
-	var head *types.Header
-	t := tools.RandomInRange(10000000, 99999999)
 	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
 	for {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := MyEventRecords{}
-				head, err = api.RPC.Chain.GetHeader(status.AsInBlock)
-				if err == nil {
-					Com.Sugar().Infof("[T:%v] [BN:%v]", t, head.Number)
-				} else {
-					Com.Sugar().Infof("[T:%v] [BH:%#x]", t, status.AsInBlock)
-				}
-				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-				if err != nil {
-					return configs.Code_600, errors.Wrapf(err, "[T:%v]", t)
-				}
-				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-				if err != nil {
-					Com.Sugar().Errorf("[T:%v]Decode event err:%v", t, err)
-				}
-				if len(events.SegmentBook_VerifyProof) > 0 {
-					Com.Sugar().Infof("[T:%v] Submit prove success", t)
-					return configs.Code_200, nil
-				}
-				return configs.Code_600, errors.Errorf("[T:%v] events.SegmentBook_VerifyProof not found", t)
+				txhash, _ = types.EncodeToHexString(status.AsInBlock)
+				return txhash, nil
 			}
 		case err = <-sub.Err():
-			return configs.Code_500, err
+			return txhash, err
 		case <-timeout:
-			return configs.Code_500, errors.New("Timeout")
+			return txhash, errors.New("Timeout")
 		}
 	}
 }
