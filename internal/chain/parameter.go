@@ -1,6 +1,8 @@
 package chain
 
 import (
+	"reflect"
+
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
@@ -64,16 +66,21 @@ type Cache_MinerInfo struct {
 }
 
 type FileMetaInfo struct {
-	MinerId     types.U64         `json:"Miner_id"`
-	FileSize    types.U64         `json:"File_size"`
-	BlockNum    types.U32         `json:"Block_num"`
-	ScanSize    types.U32         `json:"Scan_size"`
-	SegmentSize types.U32         `json:"Segment_size"`
-	MinerAcc    types.AccountID   `json:"Miner_acc"`
-	MinerIp     types.Bytes       `json:"Miner_ip"`
-	Users       []types.AccountID `json:"Users"`
-	Names       []types.Bytes     `json:"Names"`
-	FileState   types.Bytes       `json:"File_state"`
+	FileSize  types.U64
+	Index     types.U32
+	FileState types.Bytes
+	Users     []types.AccountID
+	Names     []types.Bytes
+	ChunkInfo []ChunkInfo
+}
+
+type ChunkInfo struct {
+	MinerId   types.U64
+	ChunkSize types.U64
+	BlockNum  types.U32
+	ChunkId   types.Bytes
+	MinerIp   types.Bytes
+	MinerAcc  types.AccountID
 }
 
 type SchedulerInfo struct {
@@ -82,12 +89,9 @@ type SchedulerInfo struct {
 	ControllerUser types.AccountID
 }
 
-type CessChain_EtcdItems struct {
-	Ip types.Bytes `json:"ip"`
-}
-
 type SpaceFileInfo struct {
 	FileSize  types.U64
+	Index     types.U32
 	BlockNum  types.U32
 	BlockSize types.U32
 	ScanSize  types.U32
@@ -103,6 +107,7 @@ type Chain_SchedulerPuk struct {
 }
 
 type Chain_Proofs struct {
+	FileId         types.Bytes
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
@@ -110,12 +115,11 @@ type Chain_Proofs struct {
 }
 
 type ChallengeInfo struct {
-	File_size    types.U64
-	Segment_size types.U32
-	File_type    types.U8
-	Block_list   types.Bytes
-	File_id      types.Bytes
-	Random       []types.Bytes
+	File_size  types.U64
+	File_type  types.U8
+	Block_list types.Bytes
+	File_id    types.Bytes
+	Random     []types.Bytes
 }
 
 //---user space Info
@@ -130,4 +134,8 @@ type VerifyResult struct {
 	Miner_pubkey types.AccountID
 	FileId       types.Bytes
 	Result       types.Bool
+}
+
+func (this ChunkInfo) IsEmpty() bool {
+	return reflect.DeepEqual(this, ChunkInfo{})
 }

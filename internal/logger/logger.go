@@ -21,6 +21,7 @@ var (
 	Trf  *zap.Logger
 	Tsmi *zap.Logger
 	Pnc  *zap.Logger
+	Tsfm *zap.Logger
 )
 
 func Logger_Init() {
@@ -42,6 +43,7 @@ func Logger_Init() {
 		"t_rf.log",
 		"t_smi.log",
 		"panic.log",
+		"t_sfm.log",
 	}
 
 	for i := 0; i < len(log_file); i++ {
@@ -74,8 +76,10 @@ func Logger_Init() {
 		case 7:
 			Pnc = zap.New(newCore, zap.AddCaller())
 			Pnc.Sugar().Infof("%v", fpath)
+		case 8:
+			Tsfm = zap.New(newCore, zap.AddCaller())
+			Tsfm.Sugar().Infof("%v", fpath)
 		}
-
 	}
 }
 

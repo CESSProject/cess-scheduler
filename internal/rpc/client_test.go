@@ -29,14 +29,14 @@ func TestDialWebsocket(t *testing.T) {
 
 	wsURL := "ws:" + strings.TrimPrefix(s.URL, "http:")
 	fmt.Println(wsURL)
-	client, err := DialWebsocket(context.Background(), wsURL, "")
+	client, err := DialWebsocket(context.Background(), "ws://113.207.1.32:15000", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	req := &ReqMsg{
-		Service: "test",
-		Method:  "hello",
+		Service: "wservice",
+		Method:  "writefile",
 	}
 	b := make([]byte, 5*1024*1024)
 	for i := 0; i < len(b); i++ {

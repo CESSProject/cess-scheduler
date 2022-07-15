@@ -84,6 +84,6 @@ message PutTagToBucket {
 }
 
 message ReadTag_req {
-  string acc = 1;
-  string fileId = 2;
+  bytes  acc     = 1;
+  string file_id = 2;
 }

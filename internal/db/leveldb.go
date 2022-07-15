@@ -124,3 +124,20 @@ func (db *LevelDB) Delete(key []byte) error {
 func (db *LevelDB) Compact(start []byte, limit []byte) error {
 	return db.db.CompactRange(util.Range{Start: start, Limit: limit})
 }
+
+func (db *LevelDB) IteratorKeys() ([][]byte, error) {
+	var keys = [][]byte{}
+	iter := db.db.NewIterator(nil, nil)
+	for iter.Next() {
+		// Remember that the contents of the returned slice should not be modified, and
+		// only valid until the next call to Next.
+		key := iter.Key()
+		keys = append(keys, key)
+	}
+	iter.Release()
+	err := iter.Error()
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
