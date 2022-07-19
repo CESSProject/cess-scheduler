@@ -23,6 +23,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/bwmarrin/snowflake"
 	"github.com/pkg/errors"
 )
 
@@ -305,4 +306,15 @@ func GetRandomcode(length uint8) string {
 		bytes[i] = baseStr[r.Intn(l)]
 	}
 	return string(bytes)
+}
+
+//Get file unique identifier
+func GetGuid(num int64) (string, error) {
+	node, err := snowflake.NewNode(num)
+	if err != nil {
+		return "", err
+	}
+
+	id := node.Generate()
+	return id.String(), nil
 }

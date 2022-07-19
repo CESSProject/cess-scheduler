@@ -7,6 +7,7 @@ require (
 	github.com/CESSProject/go-keyring v0.0.0-20220614131247-ee3a8da30fde
 	github.com/Nik-U/pbc v0.0.0-20181205041846-3e516ca0c5d6
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
+	github.com/bwmarrin/snowflake v0.3.0
 	github.com/centrifuge/go-substrate-rpc-client/v4 v4.0.0
 	github.com/deckarep/golang-set v1.7.1
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -31,6 +32,7 @@ require (
 	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
 	golang.org/x/net v0.0.0-20211208012354-db4efeb81f4b // indirect
+	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/ini.v1 v1.66.3 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect

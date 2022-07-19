@@ -13,7 +13,10 @@ import (
 func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segmentSize int64) (<-chan PoDR2CommitResponse, error) {
 	responseCh := make(chan PoDR2CommitResponse, 1)
 	var res PoDR2CommitResponse
-	pairing, _ := pbc.NewPairingFromString(sharedParams)
+	pairing, err := pbc.NewPairingFromString(sharedParams)
+	if err != nil {
+		return nil, err
+	}
 	privateKey := pairing.NewZr().SetBytes(ssk)
 	file, err := os.Stat(commit.FilePath)
 	if err != nil {

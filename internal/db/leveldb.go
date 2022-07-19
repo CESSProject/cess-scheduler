@@ -131,7 +131,7 @@ func (db *LevelDB) IteratorKeys() ([][]byte, error) {
 	for iter.Next() {
 		// Remember that the contents of the returned slice should not be modified, and
 		// only valid until the next call to Next.
-		key := iter.Key()
+		var key = iter.Key()
 		keys = append(keys, key)
 	}
 	iter.Release()

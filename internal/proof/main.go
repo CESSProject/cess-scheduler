@@ -786,7 +786,7 @@ func task_SyncMinersInfo(ch chan bool) {
 	}()
 
 	Tsmi.Info("-----> Start task_UpdateMinerInfo")
-
+	time.Sleep(time.Second * 3)
 	for {
 		c, err := db.GetCache()
 		if c == nil || err != nil {
@@ -795,45 +795,50 @@ func task_SyncMinersInfo(ch chan bool) {
 			continue
 		}
 
-		keys, err := c.IteratorKeys()
-		if err != nil {
-			Tsmi.Sugar().Errorf("IteratorKeys: %v", err)
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-			continue
-		}
-
-		allMinerAcc, code, _ := chain.GetAllMinerDataOnChain()
-		if code != configs.Code_500 {
-			if len(allMinerAcc) == 0 {
-				for i := 0; i < len(keys); i++ {
-					addr, _ := tools.EncodeToCESSAddr(keys[i])
-					err = c.Delete(keys[i])
-					if err != nil {
-						Tsmi.Sugar().Errorf("[%v] Delete failed: %v", addr, err)
-					} else {
-						Tsmi.Sugar().Infof("[%v] Delete suc: %v", addr, err)
-					}
-				}
-			} else {
-				for i := 0; i < len(allMinerAcc); i++ {
-					b := allMinerAcc[i][:]
-					addr, err := tools.EncodeToCESSAddr(b)
-					ok, err := c.Has(b)
-					if err != nil {
-						Tsmi.Sugar().Errorf("[%v] c.Has: %v", addr, err)
-						continue
-					}
-					if !ok {
-						err = c.Delete(b)
-						if err != nil {
-							Tsmi.Sugar().Errorf("[%v] Delete failed: %v", addr, err)
-						} else {
-							Tsmi.Sugar().Infof("[%v] Delete suc: %v", addr, err)
-						}
-					}
-				}
-			}
-		}
+		// keys, err := c.IteratorKeys()
+		// if err != nil {
+		// 	Tsmi.Sugar().Errorf("IteratorKeys: %v", err)
+		// 	time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+		// 	continue
+		// }
+		// fmt.Println(keys)
+		// isExist := false
+		// allMinerAcc, code, _ := chain.GetAllMinerDataOnChain()
+		// if code != configs.Code_500 {
+		// 	if len(allMinerAcc) == 0 {
+		// 		for i := 0; i < len(keys); i++ {
+		// 			addr, _ := tools.EncodeToCESSAddr(keys[i])
+		// 			err = c.Delete(keys[i])
+		// 			if err != nil {
+		// 				Tsmi.Sugar().Errorf("[%v] Delete failed: %v", addr, err)
+		// 			} else {
+		// 				Tsmi.Sugar().Infof("[%v] Delete suc", addr)
+		// 			}
+		// 		}
+		// 	} else {
+		// 		for i := 0; i < len(keys); i++ {
+		// 			isExist = false
+		// 			addr, err := tools.EncodeToCESSAddr(keys[i])
+		// 			for j := 0; j < len(allMinerAcc); j++ {
+		// 				if string(keys[i]) == string(allMinerAcc[j][:]) {
+		// 					isExist = true
+		// 					break
+		// 				}
+		// 			}
+		// 			if !isExist {
+		// 				err = c.Delete(keys[i])
+		// 				if err != nil {
+		// 					Tsmi.Sugar().Errorf("[%v] Delete cache failed: %v", addr, err)
+		// 				} else {
+		// 					Tsmi.Sugar().Infof("[%v] Delete cache", addr)
+		// 				}
+		// 			} else {
+		// 				Tsmi.Sugar().Infof("[%v] Already Cached", addr)
+		// 			}
+		// 		}
+		// 	}
+		// }
+		allMinerAcc, _, _ := chain.GetAllMinerDataOnChain()
 		for i := 0; i < len(allMinerAcc); i++ {
 			b := allMinerAcc[i][:]
 			addr, err := tools.EncodeToCESSAddr(b)
@@ -848,6 +853,7 @@ func task_SyncMinersInfo(ch chan bool) {
 			}
 
 			if ok {
+				Tsmi.Sugar().Infof("[%v] Already Cached", addr)
 				continue
 			}
 
@@ -871,7 +877,7 @@ func task_SyncMinersInfo(ch chan bool) {
 			if err != nil {
 				Tsmi.Sugar().Errorf("[%v] c.Put: %v", addr, err)
 			}
-			Tsmi.Sugar().Infof("[C%v] Cache succeeded", mdata.PeerId)
+			Tsmi.Sugar().Infof("[%v] Cache succeeded", addr)
 		}
 
 		if len(allMinerAcc) > 0 {

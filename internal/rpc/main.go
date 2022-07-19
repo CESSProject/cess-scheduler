@@ -22,7 +22,9 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pkg/errors"
 
@@ -34,7 +36,14 @@ import (
 	"storj.io/common/base58"
 )
 
+const mutexLocked = 1 << iota
+
 type WService struct {
+}
+
+type calcTagLock struct {
+	flag bool
+	lock *sync.Mutex
 }
 
 type RespSpaceInfo struct {
@@ -78,6 +87,7 @@ type connmap struct {
 var am *authmap
 var sm *spacemap
 var co *connmap
+var ctl *calcTagLock
 var chan_FillerMeta chan chain.SpaceFileInfo
 
 func (this *authmap) Delete(key string) {
@@ -205,6 +215,20 @@ func (this *connmap) DeleteExpired() {
 	}
 }
 
+func (this *connmap) GetConnsNum() int {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	return len(this.conns)
+}
+
+func (this *calcTagLock) TryLock() bool {
+	return atomic.CompareAndSwapInt32((*int32)(unsafe.Pointer(this.lock)), 0, mutexLocked)
+}
+
+func (this *calcTagLock) FreeLock() {
+	this.lock.Unlock()
+}
+
 func init() {
 	am = new(authmap)
 	am.lock = new(sync.Mutex)
@@ -218,6 +242,9 @@ func init() {
 	co.lock = new(sync.Mutex)
 	co.conns = make(map[string]int64, 10)
 	chan_FillerMeta = make(chan chain.SpaceFileInfo, 20)
+	ctl = new(calcTagLock)
+	ctl.lock = new(sync.Mutex)
+	ctl.flag = false
 }
 
 // Start tcp service.
@@ -572,7 +599,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		}
 	}()
 
-	if len(sm.miners) > 2000 {
+	if len(sm.miners) > 1000 {
 		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
 	}
 
@@ -608,11 +635,19 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 	c, err := db.GetCache()
 	if err == nil {
-		ok, err := c.Has(b.Publickey)
-		if err == nil && !ok {
+		ok, _ := c.Has(b.Publickey)
+		if !ok {
+			time.Sleep(time.Second * 30)
 			return &RespBody{Code: 404, Msg: "Not found"}, nil
 		}
+		Flr.Sugar().Infof("[%v] Connect", addr)
 	}
+
+	ok = ctl.TryLock()
+	if !ok {
+		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
+	}
+	defer ctl.FreeLock()
 
 	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
 	_, err = os.Stat(filebasedir)
@@ -624,8 +659,18 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		}
 	}
 
-	filename := fmt.Sprintf("%d", time.Now().Unix())
+	uid, _ := tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
+	filename := fmt.Sprintf("%s", uid)
 	filefullpath := filepath.Join(filebasedir, filename)
+	for {
+		_, err = os.Stat(filefullpath)
+		if err != nil {
+			break
+		}
+		uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
+		filename = fmt.Sprintf("%s", uid)
+		filefullpath = filepath.Join(filebasedir, filename)
+	}
 
 	//Prohibit frequent requests
 	token, code, err := sm.UpdateTimeIfExists(string(b.Publickey), filename)
@@ -658,12 +703,12 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	gWait := make(chan bool)
 	go func(ch chan bool) {
 		runtime.LockOSThread()
-		defer func() {
-			if err := recover(); err != nil {
-				ch <- true
-				Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-			}
-		}()
+		// defer func() {
+		// 	if err := recover(); err != nil {
+		// 		ch <- true
+		// 		Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+		// 	}
+		// }()
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(proof.Key_Ssk, string(proof.Key_SharedParams), int64(configs.ScanBlockSize))
 		if err != nil {
 			ch <- false
@@ -683,10 +728,13 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		}
 	}(gWait)
 
-	if !<-gWait {
+	if rst := <-gWait; !rst {
+		os.Remove(filefullpath)
 		Flr.Sugar().Errorf("[%v] PoDR2ProofCommit false", addr)
 		return &RespBody{Code: 500, Msg: "unexpected system error"}, nil
 	}
+
+	defer runtime.GC()
 
 	var resp RespSpaceInfo
 	resp.FileId = filename
@@ -695,6 +743,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	resp.Sigmas = commitResponse.Sigmas
 	resp_b, err := json.Marshal(resp)
 	if err != nil {
+		os.Remove(filefullpath)
 		Flr.Sugar().Errorf("[%v] Marshal err: %v", addr, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
@@ -749,6 +798,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		var data chain.SpaceFileInfo
 		data, err = CombineFillerMeta(addr, fname, filefullpath, []byte(pubkey))
 		if err != nil {
+			os.Remove(filefullpath)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 		chan_FillerMeta <- data
@@ -758,6 +808,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 
 	f, err := os.OpenFile(filefullpath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
+		os.Remove(filefullpath)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 	defer f.Close()
@@ -765,7 +816,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	var buf = make([]byte, configs.RpcSpaceBuffer)
 	f.Seek(int64(b.BlockIndex)*configs.RpcSpaceBuffer, 0)
 	n, _ = f.Read(buf)
-	co.conns[pubkey] = time.Now().Unix()
+	co.UpdateTime(pubkey)
 	return &RespBody{Code: 200, Msg: "success", Data: buf[:n]}, nil
 }
 
@@ -778,7 +829,7 @@ func (WService) StateAction(body []byte) (proto.Message, error) {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	l := len(co.conns)
+	l := co.GetConnsNum()
 	bb := make([]byte, 4)
 	bb[0] = uint8(l >> 24)
 	bb[1] = uint8(l >> 26)
@@ -1323,7 +1374,10 @@ func genSpaceFile(fpath string) error {
 	for i := 0; i < 2047; i++ {
 		f.WriteString(tools.RandStr(4096) + "\n")
 	}
-	f.WriteString(tools.RandStr(212))
+	_, err = f.WriteString(tools.RandStr(212))
+	if err != nil {
+		return err
+	}
 	return f.Sync()
 }
 
@@ -1345,7 +1399,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 	t_active := time.Now()
 	t_inactive := time.Now()
 	for {
-		time.Sleep(time.Second)
+		time.Sleep(time.Second * 10)
 		if len(chan_FillerMeta) > 0 {
 			tmp := <-chan_FillerMeta
 			_, ok := fillermetas[tmp.Acc]

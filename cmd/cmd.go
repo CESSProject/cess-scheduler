@@ -165,10 +165,14 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		time.Sleep(time.Second * 30)
 	}
 	log.Printf("\x1b[%dm[ok]\x1b[0m Sync complete\n", 42)
-	register_if()
 
-	// start-up
-	logger.Logger_Init()
+	flag := register_if()
+
+	if !flag {
+		// start-up
+		logger.Logger_Init()
+	}
+
 	//exit_interrupt()
 	go proof.Chain_Main()
 
@@ -282,13 +286,13 @@ func register() {
 	os.Exit(0)
 }
 
-func register_if() {
+func register_if() bool {
 	var reg bool
 	sd, code, err := chain.GetSchedulerInfoOnChain()
 	if err != nil {
 		if code == configs.Code_404 {
 			rgst()
-			return
+			return true
 		}
 		log.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
@@ -306,7 +310,7 @@ func register_if() {
 	}
 	if !reg {
 		rgst()
-		return
+		return true
 	}
 
 	log.Printf("\x1b[%dm[ok]\x1b[0m Registered schedule\n", 42)
@@ -324,34 +328,31 @@ func register_if() {
 		goto Err
 	}
 	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
+	os.RemoveAll(configs.FileCacheDir)
 	if err = tools.CreatDirIfNotExist(configs.FileCacheDir); err != nil {
 		goto Err
 	}
 	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
+	os.RemoveAll(configs.DbFileDir)
 	if err = tools.CreatDirIfNotExist(configs.DbFileDir); err != nil {
 		goto Err
 	}
 	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
+	os.RemoveAll(configs.SpaceCacheDir)
 	if err = tools.CreatDirIfNotExist(configs.SpaceCacheDir); err != nil {
 		goto Err
 	}
-	return
+	return false
 Err:
 	log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 	os.Exit(1)
+	return false
 }
 
 func rgst() {
 	addr, err := chain.GetAddressByPrk(configs.C.CtrlPrk)
 	if err != nil {
 		log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
-
-	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
-	_, err = os.Stat(baseDir)
-	if err == nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m '%v' directory conflict\n", 41, baseDir)
 		os.Exit(1)
 	}
 
@@ -369,6 +370,7 @@ func rgst() {
 	}
 	log.Printf("\x1b[%dm[ok]\x1b[0m Registration success\n", 42)
 
+	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
 	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
 	if err = tools.CreatDirIfNotExist(configs.LogFileDir); err != nil {
 		goto Err
