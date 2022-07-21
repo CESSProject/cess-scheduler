@@ -5,7 +5,6 @@ import (
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/tools"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
@@ -578,9 +577,11 @@ func UpdatePublicIp(transactionPrK, ipAddr string) (string, int, error) {
 		err         error
 		accountInfo types.AccountInfo
 	)
-	api := SubApi.getApi()
+	api, err := NewRpcClient(configs.C.RpcAddr)
+	if err != nil {
+		return "", configs.Code_500, err
+	}
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -621,11 +622,6 @@ func UpdatePublicIp(transactionPrK, ipAddr string) (string, int, error) {
 		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey System  Account err")
 	}
 
-	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
-	if err != nil {
-		return "", configs.Code_500, errors.Wrap(err, "CreateStorageKey System Events err")
-	}
-
 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
 		return "", configs.Code_500, errors.Wrap(err, "GetStorageLatest err")
@@ -661,30 +657,13 @@ func UpdatePublicIp(transactionPrK, ipAddr string) (string, int, error) {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := MyEventRecords{}
-				txhash := fmt.Sprintf("%#x", status.AsInBlock)
-				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-				if err != nil {
-					return txhash, configs.Code_600, err
-				}
-				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-				if err != nil {
-					Com.Sugar().Infof("[%v] Decode event err: %v", txhash, err)
-				}
-
-				for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
-					if events.FileMap_RegistrationScheduler[i].Acc == types.NewAccountID(keyring.PublicKey) {
-						return txhash, configs.Code_200, nil
-					}
-				}
-
-				return txhash, configs.Code_600, errors.New("events.FileMap_RegistrationScheduler not found")
-
+				txhash, _ := types.EncodeToHexString(status.AsInBlock)
+				return txhash, configs.Code_600, nil
 			}
 		case err = <-sub.Err():
 			return "", configs.Code_500, err
 		case <-timeout:
-			return "", configs.Code_500, errors.Errorf("tx timeout")
+			return "", configs.Code_500, errors.Errorf("timeout")
 		}
 	}
 }
