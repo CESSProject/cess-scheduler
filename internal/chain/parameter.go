@@ -42,6 +42,7 @@ const (
 	FileMap_UpdateScheduler       = "FileMap.update_scheduler"
 )
 
+// storage miner info
 type MinerInfo struct {
 	PeerId      types.U64
 	IncomeAcc   types.AccountID
@@ -59,12 +60,14 @@ type RewardInfo struct {
 	NotReceived types.U128
 }
 
+// cache storage miner
 type Cache_MinerInfo struct {
 	Peerid uint64 `json:"peerid"`
 	Ip     string `json:"ip"`
 	Pubkey []byte `json:"pubkey"`
 }
 
+// public user file meta info
 type FileMetaInfo struct {
 	FileSize  types.U64
 	Index     types.U32
@@ -83,12 +86,14 @@ type ChunkInfo struct {
 	MinerAcc  types.AccountID
 }
 
+// scheduler info
 type SchedulerInfo struct {
 	Ip             types.Bytes
 	StashUser      types.AccountID
 	ControllerUser types.AccountID
 }
 
+// filler info
 type SpaceFileInfo struct {
 	FileSize  types.U64
 	Index     types.U32
@@ -106,6 +111,7 @@ type Chain_SchedulerPuk struct {
 	Shared_g      types.Bytes
 }
 
+//
 type Chain_Proofs struct {
 	FileId         types.Bytes
 	Miner_pubkey   types.AccountID
@@ -122,7 +128,7 @@ type ChallengeInfo struct {
 	Random     []types.Bytes
 }
 
-//---user space Info
+// user space Info
 type UserSpaceInfo struct {
 	PurchasedSpace types.U128
 	UsedSpace      types.U128
