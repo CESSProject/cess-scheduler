@@ -9,7 +9,6 @@ import (
 	"cess-scheduler/internal/chain"
 	"cess-scheduler/internal/logger"
 	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/proof"
 	"cess-scheduler/internal/rpc"
 	"cess-scheduler/tools"
 	"fmt"
@@ -172,9 +171,6 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		// start-up
 		logger.Logger_Init()
 	}
-
-	//exit_interrupt()
-	go proof.Chain_Main()
 
 	// rpc service
 	rpc.Rpc_Main()
