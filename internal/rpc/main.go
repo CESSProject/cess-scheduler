@@ -100,8 +100,8 @@ type filler struct {
 }
 
 type baseFiller struct {
-	MinerIp  string `json:"minerIp"`
-	FillerId string `json:"fillerId"`
+	MinerIp  []string `json:"minerIp"`
+	FillerId string   `json:"fillerId"`
 }
 
 var am *authmap
@@ -854,12 +854,28 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	basefiller := baseFillerList[0]
+	if len(basefiller.MinerIp) >= 3 {
+		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+		return &RespBody{Code: http.StatusNotAcceptable, Msg: "Try again later"}, nil
+	}
+
+	for _, v := range basefiller.MinerIp {
+		if v == string(b.Publickey) {
+			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+			return &RespBody{Code: http.StatusNotAcceptable, Msg: "Try again later"}, nil
+		}
+	}
+
 	resp_b, err := json.Marshal(basefiller)
 	if err != nil {
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
-	baseFillerList = baseFillerList[1:]
+
+	baseFillerList[0].MinerIp = append(baseFillerList[0].MinerIp, minerinfo.Ip)
+	if len(baseFillerList[0].MinerIp) >= 3 {
+		baseFillerList = baseFillerList[1:]
+	}
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
 
@@ -913,7 +929,8 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		os.Remove(filefullpath)
 		var bf baseFiller
 		bf.FillerId = fname
-		bf.MinerIp = ip
+		bf.MinerIp = make([]string, 0)
+		bf.MinerIp = append(bf.MinerIp, ip)
 		baseFillerList = append(baseFillerList, bf)
 		time.Sleep(time.Second * 10)
 		return &RespBody{Code: 200, Msg: "success"}, nil
