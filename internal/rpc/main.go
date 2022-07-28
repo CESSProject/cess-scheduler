@@ -64,7 +64,8 @@ type authinfo struct {
 
 type authspaceinfo struct {
 	publicKey  string
-	fid        string
+	ip         string
+	fillerId   string
 	updateTime int64
 }
 
@@ -91,35 +92,61 @@ type connmap struct {
 	conns map[string]int64
 }
 
+type filler struct {
+	FillerId string
+	Path     string
+	T        apiv1.FileTagT
+	Sigmas   [][]byte `json:"sigmas"`
+}
+
+type baseFiller struct {
+	MinerIp  string `json:"minerIp"`
+	FillerId string `json:"fillerId"`
+}
+
 var am *authmap
 var sm *spacemap
 var co *connmap
 var ctl *calcTagLock
 var fm *fillermetamap
 var chan_FillerMeta chan chain.SpaceFileInfo
+var chan_Filler chan filler
+var baseFillerList []baseFiller
 var cacheSt bool
+var globalTransport *http.Transport
 
 // init
 func init() {
+	globalTransport = &http.Transport{
+		DisableKeepAlives: true,
+	}
+
 	am = new(authmap)
 	am.lock = new(sync.Mutex)
 	am.users = make(map[string]string, 10)
 	am.tokens = make(map[string]authinfo, 10)
+
 	sm = new(spacemap)
 	sm.lock = new(sync.Mutex)
 	sm.miners = make(map[string]string, 10)
 	sm.blacklist = make(map[string]struct{}, 10)
 	sm.tokens = make(map[string]authspaceinfo, 10)
+
 	co = new(connmap)
 	co.lock = new(sync.Mutex)
 	co.conns = make(map[string]int64, 10)
-	chan_FillerMeta = make(chan chain.SpaceFileInfo, 30)
+
 	ctl = new(calcTagLock)
 	ctl.lock = new(sync.Mutex)
 	ctl.flag = false
+
 	fm = new(fillermetamap)
 	fm.fillermetas = make(map[string][]chain.SpaceFileInfo)
 	fm.lock = new(sync.Mutex)
+
+	chan_FillerMeta = make(chan chain.SpaceFileInfo, 30)
+	chan_Filler = make(chan filler, 10)
+	baseFillerList = make([]baseFiller, 0)
 }
 
 // Start tcp service.
@@ -190,36 +217,36 @@ func (this *authmap) UpdateTime(key string) (uint32, string, string, string, err
 	return v.blockTotal, v.fileId, v.publicKey, v.fileName, nil
 }
 
-func (this *spacemap) UpdateTimeIfExists(key, fname string) (string, int, error) {
+func (this *spacemap) UpdateTimeIfExists(key, ip, fid string) string {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
 	v, _ := this.miners[key]
 	info, ok2 := this.tokens[v]
 	if ok2 {
-		info.fid = fname
 		info.updateTime = time.Now().Unix()
 		this.tokens[v] = info
-		return v, configs.Code_200, nil
+		return v
 	}
 	token := tools.RandStr(16)
 	data := authspaceinfo{}
 	data.publicKey = key
-	data.fid = fname
+	data.ip = ip
+	data.fillerId = fid
 	data.updateTime = time.Now().Unix()
 	this.miners[key] = token
 	this.tokens[token] = data
-	return token, configs.Code_200, nil
+	return token
 }
 
-func (this *spacemap) VerifyToken(token string) (string, string, error) {
+func (this *spacemap) VerifyToken(token string) (string, string, string, error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 	v, ok := this.tokens[token]
 	if !ok {
-		return "", "", errors.New("Invalid token")
+		return "", "", "", errors.New("Invalid token")
 	}
-	return v.publicKey, v.fid, nil
+	return v.publicKey, v.fillerId, v.ip, nil
 }
 
 func (this *spacemap) Delete(key string) {
@@ -287,27 +314,19 @@ func (this *spacemap) Connect(pubkey string) bool {
 			return false
 		}
 	}
-	info, ok2 := this.tokens[v]
-	if !ok2 {
-		delete(this.miners, pubkey)
-		this.blacklist[pubkey] = struct{}{}
-		return false
-	}
 
-	if time.Since(time.Unix(info.updateTime, 0)).Seconds() < 10 {
-		delete(this.miners, pubkey)
-		delete(this.tokens, v)
-		this.blacklist[pubkey] = struct{}{}
-		return false
-	}
+	info, ok := this.tokens[v]
+	if ok {
+		if time.Since(time.Unix(info.updateTime, 0)).Seconds() < 10 {
+			delete(this.miners, pubkey)
+			delete(this.tokens, v)
+			this.blacklist[pubkey] = struct{}{}
+			return false
+		}
 
-	if fm.GetNum(pubkey) > 6 {
-		delete(this.miners, pubkey)
-		delete(this.tokens, v)
-		return false
+		info.updateTime = time.Now().Unix()
+		this.tokens[v] = info
 	}
-	info.updateTime = time.Now().Unix()
-	this.tokens[v] = info
 	return true
 }
 
@@ -400,12 +419,14 @@ func task_Management() {
 		channel_3 = make(chan bool, 1)
 		channel_4 = make(chan bool, 1)
 		channel_5 = make(chan bool, 1)
+		channel_6 = make(chan bool, 1)
 	)
 	go task_SyncMinersInfo(channel_1)
 	//go task_RecoveryFiles(channel_2)
 	go task_ValidateProof(channel_3)
 	go task_ClearAuthMap(channel_4)
 	go task_SubmitFillerMeta(channel_5)
+	go task_GenerateFiller(channel_6)
 	for {
 		select {
 		case <-channel_1:
@@ -418,6 +439,8 @@ func task_Management() {
 			go task_ClearAuthMap(channel_4)
 		case <-channel_5:
 			go task_SubmitFillerMeta(channel_5)
+		case <-channel_6:
+			go task_GenerateFiller(channel_6)
 		}
 	}
 }
@@ -729,15 +752,13 @@ func storeFiles(fid, fpath, name, pubkey string) {
 	return
 }
 
-var test_map = make(map[string]int64)
-
 // SpaceAction is used to handle miner requests to space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	if !cacheSt {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
-		return &RespBody{Code: http.StatusForbidden, Msg: "Forbidden"}, nil
+		return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
 	}
 
 	defer func() {
@@ -749,7 +770,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	var b SpaceReq
 	err := proto.Unmarshal(body, &b)
 	if err != nil {
-		return &RespBody{Code: http.StatusBadRequest, Msg: "Bad Request"}, nil
+		return &RespBody{Code: http.StatusForbidden, Msg: "Bad request"}, nil
 	}
 
 	if sm.FilterBlacklist(string(b.Publickey)) {
@@ -768,21 +789,18 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 	addr, err := tools.EncodeToCESSAddr(b.Publickey)
 	if err != nil {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
+		return &RespBody{Code: http.StatusForbidden, Msg: "Invalid public key"}, nil
 	}
 
 	//Verify miner identity
 	ss58addr, err := tools.EncodeToSS58(b.Publickey)
 	if err != nil {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
+		return &RespBody{Code: http.StatusForbidden, Msg: "Invalid public key"}, nil
 	}
 	verkr, _ := keyring.FromURI(ss58addr, keyring.NetSubstrate{})
 
 	if len(b.Sign) < 64 {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
+		return &RespBody{Code: http.StatusForbidden, Msg: "Authentication failed"}, nil
 	}
 
 	var sign [64]byte
@@ -793,119 +811,56 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	ok = verkr.Verify(verkr.SigningContext(b.Msg), sign)
 	if !ok {
 		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-		return &RespBody{Code: 403, Msg: "Authentication failed"}, nil
+		return &RespBody{Code: http.StatusForbidden, Msg: "Authentication failed"}, nil
 	}
 
 	c, err := db.GetCache()
-	if err == nil {
-		ok, _ := c.Has(b.Publickey)
-		if !ok {
-			sm.Delete(string(b.Publickey))
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-			return &RespBody{Code: 404, Msg: "Not found"}, nil
-		}
-	}
-
-	filebasedir := filepath.Join(configs.SpaceCacheDir, addr)
-	tools.CreatDirIfNotExist(filebasedir)
 	if err != nil {
-		Flr.Sugar().Errorf("[%v] mkdir: %v", addr, err)
-		return &RespBody{Code: 500, Msg: err.Error()}, nil
+		return &RespBody{Code: http.StatusInternalServerError, Msg: "InternalServerError"}, nil
+	}
+	minercache, err := c.Get(b.Publickey)
+	if err != nil {
+		return &RespBody{Code: http.StatusNotFound, Msg: "Not found"}, nil
 	}
 
-	uid, _ := tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
-	filename := fmt.Sprintf("%s", uid)
-	filefullpath := filepath.Join(filebasedir, filename)
-	for {
-		_, err = os.Stat(filefullpath)
+	var minerinfo chain.Cache_MinerInfo
+
+	err = json.Unmarshal(minercache, &minerinfo)
+	if err != nil {
+		return &RespBody{Code: http.StatusInternalServerError, Msg: "Cache error"}, nil
+	}
+
+	if len(baseFillerList) == 0 {
+		if len(chan_Filler) == 0 {
+			time.Sleep(time.Second)
+			if len(chan_Filler) == 0 {
+				return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
+			}
+		}
+		filler := <-chan_Filler
+		var resp RespSpaceInfo
+		resp.FileId = filler.FillerId
+		resp.T = filler.T
+		resp.Sigmas = filler.Sigmas
+		resp_b, err := json.Marshal(resp)
 		if err != nil {
-			break
+			os.Remove(filler.Path)
+			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+			return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 		}
-		uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
-		filename = fmt.Sprintf("%s", uid)
-		filefullpath = filepath.Join(filebasedir, filename)
+		sm.UpdateTimeIfExists(string(b.Publickey), minerinfo.Ip, filler.FillerId)
+		Flr.Sugar().Infof("[%v] Base filler: %v", addr, filler.FillerId)
+		return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 	}
 
-	//Prohibit frequent requests
-	token, code, err := sm.UpdateTimeIfExists(string(b.Publickey), filename)
+	basefiller := baseFillerList[0]
+	resp_b, err := json.Marshal(basefiller)
 	if err != nil {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-		Flr.Sugar().Errorf("[%v] UpdateTimeIfExists: %v", addr, err)
-		return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-	}
-
-	//Generate space file
-	err = genSpaceFile(filefullpath)
-	if err != nil {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
-		Flr.Sugar().Errorf("[%v] genSpaceFile: %v", addr, err)
-		os.Remove(filefullpath)
-		return &RespBody{Code: 500, Msg: err.Error()}, nil
-	}
-
-	fstat, _ := os.Stat(filefullpath)
-	if fstat.Size() != 8386771 {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
-		Flr.Sugar().Errorf("[%v] file size err: %v", addr, err)
-		os.Remove(filefullpath)
-		return &RespBody{Code: 500, Msg: "file size err"}, nil
-	}
-
-	ctl.Lock()
-	defer ctl.FreeLock()
-	defer runtime.GC()
-
-	// calculate file tag info
-	var PoDR2commit apiv1.PoDR2Commit
-	var commitResponse apiv1.PoDR2CommitResponse
-	PoDR2commit.FilePath = filefullpath
-	PoDR2commit.BlockSize = configs.BlockSize
-
-	gWait := make(chan bool)
-	go func(ch chan bool) {
-		runtime.LockOSThread()
-		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
-			apiv1.Key_Ssk,
-			string(apiv1.Key_SharedParams),
-			int64(configs.ScanBlockSize),
-		)
-		if err != nil {
-			ch <- false
-			return
-		}
-		aft := time.After(time.Second * 5)
-		select {
-		case commitResponse = <-commitResponseCh:
-		case <-aft:
-			ch <- false
-			return
-		}
-		if commitResponse.StatueMsg.StatusCode != apiv1.Success {
-			ch <- false
-		} else {
-			ch <- true
-		}
-	}(gWait)
-
-	if rst := <-gWait; !rst {
-		os.Remove(filefullpath)
-		Flr.Sugar().Errorf("[%v] PoDR2ProofCommit false", addr)
-		return &RespBody{Code: 500, Msg: "unexpected system error"}, nil
-	}
-
-	var resp RespSpaceInfo
-	resp.FileId = filename
-	resp.Token = token
-	resp.T = commitResponse.T
-	resp.Sigmas = commitResponse.Sigmas
-	resp_b, err := json.Marshal(resp)
-	if err != nil {
-		os.Remove(filefullpath)
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
-		return &RespBody{Code: 500, Msg: err.Error()}, nil
+		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
-	Flr.Sugar().Infof("[%v] Generate filler: %v", addr, filename)
-	return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
+	baseFillerList = baseFillerList[1:]
+	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
 
 // SpacefileAction is used to handle miner requests to download space files.
@@ -932,12 +887,12 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Empty token"}, nil
 	}
 
-	pubkey, fname, err := sm.VerifyToken(b.Token)
+	pubkey, fname, ip, err := sm.VerifyToken(b.Token)
 	if err != nil {
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
 
-	sm.UpdateTimeIfExists(pubkey, fname)
+	sm.UpdateTimeIfExists(pubkey, ip, fname)
 	co.UpdateTime(pubkey)
 
 	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
@@ -945,7 +900,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
 	}
 
-	filefullpath := filepath.Join(configs.SpaceCacheDir, addr, fname)
+	filefullpath := filepath.Join(configs.SpaceCacheDir, fname)
 	if b.BlockIndex == 16 {
 		Flr.Sugar().Infof("[%v] Transferred filler: %v", addr, fname)
 		var data chain.SpaceFileInfo
@@ -956,6 +911,10 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		}
 		chan_FillerMeta <- data
 		os.Remove(filefullpath)
+		var bf baseFiller
+		bf.FillerId = fname
+		bf.MinerIp = ip
+		baseFillerList = append(baseFillerList, bf)
 		time.Sleep(time.Second * 10)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
@@ -1518,7 +1477,7 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 	ch <- chunk
 }
 
-func genSpaceFile(fpath string) error {
+func generateFiller(fpath string) error {
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
@@ -1529,9 +1488,15 @@ func genSpaceFile(fpath string) error {
 	}
 	_, err = f.WriteString(tools.RandStr(212))
 	if err != nil {
+		os.Remove(fpath)
 		return err
 	}
-	return f.Sync()
+	err = f.Sync()
+	if err != nil {
+		os.Remove(fpath)
+		return err
+	}
+	return nil
 }
 
 func task_SubmitFillerMeta(ch chan bool) {
@@ -1587,6 +1552,95 @@ func task_SubmitFillerMeta(ch chan bool) {
 				}
 			}
 		}
+	}
+}
+
+func task_GenerateFiller(ch chan bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+		}
+		ch <- true
+	}()
+
+	Tgf.Info("-----> Start task_GenerateFiller")
+
+	var (
+		err        error
+		uid        string
+		fillerpath string
+	)
+
+	for len(chan_Filler) < 10 {
+		for {
+			uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
+			fillerpath = filepath.Join(configs.SpaceCacheDir, fmt.Sprintf("%s", uid))
+			_, err = os.Stat(fillerpath)
+			if err != nil {
+				break
+			}
+		}
+		err = generateFiller(fillerpath)
+		if err != nil {
+			Tgf.Sugar().Errorf("generateFiller: %v", err)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+			continue
+		}
+
+		fstat, _ := os.Stat(fillerpath)
+		if fstat.Size() != 8386771 {
+			Flr.Sugar().Errorf("file size err: %v", err)
+			os.Remove(fillerpath)
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+			continue
+		}
+
+		// calculate file tag info
+		var PoDR2commit apiv1.PoDR2Commit
+		var commitResponse apiv1.PoDR2CommitResponse
+		PoDR2commit.FilePath = fillerpath
+		PoDR2commit.BlockSize = configs.BlockSize
+
+		gWait := make(chan bool)
+		go func(ch chan bool) {
+			runtime.LockOSThread()
+			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
+				apiv1.Key_Ssk,
+				string(apiv1.Key_SharedParams),
+				int64(configs.ScanBlockSize),
+			)
+			if err != nil {
+				ch <- false
+				return
+			}
+			aft := time.After(time.Second * 5)
+			select {
+			case commitResponse = <-commitResponseCh:
+			case <-aft:
+				ch <- false
+				return
+			}
+			if commitResponse.StatueMsg.StatusCode != apiv1.Success {
+				ch <- false
+			} else {
+				ch <- true
+			}
+		}(gWait)
+
+		if rst := <-gWait; !rst {
+			os.Remove(fillerpath)
+			Flr.Sugar().Errorf("PoDR2ProofCommit false")
+			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+			continue
+		}
+		runtime.GC()
+
+		var fillerEle filler
+		fillerEle.FillerId = uid
+		fillerEle.Path = fillerpath
+		fillerEle.T = commitResponse.T
+		fillerEle.Sigmas = commitResponse.Sigmas
+		chan_Filler <- fillerEle
 	}
 }
 
