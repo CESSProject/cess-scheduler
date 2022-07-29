@@ -855,6 +855,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 	basefiller := baseFillerList[0]
 	if len(basefiller.MinerIp) >= 3 {
+		baseFillerList = baseFillerList[1:]
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 		return &RespBody{Code: http.StatusNotAcceptable, Msg: "Try again later"}, nil
 	}
@@ -965,25 +966,25 @@ func (WService) FillerBackAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
-	if len(b.FileId) != len(b.FileHash) {
+	if len(b.FileId) == 0 || len(b.FileHash) == 0 {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
-	for i := 0; i < len(b.FileId); i++ {
-		var data chain.SpaceFileInfo
-		data.FileId = types.NewBytes([]byte(b.FileId[i]))
-		data.FileHash = types.NewBytes([]byte(b.FileHash[i]))
-		data.Index = 0
-		data.FileSize = 8388608
-		data.Acc = types.NewAccountID(b.Publickey)
-		blocknum := uint64(math.Ceil(float64(8386771 / configs.BlockSize)))
-		if blocknum == 0 {
-			blocknum = 1
-		}
-		data.BlockNum = types.U32(blocknum)
-		data.BlockSize = types.U32(uint32(configs.BlockSize))
-		data.ScanSize = types.U32(uint32(configs.ScanBlockSize))
-		chan_FillerMeta <- data
+
+	var data chain.SpaceFileInfo
+	data.FileId = b.FileId
+	data.FileHash = b.FileHash
+	data.Index = 0
+	data.FileSize = 8388608
+	data.Acc = types.NewAccountID(b.Publickey)
+	blocknum := uint64(math.Ceil(float64(8386771 / configs.BlockSize)))
+	if blocknum == 0 {
+		blocknum = 1
 	}
+	data.BlockNum = types.U32(blocknum)
+	data.BlockSize = types.U32(uint32(configs.BlockSize))
+	data.ScanSize = types.U32(uint32(configs.ScanBlockSize))
+	chan_FillerMeta <- data
+
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
