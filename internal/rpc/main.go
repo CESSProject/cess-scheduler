@@ -144,7 +144,7 @@ func init() {
 	fm.fillermetas = make(map[string][]chain.SpaceFileInfo)
 	fm.lock = new(sync.Mutex)
 
-	chan_FillerMeta = make(chan chain.SpaceFileInfo, 30)
+	chan_FillerMeta = make(chan chain.SpaceFileInfo, 100)
 	chan_Filler = make(chan filler, 10)
 	baseFillerList = make([]baseFiller, 0)
 }
@@ -947,6 +947,44 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	f.Seek(int64(b.BlockIndex)*configs.RpcSpaceBuffer, 0)
 	n, _ = f.Read(buf)
 	return &RespBody{Code: 200, Msg: "success", Data: buf[:n]}, nil
+}
+
+// SpacefileAction is used to handle miner requests to download space files.
+// The return code is 200 for success, non-200 for failure.
+// The returned Msg indicates the result reason.
+func (WService) FillerBackAction(body []byte) (proto.Message, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+		}
+	}()
+
+	var b FillerBackReq
+	err := proto.Unmarshal(body, &b)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if len(b.FileId) != len(b.FileHash) {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+	for i := 0; i < len(b.FileId); i++ {
+		var data chain.SpaceFileInfo
+		data.FileId = types.NewBytes([]byte(b.FileId[i]))
+		data.FileHash = types.NewBytes([]byte(b.FileHash[i]))
+		data.Index = 0
+		data.FileSize = 8388608
+		data.Acc = types.NewAccountID(b.Publickey)
+		blocknum := uint64(math.Ceil(float64(8386771 / configs.BlockSize)))
+		if blocknum == 0 {
+			blocknum = 1
+		}
+		data.BlockNum = types.U32(blocknum)
+		data.BlockSize = types.U32(uint32(configs.BlockSize))
+		data.ScanSize = types.U32(uint32(configs.ScanBlockSize))
+		chan_FillerMeta <- data
+	}
+	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
 // SpacefileAction is used to handle miner requests to download space files.
