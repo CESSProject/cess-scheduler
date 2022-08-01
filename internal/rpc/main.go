@@ -83,7 +83,7 @@ type authmap struct {
 type spacemap struct {
 	lock      *sync.Mutex
 	miners    map[string]string
-	blacklist map[string]struct{}
+	blacklist map[string]int64
 	tokens    map[string]authspaceinfo
 }
 
@@ -104,6 +104,11 @@ type baseFiller struct {
 	FillerId string   `json:"fillerId"`
 }
 
+type baseFillerList struct {
+	Lock       *sync.Mutex
+	BaseFiller []baseFiller
+}
+
 var am *authmap
 var sm *spacemap
 var co *connmap
@@ -111,7 +116,7 @@ var ctl *calcTagLock
 var fm *fillermetamap
 var chan_FillerMeta chan chain.SpaceFileInfo
 var chan_Filler chan filler
-var baseFillerList []baseFiller
+var bs *baseFillerList
 var cacheSt bool
 var globalTransport *http.Transport
 
@@ -129,7 +134,7 @@ func init() {
 	sm = new(spacemap)
 	sm.lock = new(sync.Mutex)
 	sm.miners = make(map[string]string, 10)
-	sm.blacklist = make(map[string]struct{}, 10)
+	sm.blacklist = make(map[string]int64, 10)
 	sm.tokens = make(map[string]authspaceinfo, 10)
 
 	co = new(connmap)
@@ -146,7 +151,10 @@ func init() {
 
 	chan_FillerMeta = make(chan chain.SpaceFileInfo, 100)
 	chan_Filler = make(chan filler, 10)
-	baseFillerList = make([]baseFiller, 0)
+
+	bs = new(baseFillerList)
+	bs.Lock = new(sync.Mutex)
+	bs.BaseFiller = make([]baseFiller, 0)
 }
 
 // Start tcp service.
@@ -225,6 +233,7 @@ func (this *spacemap) UpdateTimeIfExists(key, ip, fid string) string {
 	info, ok2 := this.tokens[v]
 	if ok2 {
 		info.updateTime = time.Now().Unix()
+		info.fillerId = fid
 		this.tokens[v] = info
 		return v
 	}
@@ -298,7 +307,13 @@ func (this *spacemap) FilterBlacklist(pubkey string) bool {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	_, ok := this.blacklist[pubkey]
+	v, ok := this.blacklist[pubkey]
+	if ok {
+		if time.Since(time.Unix(v, 0)).Minutes() > 10 {
+			delete(this.blacklist, pubkey)
+			return false
+		}
+	}
 	return ok
 }
 
@@ -317,10 +332,10 @@ func (this *spacemap) Connect(pubkey string) bool {
 
 	info, ok := this.tokens[v]
 	if ok {
-		if time.Since(time.Unix(info.updateTime, 0)).Seconds() < 10 {
+		if time.Since(time.Unix(info.updateTime, 0)).Seconds() < 5 {
 			delete(this.miners, pubkey)
 			delete(this.tokens, v)
-			this.blacklist[pubkey] = struct{}{}
+			this.blacklist[pubkey] = time.Now().Unix()
 			return false
 		}
 
@@ -410,6 +425,67 @@ func (this *fillermetamap) Lock() {
 
 func (this *fillermetamap) UnLock() {
 	this.lock.Unlock()
+}
+
+func (this *baseFillerList) Add(elem baseFiller) {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	this.BaseFiller = append(this.BaseFiller, elem)
+}
+
+func (this *baseFillerList) GetTheFirst() baseFiller {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	return this.BaseFiller[0]
+}
+
+func (this *baseFillerList) GetAvailableAndInsert(ip string) (baseFiller, error) {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	exist := false
+	if len(this.BaseFiller) > 100 {
+		this.BaseFiller = this.BaseFiller[1:]
+	}
+	for k1, v1 := range this.BaseFiller {
+		exist = false
+		for _, v2 := range v1.MinerIp {
+			if v2 == ip {
+				exist = true
+				break
+			}
+		}
+		if !exist && len(v1.MinerIp) < 3 {
+			this.BaseFiller[k1].MinerIp = append(this.BaseFiller[k1].MinerIp, ip)
+			return v1, nil
+		}
+	}
+	return baseFiller{}, errors.New("None available")
+}
+
+func (this *baseFillerList) RemoveTheFirst() {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	this.BaseFiller = this.BaseFiller[1:]
+}
+
+func (this *baseFillerList) GetLength() int {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	return len(this.BaseFiller)
+}
+
+func (this *baseFillerList) AddIpInFirst(ip string) {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	this.BaseFiller[0].MinerIp = append(this.BaseFiller[0].MinerIp, ip)
+	return
+}
+
+func (this *baseFillerList) InsertIpInKey(key int, ip string) {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	this.BaseFiller[key].MinerIp = append(this.BaseFiller[key].MinerIp, ip)
+	return
 }
 
 func task_Management() {
@@ -830,15 +906,17 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: http.StatusInternalServerError, Msg: "Cache error"}, nil
 	}
 
-	if len(baseFillerList) == 0 {
+	if bs.GetLength() == 0 {
 		if len(chan_Filler) == 0 {
 			time.Sleep(time.Second)
 			if len(chan_Filler) == 0 {
 				return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
 			}
 		}
+
 		filler := <-chan_Filler
 		var resp RespSpaceInfo
+		resp.Token = sm.UpdateTimeIfExists(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
 		resp.T = filler.T
 		resp.Sigmas = filler.Sigmas
@@ -848,23 +926,34 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 			return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 		}
-		sm.UpdateTimeIfExists(string(b.Publickey), minerinfo.Ip, filler.FillerId)
+
 		Flr.Sugar().Infof("[%v] Base filler: %v", addr, filler.FillerId)
 		return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 	}
 
-	basefiller := baseFillerList[0]
-	if len(basefiller.MinerIp) >= 3 {
-		baseFillerList = baseFillerList[1:]
-		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
-		return &RespBody{Code: http.StatusNotAcceptable, Msg: "Try again later"}, nil
-	}
-
-	for _, v := range basefiller.MinerIp {
-		if v == string(b.Publickey) {
-			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
-			return &RespBody{Code: http.StatusNotAcceptable, Msg: "Try again later"}, nil
+	basefiller, err := bs.GetAvailableAndInsert(minerinfo.Ip)
+	if err != nil {
+		if len(chan_Filler) == 0 {
+			time.Sleep(time.Second)
+			if len(chan_Filler) == 0 {
+				return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
+			}
 		}
+		filler := <-chan_Filler
+		var resp RespSpaceInfo
+		resp.Token = sm.UpdateTimeIfExists(string(b.Publickey), minerinfo.Ip, filler.FillerId)
+		resp.FileId = filler.FillerId
+		resp.T = filler.T
+		resp.Sigmas = filler.Sigmas
+		resp_b, err := json.Marshal(resp)
+		if err != nil {
+			os.Remove(filler.Path)
+			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+			return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
+		}
+
+		Flr.Sugar().Infof("[%v] Base filler: %v", addr, filler.FillerId)
+		return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 	}
 
 	resp_b, err := json.Marshal(basefiller)
@@ -872,11 +961,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
-
-	baseFillerList[0].MinerIp = append(baseFillerList[0].MinerIp, minerinfo.Ip)
-	if len(baseFillerList[0].MinerIp) >= 3 {
-		baseFillerList = baseFillerList[1:]
-	}
+	time.Sleep(time.Second * 5)
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
 
@@ -932,8 +1017,8 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		bf.FillerId = fname
 		bf.MinerIp = make([]string, 0)
 		bf.MinerIp = append(bf.MinerIp, ip)
-		baseFillerList = append(baseFillerList, bf)
-		time.Sleep(time.Second * 10)
+		bs.Add(bf)
+		time.Sleep(time.Second * 5)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
 
@@ -953,7 +1038,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 // SpacefileAction is used to handle miner requests to download space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
-func (WService) FillerBackAction(body []byte) (proto.Message, error) {
+func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -1581,7 +1666,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 			t_active = time.Now()
 			for k, v := range fm.fillermetas {
 				addr, _ := tools.EncodeToCESSAddr([]byte(k))
-				if len(v) > 6 {
+				if len(v) > 7 {
 					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:])
 					if txhash == "" || err != nil {
 						Tsfm.Sugar().Errorf("%v", err)
