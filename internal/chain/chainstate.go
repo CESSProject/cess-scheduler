@@ -286,53 +286,10 @@ func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
 }
 
 //
-func GetUserSpaceOnChain(account string) (UserSpaceInfo, int, error) {
+func GetSpacePackageInfo(puk types.AccountID) (SpacePackage, int, error) {
 	var (
 		err   error
-		mdata UserSpaceInfo
-	)
-	api := SubApi.getApi()
-	defer func() {
-		SubApi.free()
-		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-		}
-	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
-	}
-
-	puk, err := tools.DecodeToPub(account, tools.ChainCessTestPrefix)
-	if err != nil {
-		return mdata, configs.Code_400, errors.Wrap(err, "[GetMetadataLatest]")
-	}
-
-	b, err := types.EncodeToBytes(types.NewAccountID(puk))
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
-	}
-
-	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_UserSpaceInfo, types.NewBytes(b))
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
-	}
-
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
-	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
-	}
-	if !ok {
-		return mdata, configs.Code_404, errors.New("value is empty")
-	}
-	return mdata, configs.Code_200, nil
-}
-
-//
-func GetUserSpaceByPuk(puk types.AccountID) (UserSpaceInfo, int, error) {
-	var (
-		err   error
-		mdata UserSpaceInfo
+		mdata SpacePackage
 	)
 	api := SubApi.getApi()
 	defer func() {
@@ -351,7 +308,7 @@ func GetUserSpaceByPuk(puk types.AccountID) (UserSpaceInfo, int, error) {
 		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
-	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_UserSpaceInfo, types.NewBytes(b))
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_PurchasedPackage, b)
 	if err != nil {
 		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
 	}

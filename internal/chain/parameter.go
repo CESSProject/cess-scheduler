@@ -22,7 +22,7 @@ const (
 	FileMap_FileMetaInfo      = "File"
 	FileMap_SchedulerInfo     = "SchedulerMap"
 	FileBank_UserSpaceList    = "UserSpaceList"
-	FileBank_UserSpaceInfo    = "UserHoldSpaceDetails"
+	FileBank_PurchasedPackage = "PurchasedPackage"
 	FileBank_UserFilelist     = "UserHoldFileList"
 	Sminer_PurchasedSpace     = "PurchasedSpace"
 	Sminer_TotalSpace         = "AvailableSpace"
@@ -129,10 +129,15 @@ type ChallengeInfo struct {
 }
 
 // user space Info
-type UserSpaceInfo struct {
-	PurchasedSpace types.U128
-	UsedSpace      types.U128
-	RemainingSpace types.U128
+type SpacePackage struct {
+	Space           types.U128
+	Used_space      types.U128
+	Remaining_space types.U128
+	Tenancy         types.U32
+	Package_type    types.U8
+	Start           types.U32
+	Deadline        types.U32
+	State           types.Bytes
 }
 
 //

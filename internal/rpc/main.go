@@ -591,9 +591,9 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	//Judge whether the space is enough
 	count := 0
 	code := configs.Code_404
-	userSpace := chain.UserSpaceInfo{}
+	userSpace := chain.SpacePackage{}
 	for code != configs.Code_200 {
-		userSpace, code, err = chain.GetUserSpaceByPuk(types.NewAccountID(b.PublicKey))
+		userSpace, code, err = chain.GetSpacePackageInfo(types.NewAccountID(b.PublicKey))
 		if count > 3 && code != configs.Code_200 {
 			Uld.Sugar().Infof("[%v] GetUserSpaceByPuk err: %v", b.FileId, err)
 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
@@ -601,7 +601,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		if code != configs.Code_200 {
 			time.Sleep(time.Second * 3)
 		} else {
-			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.RemainingSpace.Bytes())) == 1 {
+			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.Remaining_space.Bytes())) == 1 {
 				return &RespBody{Code: 403, Msg: "Not enough space"}, nil
 			}
 		}
@@ -1653,21 +1653,20 @@ func task_SubmitFillerMeta(ch chan bool) {
 	var (
 		err    error
 		txhash string
-		//fillermetas = make(map[types.AccountID][]chain.SpaceFileInfo, 10)
 	)
 	t_active := time.Now()
 	for {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 1)
 		for len(chan_FillerMeta) > 0 {
 			var tmp = <-chan_FillerMeta
 			fm.Add(string(tmp.Acc[:]), tmp)
 		}
-		if time.Since(t_active).Seconds() > 30 {
+		if time.Since(t_active).Seconds() > 5 {
 			t_active = time.Now()
 			for k, v := range fm.fillermetas {
 				addr, _ := tools.EncodeToCESSAddr([]byte(k))
-				if len(v) > 7 {
-					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:])
+				if len(v) >= 8 {
+					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:8])
 					if txhash == "" || err != nil {
 						Tsfm.Sugar().Errorf("%v", err)
 						continue
