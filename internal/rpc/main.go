@@ -322,7 +322,7 @@ func (this *spacemap) Connect(pubkey string) bool {
 	defer this.lock.Unlock()
 	v, ok := this.miners[pubkey]
 	if !ok {
-		if len(this.miners) < 10 {
+		if len(this.miners) < 20 {
 			this.miners[pubkey] = fmt.Sprintf("%v", time.Now().Unix())
 			return true
 		} else {
@@ -357,8 +357,6 @@ func (this *connmap) DeleteExpired() {
 
 	for k, v := range this.conns {
 		if time.Since(time.Unix(v, 0)).Minutes() > 1 {
-			addr, _ := tools.EncodeToCESSAddr([]byte(k))
-			fmt.Println("delete: ", addr)
 			delete(this.conns, k)
 		}
 	}
@@ -454,7 +452,7 @@ func (this *baseFillerList) GetAvailableAndInsert(ip string) (baseFiller, error)
 				break
 			}
 		}
-		if !exist && len(v1.MinerIp) < 3 {
+		if !exist && len(v1.MinerIp) < 5 {
 			this.BaseFiller[k1].MinerIp = append(this.BaseFiller[k1].MinerIp, ip)
 			return v1, nil
 		}
@@ -1964,15 +1962,10 @@ func task_ValidateProof(ch chan bool) {
 
 			gWait := make(chan bool)
 			go func(ch chan bool) {
+				defer runtime.GC()
+				defer runtime.UnlockOSThread()
 				runtime.LockOSThread()
-				defer func() {
-					if err := recover(); err != nil {
-						ch <- true
-						Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-					}
-				}()
-				result := poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-				ch <- result
+				ch <- poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
 			}(gWait)
 			result := <-gWait
 			resultTemp := chain.VerifyResult{}
