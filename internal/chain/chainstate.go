@@ -11,217 +11,230 @@ import (
 )
 
 // Get miner information on the chain
-func GetMinerInfo(pubkey types.AccountID) (MinerInfo, int, error) {
-	var (
-		err   error
-		mdata MinerInfo
-	)
-	api := SubApi.getApi()
+func GetMinerInfo(pubkey types.AccountID) (MinerInfo, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
+
+	var data MinerInfo
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return data, errors.Wrap(err, "[GetRpcClient_Safe]")
+	}
+
+	meta, err := GetMetadata(api)
+	if err != nil {
+		return data, errors.Wrap(err, "[GetMetadata]")
 	}
 
 	b, err := types.EncodeToBytes(pubkey)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_MinerItems, b)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.New("[value is empty]")
+		return data, errors.New(ERR_Empty)
 	}
-	return mdata, configs.Code_200, nil
+	return data, nil
 }
 
 // Get all miner information on the cess chain
-func GetAllMinerDataOnChain() ([]types.AccountID, int, error) {
-	var (
-		err   error
-		mdata []types.AccountID
-	)
-	api := SubApi.getApi()
+func GetAllMinerDataOnChain() ([]types.AccountID, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
+
+	var data []types.AccountID
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return nil, errors.Wrap(err, "[GetRpcClient_Safe]")
+	}
+
+	meta, err := GetMetadata(api)
+	if err != nil {
+		return nil, errors.Wrap(err, "[GetMetadata]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_Sminer, Sminer_AllMinerItems)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.New("[value is empty]")
+		return nil, errors.New(ERR_Empty)
 	}
-	return mdata, configs.Code_200, nil
+	return data, nil
 }
 
 // Query file meta info
-func GetFileMetaInfo(fid string) (FileMetaInfo, int, error) {
-	var (
-		err   error
-		mdata FileMetaInfo
-	)
-	api := SubApi.getApi()
+func GetFileMetaInfo(fid string) (FileMetaInfo, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
+
+	var data FileMetaInfo
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return data, errors.Wrap(err, "[GetRpcClient_Safe]")
+	}
+
+	meta, err := GetMetadata(api)
+	if err != nil {
+		return data, errors.Wrap(err, "[GetMetadata]")
 	}
 
 	b, err := types.EncodeToBytes(fid)
 	if err != nil {
-		return mdata, configs.Code_400, errors.Wrap(err, "[EncodeToBytes]")
+		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_FileBank, FileMap_FileMetaInfo, b)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.New("[Not found]")
+		return data, errors.New(ERR_Empty)
 	}
-	return mdata, configs.Code_200, nil
+	return data, nil
 }
 
 // Query Scheduler info
-func GetSchedulerInfoOnChain() ([]SchedulerInfo, int, error) {
-	var (
-		err   error
-		mdata = make([]SchedulerInfo, 0)
-	)
-	api := SubApi.getApi()
+func GetSchedulerInfoOnChain() ([]SchedulerInfo, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
+
+	var data []SchedulerInfo
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return nil, errors.Wrap(err, "[GetRpcClient_Safe]")
+	}
+
+	meta, err := GetMetadata(api)
+	if err != nil {
+		return nil, errors.Wrap(err, "[GetMetadata]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_FileMap, FileMap_SchedulerInfo)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.New("[Not found]")
+		return data, errors.New(ERR_Empty)
 	}
-	return mdata, configs.Code_200, nil
+	return data, nil
 }
 
 //
-func GetSchedulerPukFromChain() (Chain_SchedulerPuk, int, error) {
-	var (
-		err  error
-		data Chain_SchedulerPuk
-	)
-	api := SubApi.getApi()
+func GetSchedulerPukFromChain() (Chain_SchedulerPuk, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
+
+	var data Chain_SchedulerPuk
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return data, errors.Wrap(err, "[GetRpcClient_Safe]")
+	}
+
+	meta, err := GetMetadata(api)
+	if err != nil {
+		return data, errors.Wrap(err, "[GetMetadata]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_FileMap, FileMap_SchedulerPuk)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
+
 	if !ok {
-		return data, configs.Code_404, errors.New("public key not found")
+		return data, errors.New(ERR_Empty)
 	}
-	return data, configs.Code_200, nil
+	return data, nil
 }
 
 //
-func GetProofsFromChain(prk string) ([]Chain_Proofs, int, error) {
-	var (
-		err  error
-		data []Chain_Proofs
-	)
-	api := SubApi.getApi()
+func GetProofsFromChain(prk string) ([]Chain_Proofs, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
-	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	var data []Chain_Proofs
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return data, configs.Code_400, errors.Wrap(err, "[KeyringPairFromSecret]")
+		return data, errors.Wrap(err, "[GetRpcClient_Safe]")
 	}
 
-	meta, err := api.RPC.State.GetMetadataLatest()
+	meta, err := GetMetadata(api)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return data, errors.Wrap(err, "[GetMetadata]")
 	}
 
-	key, err := types.CreateStorageKey(meta, State_SegmentBook, SegmentBook_UnVerifyProof, keyring.PublicKey)
+	key, err := types.CreateStorageKey(meta, State_SegmentBook, SegmentBook_UnVerifyProof, configs.PublicKey)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, configs.Code_404, errors.New("public key not found")
+		return nil, errors.New(ERR_Empty)
 	}
-	return data, configs.Code_200, nil
+	return data, nil
 }
 
 //
@@ -247,78 +260,78 @@ func GetPublicKeyByPrk(prk string) ([]byte, error) {
 }
 
 //
-func GetFileRecoveryByAcc(prk string) ([]types.Bytes, int, error) {
-	var (
-		err  error
-		data []types.Bytes
-	)
-	api := SubApi.getApi()
+func GetFileRecoveryByAcc(prk string) ([]types.Bytes, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
 
-	keyring, err := signature.KeyringPairFromSecret(prk, 0)
+	var data []types.Bytes
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return data, configs.Code_400, errors.Wrap(err, "[KeyringPairFromSecret]")
+		return nil, errors.Wrap(err, "[GetRpcClient_Safe]")
 	}
 
-	meta, err := api.RPC.State.GetMetadataLatest()
+	meta, err := GetMetadata(api)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return nil, errors.Wrap(err, "[GetMetadata]")
 	}
 
-	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_FileRecovery, keyring.PublicKey)
+	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_FileRecovery, configs.PublicKey)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
 	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return data, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, configs.Code_404, errors.New("value is empty")
+		return nil, errors.New(ERR_Empty)
 	}
-	return data, configs.Code_200, nil
+	return data, nil
 }
 
 //
-func GetSpacePackageInfo(puk types.AccountID) (SpacePackage, int, error) {
-	var (
-		err   error
-		mdata SpacePackage
-	)
-	api := SubApi.getApi()
+func GetSpacePackageInfo(puk types.AccountID) (SpacePackage, error) {
 	defer func() {
-		SubApi.free()
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	meta, err := api.RPC.State.GetMetadataLatest()
+
+	var data SpacePackage
+
+	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
+	defer Free()
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
+		return data, errors.Wrap(err, "[GetRpcClient_Safe]")
+	}
+
+	meta, err := GetMetadata(api)
+	if err != nil {
+		return data, errors.Wrap(err, "[GetMetadata]")
 	}
 
 	b, err := types.EncodeToBytes(puk)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[EncodeToBytes]")
+		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
 	key, err := types.CreateStorageKey(meta, State_FileBank, FileBank_PurchasedPackage, b)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[CreateStorageKey]")
+		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := api.RPC.State.GetStorageLatest(key, &mdata)
+	ok, err := api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
-		return mdata, configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
+		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return mdata, configs.Code_404, errors.New("value is empty")
+		return data, errors.New(ERR_Empty)
 	}
-	return mdata, configs.Code_200, nil
+	return data, nil
 }

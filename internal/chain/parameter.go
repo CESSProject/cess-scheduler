@@ -147,6 +147,12 @@ type VerifyResult struct {
 	Result       types.Bool
 }
 
+const (
+	ERR_Failed  = "Failed"
+	ERR_Timeout = "Timeout"
+	ERR_Empty   = "Empty"
+)
+
 func (this ChunkInfo) IsEmpty() bool {
 	return reflect.DeepEqual(this, ChunkInfo{})
 }

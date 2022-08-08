@@ -587,43 +587,40 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 	}
 
 	//Judge whether the space is enough
-	count := 0
-	code := configs.Code_404
-	userSpace := chain.SpacePackage{}
-	for code != configs.Code_200 {
-		userSpace, code, err = chain.GetSpacePackageInfo(types.NewAccountID(b.PublicKey))
-		if count > 3 && code != configs.Code_200 {
-			Uld.Sugar().Infof("[%v] GetUserSpaceByPuk err: %v", b.FileId, err)
-			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
-		}
-		if code != configs.Code_200 {
-			time.Sleep(time.Second * 3)
-		} else {
-			if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.Remaining_space.Bytes())) == 1 {
-				return &RespBody{Code: 403, Msg: "Not enough space"}, nil
-			}
-		}
-		count++
+
+	userSpace, err := chain.GetSpacePackageInfo(types.NewAccountID(b.PublicKey))
+	if err != nil {
+		Uld.Sugar().Infof("[%v] GetUserSpaceByPuk err: %v", b.FileId, err)
+		return &RespBody{Code: 500, Msg: err.Error()}, nil
+	}
+
+	if new(big.Int).SetUint64(b.FileSize).CmpAbs(new(big.Int).SetBytes(userSpace.Remaining_space.Bytes())) == 1 {
+		return &RespBody{Code: 403, Msg: "Not enough space"}, nil
 	}
 
 	//Judge whether the file has been uploaded
-	count = 0
-	code = configs.Code_404
+	count := 0
+	code := configs.Code_404
 	fmeta := chain.FileMetaInfo{}
-	for code != configs.Code_200 {
-		fmeta, code, err = chain.GetFileMetaInfo(b.FileId)
-		if count > 3 && code != configs.Code_200 {
-			Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
+	for {
+		if count > 3 {
 			return &RespBody{Code: int32(code), Msg: err.Error()}, nil
 		}
-		if code != configs.Code_200 {
-			time.Sleep(time.Second * 3)
-		} else {
-			if string(fmeta.FileState) == "active" {
-				return &RespBody{Code: 201, Msg: "success"}, nil
+		fmeta, err = chain.GetFileMetaInfo(b.FileId)
+		if err != nil {
+			count++
+			if err.Error() == chain.ERR_Empty {
+				time.Sleep(time.Second * 3)
+			} else {
+				Uld.Sugar().Infof("[%v] GetFileMetaInfoOnChain err: %v", b.FileId, err)
 			}
+			continue
 		}
-		count++
+
+		if string(fmeta.FileState) == "active" {
+			return &RespBody{Code: 201, Msg: "success"}, nil
+		}
+		break
 	}
 
 	var info authinfo
@@ -813,7 +810,7 @@ func storeFiles(fid, fpath, name, pubkey string) {
 
 	var txhash string
 	// Upload the file meta information to the chain
-	for txhash == "" {
+	for {
 		txhash, err = chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, uint64(fstat.Size()), []byte(pubkey), chunksInfo)
 		if err != nil {
 			Uld.Sugar().Errorf("[%v] FileMeta On-chain fail: %v", fid, err)
@@ -1443,7 +1440,7 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 	Uld.Sugar().Infof("[%v] Ready to store the chunk", fname)
 
 	for len(allMinerPubkey) == 0 {
-		allMinerPubkey, _, err = chain.GetAllMinerDataOnChain()
+		allMinerPubkey, err = chain.GetAllMinerDataOnChain()
 		if err != nil {
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 		}
@@ -1503,7 +1500,7 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 						delete(filedIndex, k)
 					}
 					Uld.Sugar().Errorf("[%v] All miners cannot store and refresh miner list", fname)
-					allMinerPubkey, _, err = chain.GetAllMinerDataOnChain()
+					allMinerPubkey, err = chain.GetAllMinerDataOnChain()
 					if err != nil {
 						time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
 					}
@@ -1514,7 +1511,7 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 					continue
 				}
 
-				minerInfo, _, err = chain.GetMinerInfo(allMinerPubkey[index])
+				minerInfo, err = chain.GetMinerInfo(allMinerPubkey[index])
 				if err != nil {
 					filedIndex[index] = struct{}{}
 					Uld.Sugar().Errorf("[%v] GetMinerInfo: %v", fname, err)
@@ -1823,7 +1820,6 @@ func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
 		goeson      bool
-		code        int
 		puk         chain.Chain_SchedulerPuk
 		poDR2verify apiv1.PoDR2Verify
 		reqtag      ReadTagReq
@@ -1847,7 +1843,7 @@ func task_ValidateProof(ch chan bool) {
 	Tvp.Sugar().Infof("--> %v", reqtag.Acc)
 
 	for {
-		puk, _, err = chain.GetSchedulerPukFromChain()
+		puk, err = chain.GetSchedulerPukFromChain()
 		if err != nil {
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
 			continue
@@ -1861,9 +1857,9 @@ func task_ValidateProof(ch chan bool) {
 
 	for {
 		var verifyResults = make([]chain.VerifyResult, 0)
-		proofs, code, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
+		proofs, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
-			if code != configs.Code_404 {
+			if err.Error() != chain.ERR_Empty {
 				Tvp.Sugar().Errorf("%v", err)
 			}
 			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
@@ -1884,7 +1880,6 @@ func task_ValidateProof(ch chan bool) {
 				break
 			}
 			goeson = false
-			code = 0
 
 			addr, err := tools.EncodeToCESSAddr(proofs[i].Miner_pubkey[:])
 			if err != nil {
@@ -1897,16 +1892,17 @@ func task_ValidateProof(ch chan bool) {
 			}
 
 			for j := 0; j < 3; j++ {
-				minerInfo, code, err = chain.GetMinerInfo(proofs[i].Miner_pubkey)
+				minerInfo, err = chain.GetMinerInfo(proofs[i].Miner_pubkey)
 				if err != nil {
+					if err.Error() == chain.ERR_Empty {
+						goeson = false
+						break
+					}
 					Tvp.Sugar().Errorf("[%v] GetMinerDetailsById: %v", addr, err)
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				}
-				if code == configs.Code_404 {
-					goeson = false
-					break
-				}
-				if code == configs.Code_200 {
+
+				if err == nil {
 					goeson = true
 					break
 				}
@@ -2604,7 +2600,7 @@ func task_SyncMinersInfo(ch chan bool) {
 		// 		}
 		// 	}
 		// }
-		allMinerAcc, _, _ := chain.GetAllMinerDataOnChain()
+		allMinerAcc, _ := chain.GetAllMinerDataOnChain()
 		for i := 0; i < len(allMinerAcc); i++ {
 			b := allMinerAcc[i][:]
 			addr, err := tools.EncodeToCESSAddr(b)
@@ -2625,7 +2621,7 @@ func task_SyncMinersInfo(ch chan bool) {
 
 			var cm chain.Cache_MinerInfo
 
-			mdata, _, err := chain.GetMinerInfo(allMinerAcc[i])
+			mdata, err := chain.GetMinerInfo(allMinerAcc[i])
 			if err != nil {
 				Tsmi.Sugar().Errorf("[%v] GetMinerInfo: %v", addr, err)
 				continue

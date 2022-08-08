@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
@@ -16,9 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
-	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -131,19 +125,6 @@ func Command_Default_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	chain.ChainInit()
-	for {
-		ok, err := chain.SyncState()
-		if err != nil {
-			log.Printf("\x1b[%dm[err]\x1b[0m Network Error: %v\n", 41, err)
-			os.Exit(1)
-		}
-		if !ok {
-			break
-		}
-		log.Printf("\x1b[%dm[ok]\x1b[0m In sync block...\n", 42)
-		time.Sleep(time.Second * 30)
-	}
-	log.Printf("\x1b[%dm[ok]\x1b[0m Sync complete\n", 42)
 	register()
 }
 
@@ -151,24 +132,8 @@ func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	chain.ChainInit()
-	for {
-		ok, err := chain.SyncState()
-		if err != nil {
-			log.Printf("\x1b[%dm[err]\x1b[0m Network Error: %v\n", 41, err)
-			os.Exit(1)
-		}
-		if !ok {
-			break
-		}
-		log.Printf("\x1b[%dm[ok]\x1b[0m In sync block...\n", 42)
-		time.Sleep(time.Second * 30)
-	}
-	log.Printf("\x1b[%dm[ok]\x1b[0m Sync complete\n", 42)
-
 	flag := register_if()
-
 	if !flag {
-		// start-up
 		logger.Logger_Init()
 	}
 
@@ -256,24 +221,26 @@ func parseProfile() {
 		log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
+
+	//
+	configs.PublicKey, err = chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
+	if err != nil {
+		log.Printf("[err] %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // Scheduler registration function
 func register() {
-	sd, code, err := chain.GetSchedulerInfoOnChain()
+	sd, err := chain.GetSchedulerInfoOnChain()
 	if err != nil {
-		if code != configs.Code_404 {
+		if err.Error() != chain.ERR_Empty {
 			log.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 			os.Exit(1)
 		}
 	}
-	keyring, err := signature.KeyringPairFromSecret(configs.C.CtrlPrk, 0)
-	if err != nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(1)
-	}
 	for _, v := range sd {
-		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
+		if v.ControllerUser == types.NewAccountID(configs.PublicKey) {
 			log.Printf("\x1b[%dm[ok]\x1b[0m The account is already registered.\n", 42)
 			os.Exit(0)
 		}
@@ -284,23 +251,18 @@ func register() {
 
 func register_if() bool {
 	var reg bool
-	sd, code, err := chain.GetSchedulerInfoOnChain()
+	sd, err := chain.GetSchedulerInfoOnChain()
 	if err != nil {
-		if code == configs.Code_404 {
+		if err.Error() == chain.ERR_Empty {
 			rgst()
 			return true
 		}
 		log.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
 		os.Exit(1)
 	}
-	keyring, err := signature.KeyringPairFromSecret(configs.C.CtrlPrk, 0)
-	if err != nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-		os.Exit(1)
-	}
 
 	for _, v := range sd {
-		if v.ControllerUser == types.NewAccountID(keyring.PublicKey) {
+		if v.ControllerUser == types.NewAccountID(configs.PublicKey) {
 			reg = true
 		}
 	}
@@ -354,14 +316,23 @@ func rgst() {
 
 	res := base58.Encode([]byte(configs.C.ServiceAddr + ":" + configs.C.ServicePort))
 
-	txhash, _, err := chain.RegisterToChain(
+	txhash, err := chain.RegisterToChain(
 		configs.C.CtrlPrk,
-		chain.ChainTx_FileMap_Add_schedule,
 		configs.C.StashAcc,
 		res,
 	)
-	if txhash == "" {
-		log.Printf("\x1b[%dm[err]\x1b[0m Registration failed: %v\n", 41, err)
+	if err != nil {
+		if err.Error() == chain.ERR_Empty {
+			log.Println("[err] Please check your wallet balance.")
+		} else {
+			if txhash != "" {
+				msg := configs.HELP_common + fmt.Sprintf(" %v\n", txhash)
+				msg += configs.HELP_register
+				log.Printf("[pending] %v\n", msg)
+			} else {
+				log.Printf("[err] %v.\n", err)
+			}
+		}
 		os.Exit(1)
 	}
 	log.Printf("\x1b[%dm[ok]\x1b[0m Registration success\n", 42)
@@ -399,16 +370,26 @@ Err:
 // Schedule update ip function
 func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
-	if len(os.Args) == 4 {
+	if len(os.Args) >= 4 {
 		_, err := strconv.Atoi(os.Args[3])
 		if err != nil {
 			log.Printf("\x1b[%dm[err]\x1b[0m Please fill in the correct port number.\n", 41)
 			os.Exit(1)
 		}
 		res := base58.Encode([]byte(os.Args[2] + ":" + os.Args[3]))
-		txhash, _, _ := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
-		if txhash == "" {
-			log.Printf("\x1b[%dm[err]\x1b[0m Update failed, Please try again later.\n", 41)
+		txhash, err := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
+		if err != nil {
+			if err.Error() == chain.ERR_Empty {
+				log.Println("[err] Please check your wallet balance.")
+			} else {
+				if txhash != "" {
+					msg := configs.HELP_common + fmt.Sprintf(" %v\n", txhash)
+					msg += configs.HELP_update
+					log.Printf("[pending] %v\n", msg)
+				} else {
+					log.Printf("[err] %v.\n", err)
+				}
+			}
 			os.Exit(1)
 		}
 		log.Printf("\x1b[%dm[ok]\x1b[0m success\n", 42)
