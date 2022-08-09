@@ -87,3 +87,9 @@ message ReadTag_req {
   bytes  acc     = 1;
   string file_id = 2;
 }
+
+message FillerBackReq {
+  bytes file_id      = 1;
+  bytes file_hash    = 2;
+  bytes  publickey   = 3;
+}
