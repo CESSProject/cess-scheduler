@@ -117,7 +117,7 @@ var fm *fillermetamap
 var chan_FillerMeta chan chain.SpaceFileInfo
 var chan_Filler chan filler
 var bs *baseFillerList
-var cacheSt bool
+var cacheSt bool = false
 var globalTransport *http.Transport
 
 // init
@@ -258,6 +258,12 @@ func (this *spacemap) VerifyToken(token string) (string, string, string, error) 
 	return v.publicKey, v.fillerId, v.ip, nil
 }
 
+func (this *spacemap) DeleteBlacklist(key string) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	delete(this.blacklist, key)
+}
+
 func (this *spacemap) Delete(key string) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
@@ -309,12 +315,18 @@ func (this *spacemap) FilterBlacklist(pubkey string) bool {
 
 	v, ok := this.blacklist[pubkey]
 	if ok {
-		if time.Since(time.Unix(v, 0)).Minutes() > 10 {
+		if time.Since(time.Unix(v, 0)).Minutes() > 15 {
 			delete(this.blacklist, pubkey)
 			return false
 		}
 	}
 	return ok
+}
+
+func (this *spacemap) AddBlacklist(pubkey string) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.blacklist[pubkey] = time.Now().Unix()
 }
 
 func (this *spacemap) Connect(pubkey string) bool {
@@ -845,16 +857,28 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	if sm.FilterBlacklist(string(b.Publickey)) {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(30, 60)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 		addr, _ := tools.EncodeToCESSAddr(b.Publickey)
 		fpath := filepath.Join(configs.SpaceCacheDir, addr)
 		os.RemoveAll(fpath)
 		return &RespBody{Code: http.StatusForbidden, Msg: "Forbidden"}, nil
 	}
 
+	c, err := db.GetCache()
+	if err != nil {
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
+		return &RespBody{Code: http.StatusInternalServerError, Msg: "InternalServerError"}, nil
+	}
+	minercache, err := c.Get(b.Publickey)
+	if err != nil {
+		sm.AddBlacklist(string(b.Publickey))
+		sm.Delete(string(b.Publickey))
+		return &RespBody{Code: http.StatusNotFound, Msg: "Not found"}, nil
+	}
+
 	ok := sm.Connect(string(b.Publickey))
 	if !ok {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
 	}
 
@@ -881,17 +905,8 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 	ok = verkr.Verify(verkr.SigningContext(b.Msg), sign)
 	if !ok {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
 		return &RespBody{Code: http.StatusForbidden, Msg: "Authentication failed"}, nil
-	}
-
-	c, err := db.GetCache()
-	if err != nil {
-		return &RespBody{Code: http.StatusInternalServerError, Msg: "InternalServerError"}, nil
-	}
-	minercache, err := c.Get(b.Publickey)
-	if err != nil {
-		return &RespBody{Code: http.StatusNotFound, Msg: "Not found"}, nil
 	}
 
 	var minerinfo chain.Cache_MinerInfo
@@ -1663,7 +1678,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 				addr, _ := tools.EncodeToCESSAddr([]byte(k))
 				if len(v) >= 8 {
 					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:8])
-					if txhash == "" || err != nil {
+					if txhash == "" {
 						Tsfm.Sugar().Errorf("%v", err)
 						continue
 					}
@@ -1676,7 +1691,7 @@ func task_SubmitFillerMeta(ch chan bool) {
 					ok := sm.IsExit(k)
 					if !ok && len(v) > 0 {
 						txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:])
-						if txhash == "" || err != nil {
+						if txhash == "" {
 							Tsfm.Sugar().Errorf("%v", err)
 							continue
 						}
@@ -1765,7 +1780,7 @@ func task_GenerateFiller(ch chan bool) {
 
 			if rst := <-gWait; !rst {
 				os.Remove(fillerpath)
-				Flr.Sugar().Errorf("PoDR2ProofCommit false")
+				Tgf.Sugar().Errorf("PoDR2ProofCommit false")
 				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
 				continue
 			}
@@ -2551,15 +2566,21 @@ func task_SyncMinersInfo(ch chan bool) {
 	}()
 
 	Tsmi.Info("-----> Start task_UpdateMinerInfo")
-	cacheSt = false
-	for {
-		c, err := db.GetCache()
+	c, err := db.GetCache()
+	if c == nil || err != nil {
+		Tsmi.Sugar().Errorf("GetCache: %v", err)
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
+	}
+
+	for c == nil {
+		c, err = db.GetCache()
 		if c == nil || err != nil {
 			Tsmi.Sugar().Errorf("GetCache: %v", err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-			continue
 		}
+	}
 
+	for {
 		allMinerAcc, _ := chain.GetAllMinerDataOnChain()
 		for i := 0; i < len(allMinerAcc); i++ {
 			b := allMinerAcc[i][:]
@@ -2600,10 +2621,9 @@ func task_SyncMinersInfo(ch chan bool) {
 				Tsmi.Sugar().Errorf("[%v] c.Put: %v", addr, err)
 			}
 			Tsmi.Sugar().Infof("[%v] Cache succeeded", addr)
+			sm.DeleteBlacklist(string(b))
 		}
 		cacheSt = true
-		if len(allMinerAcc) > 0 {
-			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(1, 5)))
-		}
+		time.Sleep(time.Minute)
 	}
 }
