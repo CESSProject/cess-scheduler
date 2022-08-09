@@ -110,30 +110,32 @@ func RegisterToChain(transactionPrK, stash_acc, ipAddr string) (string, error) {
 	for {
 		select {
 		case status := <-sub.Chan():
-			events := MyEventRecords{}
-			txhash, _ = types.EncodeToHexString(status.AsInBlock)
-			keye, err := GetKeyEvents()
-			if err != nil {
-				return txhash, errors.Wrap(err, "GetKeyEvents")
-			}
-			h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-			if err != nil {
-				return txhash, errors.Wrap(err, "GetStorageRaw")
-			}
+			if status.IsInBlock {
+				events := MyEventRecords{}
+				txhash, _ = types.EncodeToHexString(status.AsInBlock)
+				keye, err := GetKeyEvents()
+				if err != nil {
+					return txhash, errors.Wrap(err, "GetKeyEvents")
+				}
+				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
+				if err != nil {
+					return txhash, errors.Wrap(err, "GetStorageRaw")
+				}
 
-			err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-			if err != nil {
-				Com.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
-			}
+				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
+				if err != nil {
+					Com.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
+				}
 
-			if len(events.FileMap_RegistrationScheduler) > 0 {
-				for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
-					if string(events.FileMap_RegistrationScheduler[i].Acc[:]) == string(configs.PublicKey) {
-						return txhash, nil
+				if len(events.FileMap_RegistrationScheduler) > 0 {
+					for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {
+						if string(events.FileMap_RegistrationScheduler[i].Acc[:]) == string(configs.PublicKey) {
+							return txhash, nil
+						}
 					}
 				}
+				return txhash, errors.New(ERR_Failed)
 			}
-			return txhash, errors.New(ERR_Failed)
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "<-sub")
 		case <-timeout:

@@ -956,7 +956,8 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
-	time.Sleep(time.Second * 5)
+	Flr.Sugar().Infof("[%v] Copy filler: %v, %v", addr, basefiller.FillerId, basefiller.MinerIp)
+	time.Sleep(time.Second)
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
 
@@ -988,8 +989,9 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	if err != nil {
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
-
-	sm.UpdateTimeIfExists(pubkey, ip, fname)
+	if b.BlockIndex == 1 {
+		sm.UpdateTimeIfExists(pubkey, ip, fname)
+	}
 	co.UpdateTime(pubkey)
 
 	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
@@ -1006,14 +1008,13 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 			os.Remove(filefullpath)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
-		chan_FillerMeta <- data
-		os.Remove(filefullpath)
 		var bf baseFiller
 		bf.FillerId = fname
 		bf.MinerIp = make([]string, 0)
 		bf.MinerIp = append(bf.MinerIp, ip)
 		bs.Add(bf)
-		time.Sleep(time.Second * 5)
+		chan_FillerMeta <- data
+		os.Remove(filefullpath)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
 
@@ -1705,77 +1706,79 @@ func task_GenerateFiller(ch chan bool) {
 		uid        string
 		fillerpath string
 	)
-
-	for len(chan_Filler) < 10 {
-		for {
-			uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
-			fillerpath = filepath.Join(configs.SpaceCacheDir, fmt.Sprintf("%s", uid))
-			_, err = os.Stat(fillerpath)
+	for {
+		for len(chan_Filler) < 10 {
+			for {
+				uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
+				fillerpath = filepath.Join(configs.SpaceCacheDir, fmt.Sprintf("%s", uid))
+				_, err = os.Stat(fillerpath)
+				if err != nil {
+					break
+				}
+			}
+			err = generateFiller(fillerpath)
 			if err != nil {
-				break
+				Tgf.Sugar().Errorf("generateFiller: %v", err)
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				continue
 			}
-		}
-		err = generateFiller(fillerpath)
-		if err != nil {
-			Tgf.Sugar().Errorf("generateFiller: %v", err)
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-			continue
-		}
 
-		fstat, _ := os.Stat(fillerpath)
-		if fstat.Size() != 8386771 {
-			Flr.Sugar().Errorf("file size err: %v", err)
-			os.Remove(fillerpath)
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-			continue
-		}
-
-		// calculate file tag info
-		var PoDR2commit apiv1.PoDR2Commit
-		var commitResponse apiv1.PoDR2CommitResponse
-		PoDR2commit.FilePath = fillerpath
-		PoDR2commit.BlockSize = configs.BlockSize
-
-		gWait := make(chan bool)
-		go func(ch chan bool) {
-			runtime.LockOSThread()
-			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
-				apiv1.Key_Ssk,
-				string(apiv1.Key_SharedParams),
-				int64(configs.ScanBlockSize),
-			)
-			if err != nil {
-				ch <- false
-				return
+			fstat, _ := os.Stat(fillerpath)
+			if fstat.Size() != 8386771 {
+				Tgf.Sugar().Errorf("file size err: %v", err)
+				os.Remove(fillerpath)
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				continue
 			}
-			aft := time.After(time.Second * 5)
-			select {
-			case commitResponse = <-commitResponseCh:
-			case <-aft:
-				ch <- false
-				return
-			}
-			if commitResponse.StatueMsg.StatusCode != apiv1.Success {
-				ch <- false
-			} else {
-				ch <- true
-			}
-		}(gWait)
 
-		if rst := <-gWait; !rst {
-			os.Remove(fillerpath)
-			Flr.Sugar().Errorf("PoDR2ProofCommit false")
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-			continue
+			// calculate file tag info
+			var PoDR2commit apiv1.PoDR2Commit
+			var commitResponse apiv1.PoDR2CommitResponse
+			PoDR2commit.FilePath = fillerpath
+			PoDR2commit.BlockSize = configs.BlockSize
+
+			gWait := make(chan bool)
+			go func(ch chan bool) {
+				runtime.LockOSThread()
+				commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
+					apiv1.Key_Ssk,
+					string(apiv1.Key_SharedParams),
+					int64(configs.ScanBlockSize),
+				)
+				if err != nil {
+					ch <- false
+					return
+				}
+				aft := time.After(time.Second * 5)
+				select {
+				case commitResponse = <-commitResponseCh:
+				case <-aft:
+					ch <- false
+					return
+				}
+				if commitResponse.StatueMsg.StatusCode != apiv1.Success {
+					ch <- false
+				} else {
+					ch <- true
+				}
+			}(gWait)
+
+			if rst := <-gWait; !rst {
+				os.Remove(fillerpath)
+				Flr.Sugar().Errorf("PoDR2ProofCommit false")
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				continue
+			}
+			runtime.GC()
+
+			var fillerEle filler
+			fillerEle.FillerId = uid
+			fillerEle.Path = fillerpath
+			fillerEle.T = commitResponse.T
+			fillerEle.Sigmas = commitResponse.Sigmas
+			chan_Filler <- fillerEle
 		}
-		runtime.GC()
-
-		var fillerEle filler
-		fillerEle.FillerId = uid
-		fillerEle.Path = fillerpath
-		fillerEle.T = commitResponse.T
-		fillerEle.Sigmas = commitResponse.Sigmas
-		chan_Filler <- fillerEle
+		time.Sleep(time.Second * 3)
 	}
 }
 
@@ -2557,49 +2560,6 @@ func task_SyncMinersInfo(ch chan bool) {
 			continue
 		}
 
-		// keys, err := c.IteratorKeys()
-		// if err != nil {
-		// 	Tsmi.Sugar().Errorf("IteratorKeys: %v", err)
-		// 	time.Sleep(time.Second * time.Duration(tools.RandomInRange(10, 30)))
-		// 	continue
-		// }
-		// fmt.Println(keys)
-		// isExist := false
-		// allMinerAcc, code, _ := chain.GetAllMinerDataOnChain()
-		// if code != configs.Code_500 {
-		// 	if len(allMinerAcc) == 0 {
-		// 		for i := 0; i < len(keys); i++ {
-		// 			addr, _ := tools.EncodeToCESSAddr(keys[i])
-		// 			err = c.Delete(keys[i])
-		// 			if err != nil {
-		// 				Tsmi.Sugar().Errorf("[%v] Delete failed: %v", addr, err)
-		// 			} else {
-		// 				Tsmi.Sugar().Infof("[%v] Delete suc", addr)
-		// 			}
-		// 		}
-		// 	} else {
-		// 		for i := 0; i < len(keys); i++ {
-		// 			isExist = false
-		// 			addr, err := tools.EncodeToCESSAddr(keys[i])
-		// 			for j := 0; j < len(allMinerAcc); j++ {
-		// 				if string(keys[i]) == string(allMinerAcc[j][:]) {
-		// 					isExist = true
-		// 					break
-		// 				}
-		// 			}
-		// 			if !isExist {
-		// 				err = c.Delete(keys[i])
-		// 				if err != nil {
-		// 					Tsmi.Sugar().Errorf("[%v] Delete cache failed: %v", addr, err)
-		// 				} else {
-		// 					Tsmi.Sugar().Infof("[%v] Delete cache", addr)
-		// 				}
-		// 			} else {
-		// 				Tsmi.Sugar().Infof("[%v] Already Cached", addr)
-		// 			}
-		// 		}
-		// 	}
-		// }
 		allMinerAcc, _ := chain.GetAllMinerDataOnChain()
 		for i := 0; i < len(allMinerAcc); i++ {
 			b := allMinerAcc[i][:]

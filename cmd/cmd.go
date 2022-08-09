@@ -282,24 +282,45 @@ func register_if() bool {
 	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
 
 	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
+	log.Printf(configs.LogFileDir)
+	err = os.RemoveAll(configs.LogFileDir)
+	if err != nil {
+		log.Println(err)
+	}
 	if err = tools.CreatDirIfNotExist(configs.LogFileDir); err != nil {
 		goto Err
 	}
+	//
 	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
-	os.RemoveAll(configs.FileCacheDir)
+	log.Printf(configs.FileCacheDir)
+	err = os.RemoveAll(configs.FileCacheDir)
+	if err != nil {
+		log.Println(err)
+	}
 	if err = tools.CreatDirIfNotExist(configs.FileCacheDir); err != nil {
 		goto Err
 	}
+	//
 	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
-	os.RemoveAll(configs.DbFileDir)
+	log.Printf(configs.DbFileDir)
+	err = os.RemoveAll(configs.DbFileDir)
+	if err != nil {
+		log.Println(err)
+	}
 	if err = tools.CreatDirIfNotExist(configs.DbFileDir); err != nil {
 		goto Err
 	}
+	//
 	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
-	os.RemoveAll(configs.SpaceCacheDir)
+	log.Printf(configs.SpaceCacheDir)
+	err = os.RemoveAll(configs.SpaceCacheDir)
+	if err != nil {
+		log.Println(err)
+	}
 	if err = tools.CreatDirIfNotExist(configs.SpaceCacheDir); err != nil {
 		goto Err
 	}
+
 	return false
 Err:
 	log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
@@ -338,6 +359,11 @@ func rgst() {
 	log.Printf("\x1b[%dm[ok]\x1b[0m Registration success\n", 42)
 
 	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
+	log.Println(baseDir)
+	err = os.RemoveAll(baseDir)
+	if err != nil {
+		log.Panicln(err)
+	}
 	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
 	if err = tools.CreatDirIfNotExist(configs.LogFileDir); err != nil {
 		goto Err

@@ -80,9 +80,7 @@ func Free() {
 }
 
 func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
-	defer func() {
-		recover()
-	}()
+	defer recover()
 	h, err := a.RPC.System.Health()
 	return uint64(h.Peers), err
 }
