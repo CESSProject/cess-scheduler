@@ -538,8 +538,26 @@ func task_ClearAuthMap(ch chan bool) {
 		}
 		ch <- true
 	}()
-
+	var count uint8
 	for {
+		count++
+		if count >= 3 {
+			count = 0
+			Com.Info("Connected miners:")
+			sm.lock.Lock()
+			for _, v := range sm.miners {
+				addr, _ := tools.EncodeToCESSAddr([]byte(sm.tokens[v].publicKey))
+				Com.Sugar().Infof("  %v", addr)
+			}
+			sm.lock.Unlock()
+			Com.Info("Black miners:")
+			sm.lock.Lock()
+			for k, v := range sm.blacklist {
+				addr, _ := tools.EncodeToCESSAddr([]byte(k))
+				Com.Sugar().Infof("  %v : %v", addr, time.Since(time.Unix(v, 0)).Seconds())
+			}
+			sm.lock.Unlock()
+		}
 		time.Sleep(time.Minute)
 		am.DeleteExpired()
 		sm.DeleteExpired()
@@ -923,6 +941,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		}
 
 		filler := <-chan_Filler
+		Tgf.Sugar().Infof("Consumes a filler: %v", filler.FillerId)
 		var resp RespSpaceInfo
 		resp.Token = sm.UpdateTimeIfExists(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
@@ -948,6 +967,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 			}
 		}
 		filler := <-chan_Filler
+		Tgf.Sugar().Infof("Consumes a filler: %v", filler.FillerId)
 		var resp RespSpaceInfo
 		resp.Token = sm.UpdateTimeIfExists(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
@@ -1792,6 +1812,7 @@ func task_GenerateFiller(ch chan bool) {
 			fillerEle.T = commitResponse.T
 			fillerEle.Sigmas = commitResponse.Sigmas
 			chan_Filler <- fillerEle
+			Tgf.Sugar().Infof("Produced a filler: %v", uid)
 		}
 		time.Sleep(time.Second)
 	}
