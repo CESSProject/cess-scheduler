@@ -122,10 +122,7 @@ func RegisterToChain(transactionPrK, stash_acc, ipAddr string) (string, error) {
 					return txhash, errors.Wrap(err, "GetStorageRaw")
 				}
 
-				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-				if err != nil {
-					Com.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
-				}
+				types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
 
 				if len(events.FileMap_RegistrationScheduler) > 0 {
 					for i := 0; i < len(events.FileMap_RegistrationScheduler); i++ {

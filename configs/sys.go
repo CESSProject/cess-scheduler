@@ -3,7 +3,7 @@ package configs
 import "time"
 
 // type and version
-const Version = "cess-scheduler v0.5.0"
+const Version = "cess-scheduler v0.2.0"
 
 // rpc service and method
 const (

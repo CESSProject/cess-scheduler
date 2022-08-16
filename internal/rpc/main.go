@@ -150,7 +150,7 @@ func init() {
 	fm.lock = new(sync.Mutex)
 
 	chan_FillerMeta = make(chan chain.SpaceFileInfo, 100)
-	chan_Filler = make(chan filler, 10)
+	chan_Filler = make(chan filler, 30)
 
 	bs = new(baseFillerList)
 	bs.Lock = new(sync.Mutex)
@@ -334,7 +334,7 @@ func (this *spacemap) Connect(pubkey string) bool {
 	defer this.lock.Unlock()
 	v, ok := this.miners[pubkey]
 	if !ok {
-		if len(this.miners) < 20 {
+		if len(this.miners) < 50 {
 			this.miners[pubkey] = fmt.Sprintf("%v", time.Now().Unix())
 			return true
 		} else {
@@ -556,10 +556,6 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-
-	if len(am.users) >= 2000 {
-		return &RespBody{Code: 503, Msg: "Server is busy"}, nil
-	}
 
 	var b AuthReq
 	err := proto.Unmarshal(body, &b)
@@ -805,14 +801,16 @@ func storeFiles(fid, fpath, name, pubkey string) {
 
 	for {
 		for k, v := range channel_chunks {
-			result := <-v
-			if !result.IsEmpty() {
-				Uld.Sugar().Infof("[%v.%v] Chunk storage successfully", fid, k)
-				chunksInfo[k] = result
-				delete(channel_chunks, k)
-			} else {
-				Uld.Sugar().Warnf("[%v.%v] Try storage again", fid, k)
-				go backupFile(channel_chunks[k], chunkspath[k], pubkey, k)
+			if len(v) == 1 {
+				result := <-v
+				if !result.IsEmpty() {
+					Uld.Sugar().Infof("[%v.%v] Chunk storage successfully", fid, k)
+					chunksInfo[k] = result
+					delete(channel_chunks, k)
+				} else {
+					Uld.Sugar().Warnf("[%v.%v] Try storage again", fid, k)
+					go backupFile(channel_chunks[k], chunkspath[k], pubkey, k)
+				}
 			}
 		}
 		if len(channel_chunks) == 0 {
@@ -824,7 +822,7 @@ func storeFiles(fid, fpath, name, pubkey string) {
 	// Upload the file meta information to the chain
 	for {
 		txhash, err = chain.PutMetaInfoToChain(configs.C.CtrlPrk, fid, uint64(fstat.Size()), []byte(pubkey), chunksInfo)
-		if err != nil {
+		if txhash == "" {
 			Uld.Sugar().Errorf("[%v] FileMeta On-chain fail: %v", fid, err)
 			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
 			continue
@@ -972,7 +970,6 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
 	Flr.Sugar().Infof("[%v] Copy filler: %v, %v", addr, basefiller.FillerId, basefiller.MinerIp)
-	time.Sleep(time.Second)
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
 
@@ -1448,6 +1445,9 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 		allMinerPubkey []types.AccountID
 	)
 	defer func() {
+		if len(ch) == 0 {
+			ch <- chain.ChunkInfo{}
+		}
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
@@ -1562,7 +1562,7 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 				if err != nil {
 					failcount++
 					if failcount >= 5 {
-						Uld.Sugar().Errorf("[%v] [%v] transfer failed [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex)
+						Uld.Sugar().Errorf("[%v] transfer failed [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex)
 						return
 					}
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
@@ -1722,7 +1722,7 @@ func task_GenerateFiller(ch chan bool) {
 		fillerpath string
 	)
 	for {
-		for len(chan_Filler) < 10 {
+		for len(chan_Filler) < 30 {
 			for {
 				uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
 				fillerpath = filepath.Join(configs.SpaceCacheDir, fmt.Sprintf("%s", uid))
@@ -1793,7 +1793,7 @@ func task_GenerateFiller(ch chan bool) {
 			fillerEle.Sigmas = commitResponse.Sigmas
 			chan_Filler <- fillerEle
 		}
-		time.Sleep(time.Second * 3)
+		time.Sleep(time.Second)
 	}
 }
 
@@ -1976,9 +1976,13 @@ func task_ValidateProof(ch chan bool) {
 
 			gWait := make(chan bool)
 			go func(ch chan bool) {
-				defer runtime.GC()
-				defer runtime.UnlockOSThread()
 				runtime.LockOSThread()
+				defer func() {
+					if err := recover(); err != nil {
+						ch <- true
+						Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+					}
+				}()
 				ch <- poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
 			}(gWait)
 			result := <-gWait
@@ -2605,6 +2609,9 @@ func task_SyncMinersInfo(ch chan bool) {
 			mdata, err := chain.GetMinerInfo(allMinerAcc[i])
 			if err != nil {
 				Tsmi.Sugar().Errorf("[%v] GetMinerInfo: %v", addr, err)
+				continue
+			}
+			if string(mdata.State) == "exit" {
 				continue
 			}
 			cm.Peerid = uint64(mdata.PeerId)
