@@ -5,18 +5,6 @@ import "time"
 // type and version
 const Version = "cess-scheduler v0.2.0"
 
-// rpc service and method
-const (
-	RpcService_Scheduler         = "wservice"
-	RpcService_Miner             = "mservice"
-	RpcMethod_Miner_WriteFile    = "writefile"
-	RpcMethod_Miner_ReadFile     = "readfile"
-	RpcMethod_Miner_WriteFileTag = "writefiletag"
-	RpcMethod_Miner_ReadFileTag  = "readfiletag"
-	RpcFileBuffer                = 1024 * 1024 //1MB
-	RpcSpaceBuffer               = 512 * 1024  //512KB
-)
-
 // return code
 const (
 	//success

@@ -1,9 +1,6 @@
 package db
 
 import (
-	"cess-scheduler/configs"
-	"os"
-
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -27,38 +24,38 @@ type LevelDB struct {
 
 var c Cache
 
-func GetCache() (Cache, error) {
-	var err error
-	if c == nil {
-		_, err = os.Stat(configs.DbFileDir)
-		if err != nil {
-			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
-			if err != nil {
-				return nil, err
-			}
-		}
-		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
-		if err != nil {
-			return nil, err
-		}
-		return c, nil
-	}
-	if err = c.Delete([]byte("NIL")); err != nil {
-		_, err = os.Stat(configs.DbFileDir)
-		if err != nil {
-			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
-			if err != nil {
-				return nil, err
-			}
-		}
-		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
-		if err != nil {
-			return nil, err
-		}
-		return c, nil
-	}
-	return c, nil
-}
+// func GetCache() (Cache, error) {
+// 	var err error
+// 	if c == nil {
+// 		_, err = os.Stat(configs.DbFileDir)
+// 		if err != nil {
+// 			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 		}
+// 		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		return c, nil
+// 	}
+// 	if err = c.Delete([]byte("NIL")); err != nil {
+// 		_, err = os.Stat(configs.DbFileDir)
+// 		if err != nil {
+// 			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 		}
+// 		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		return c, nil
+// 	}
+// 	return c, nil
+// }
 
 func newLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {
 	options := configureOptions(cache, handles)
@@ -92,7 +89,7 @@ func configureOptions(cache int, handles int) *opt.Options {
 	// Set default options
 	options.OpenFilesCacheCapacity = handles
 	options.BlockCacheCapacity = cache / 2 * opt.MiB
-	options.WriteBuffer = cache / 4 * opt.MiB // Two of these are used internally
+	options.WriteBuffer = cache / 4 * opt.MiB
 
 	return options
 }
@@ -123,21 +120,4 @@ func (db *LevelDB) Delete(key []byte) error {
 
 func (db *LevelDB) Compact(start []byte, limit []byte) error {
 	return db.db.CompactRange(util.Range{Start: start, Limit: limit})
-}
-
-func (db *LevelDB) IteratorKeys() ([][]byte, error) {
-	var keys = [][]byte{}
-	iter := db.db.NewIterator(nil, nil)
-	for iter.Next() {
-		// Remember that the contents of the returned slice should not be modified, and
-		// only valid until the next call to Next.
-		var key = iter.Key()
-		keys = append(keys, key)
-	}
-	iter.Release()
-	err := iter.Error()
-	if err != nil {
-		return nil, err
-	}
-	return keys, nil
 }

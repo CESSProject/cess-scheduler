@@ -5,14 +5,15 @@ import (
 )
 
 func (verify PoDR2Verify) PoDR2ProofVerify(SharedG, spk []byte, sharedParams string) bool {
+
 	pairing, _ := pbc.NewPairingFromString(sharedParams)
 	G := pairing.NewG2().SetBytes(SharedG)
 	V := pairing.NewG2().SetBytes(spk)
 	first := pairing.NewG2()
 	for _, qelem := range verify.QSlice {
-		hash := hashNameI(pairing.NewZr().SetBytes(verify.T.T0.Name), qelem.I, pairing)
-		hash.PowZn(&hash, pairing.NewZr().SetBytes(qelem.V))
-		first.Mul(first, &hash)
+		hash := buildHashNameElement(pairing, verify.T.T0.Name, qelem.I)
+		hash.PowZn(hash, pairing.NewZr().SetBytes(qelem.V))
+		first.Mul(first, hash)
 	}
 
 	second := pairing.NewG2()
