@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	. "cess-scheduler/internal/rpc/protobuf"
 
@@ -25,11 +24,6 @@ import (
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
-	if !cacheSt {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
-		return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
-	}
-
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -42,13 +36,14 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: http.StatusForbidden, Msg: "Bad request"}, nil
 	}
 
-	if pattern.IsPass(string(b.Publickey)) {
+	if !pattern.IsPass(string(b.Publickey)) {
 		return &RespBody{Code: 403, Msg: "Forbidden"}, nil
 	}
 
 	minercache, err := db.Get(b.Publickey)
 	if err != nil {
 		pattern.AddBlacklist(string(b.Publickey))
+		Com.Sugar().Infof("Add blacklist: %v", b.Publickey)
 		return &RespBody{Code: http.StatusNotFound, Msg: "Not found"}, nil
 	}
 
@@ -173,7 +168,6 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 	if b.BlockIndex == 1 {
 		pattern.UpdateSpacemap(pubkey, ip, fname)
 	}
-	co.UpdateTime(pubkey)
 
 	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
 	if err != nil {

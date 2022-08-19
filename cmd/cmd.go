@@ -139,7 +139,7 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		logger.Logger_Init()
 	}
 	db.Init()
-	task.Run()
+	go task.Run()
 	rpc.Rpc_Main()
 }
 

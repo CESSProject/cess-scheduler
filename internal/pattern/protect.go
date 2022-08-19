@@ -1,6 +1,7 @@
 package pattern
 
 import (
+	"cess-scheduler/tools"
 	"sync"
 	"time"
 )
@@ -35,6 +36,7 @@ func AddBlacklist(key string) {
 func IsPass(key string) bool {
 	p.L.Lock()
 	defer p.L.Unlock()
+
 	v, ok := p.Blacklist[key]
 	if ok {
 		if time.Since(time.Unix(v, 0)).Minutes() > 10 {
@@ -43,12 +45,11 @@ func IsPass(key string) bool {
 		}
 		return false
 	}
-
 	v, ok = p.Reqmap[key]
 	if !ok {
 		p.Reqmap[key] = time.Now().Unix()
 	} else {
-		if time.Since(time.Unix(v, 0)).Seconds() < 5 {
+		if time.Since(time.Unix(v, 0)).Seconds() <= 3 {
 			p.Blacklist[key] = time.Now().Unix()
 			delete(p.Reqmap, key)
 			return false
@@ -57,4 +58,15 @@ func IsPass(key string) bool {
 		}
 	}
 	return true
+}
+
+func GetBlacklist() []string {
+	var data = make([]string, 0)
+	p.L.Lock()
+	for k, _ := range p.Blacklist {
+		addr, _ := tools.EncodeToCESSAddr([]byte(k))
+		data = append(data, addr)
+	}
+	p.L.Unlock()
+	return data
 }

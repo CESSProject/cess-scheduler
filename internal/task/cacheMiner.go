@@ -68,6 +68,7 @@ func task_SyncMinersInfo(ch chan bool) {
 			}
 			Tsmi.Sugar().Infof("[%v] Cache succeeded", addr)
 			pattern.DeleteBliacklist(string(b))
+			Com.Sugar().Infof("Del blacklist: %v", b)
 		}
 		time.Sleep(time.Minute * 2)
 	}

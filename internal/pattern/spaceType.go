@@ -3,8 +3,6 @@ package pattern
 import (
 	"cess-scheduler/tools"
 	"errors"
-	"fmt"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -74,31 +72,21 @@ func DeleteSpacemap(key string) {
 	spacem.lock.Unlock()
 }
 
-func (this *spacemap) DeleteExpired() {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	for k, v := range this.tokens {
-		if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 5 {
-			delete(this.miners, v.publicKey)
-			delete(this.tokens, k)
+func DeleteExpiredSpacem() {
+	spacem.lock.Lock()
+	for k, v := range spacem.tokens {
+		if time.Since(time.Unix(v.updateTime, 0)).Minutes() > 10 {
+			delete(spacem.miners, v.publicKey)
+			delete(spacem.tokens, k)
 		}
 	}
-
-	for k, v := range this.miners {
-		t, err := strconv.ParseInt(v, 10, 64)
-		if err == nil {
-			if time.Since(time.Unix(t, 0)).Minutes() > 5 {
-				delete(this.miners, k)
-			}
-		}
-	}
+	spacem.lock.Unlock()
 }
 
-func (this *spacemap) GetConnsMinerNum() int {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	return len(this.miners)
+func GetConnsMinerNum() int {
+	spacem.lock.Lock()
+	defer spacem.lock.Unlock()
+	return len(spacem.tokens)
 }
 
 func IsExitSpacem(pubkey string) bool {
@@ -108,23 +96,13 @@ func IsExitSpacem(pubkey string) bool {
 	return ok
 }
 
-func (this *spacemap) Connect(pubkey string) bool {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	v, ok := this.miners[pubkey]
-	if !ok {
-		if len(this.miners) < 50 {
-			this.miners[pubkey] = fmt.Sprintf("%v", time.Now().Unix())
-			return true
-		} else {
-			return false
-		}
+func GetConnectedSpacem() []string {
+	var data = make([]string, 0)
+	spacem.lock.Lock()
+	for k, _ := range spacem.tokens {
+		addr, _ := tools.EncodeToCESSAddr([]byte(k))
+		data = append(data, addr)
 	}
-
-	info, ok := this.tokens[v]
-	if ok {
-		info.updateTime = time.Now().Unix()
-		this.tokens[v] = info
-	}
-	return true
+	spacem.lock.Unlock()
+	return data
 }
