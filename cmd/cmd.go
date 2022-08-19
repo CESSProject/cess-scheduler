@@ -3,9 +3,11 @@ package cmd
 import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/db"
 	"cess-scheduler/internal/logger"
 	. "cess-scheduler/internal/logger"
 	"cess-scheduler/internal/rpc"
+	"cess-scheduler/internal/task"
 	"cess-scheduler/tools"
 	"fmt"
 	"log"
@@ -136,98 +138,9 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	if !flag {
 		logger.Logger_Init()
 	}
-
-	// rpc service
+	db.Init()
+	task.Run()
 	rpc.Rpc_Main()
-}
-
-// Parse the configuration file
-func refreshProfile(cmd *cobra.Command) {
-	configpath1, _ := cmd.Flags().GetString("config")
-	configpath2, _ := cmd.Flags().GetString("c")
-	if configpath1 != "" {
-		configs.ConfigFilePath = configpath1
-	} else {
-		configs.ConfigFilePath = configpath2
-	}
-	parseProfile()
-}
-
-func parseProfile() {
-	var (
-		err          error
-		confFilePath string
-	)
-	if configs.ConfigFilePath == "" {
-		confFilePath = "./conf.toml"
-	} else {
-		confFilePath = configs.ConfigFilePath
-	}
-
-	f, err := os.Stat(confFilePath)
-	if err != nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' file does not exist\n", 41, confFilePath)
-		os.Exit(1)
-	}
-	if f.IsDir() {
-		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' is not a file\n", 41, confFilePath)
-		os.Exit(1)
-	}
-
-	viper.SetConfigFile(confFilePath)
-	viper.SetConfigType("toml")
-
-	err = viper.ReadInConfig()
-	if err != nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' file type error\n", 41, confFilePath)
-		os.Exit(1)
-	}
-	err = viper.Unmarshal(configs.C)
-	if err != nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
-		os.Exit(1)
-	}
-
-	if configs.C.CtrlPrk == "" ||
-		configs.C.DataDir == "" ||
-		configs.C.RpcAddr == "" ||
-		configs.C.ServiceAddr == "" ||
-		configs.C.StashAcc == "" {
-		log.Printf("\x1b[%dm[err]\x1b[0m The configuration file cannot have empty entries.\n", 41)
-		os.Exit(1)
-	}
-
-	if configs.C.ServicePort != "" {
-		port, err := strconv.Atoi(configs.C.ServicePort)
-		if err != nil {
-			log.Printf("\x1b[%dm[err]\x1b[0m Please fill in the correct port number.\n", 41)
-			os.Exit(1)
-		}
-		if port < 1024 {
-			log.Printf("\x1b[%dm[err]\x1b[0m Prohibit the use of system reserved port: %v.\n", 41, port)
-			os.Exit(1)
-		}
-		if port > 65535 {
-			log.Printf("\x1b[%dm[err]\x1b[0m The port number cannot exceed 65535.\n", 41)
-			os.Exit(1)
-		}
-	} else {
-		log.Printf("\x1b[%dm[err]\x1b[0m Please set the port number.\n", 41)
-		os.Exit(1)
-	}
-
-	err = tools.CreatDirIfNotExist(configs.C.DataDir)
-	if err != nil {
-		log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
-
-	//
-	configs.PublicKey, err = chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
-	if err != nil {
-		log.Printf("[err] %v\n", err)
-		os.Exit(1)
-	}
 }
 
 // Scheduler registration function
@@ -423,4 +336,93 @@ func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
 	}
 	log.Printf("\x1b[%dm[err]\x1b[0m You should enter something like 'scheduler update ip port'\n", 41)
 	os.Exit(1)
+}
+
+// Parse the configuration file
+func refreshProfile(cmd *cobra.Command) {
+	configpath1, _ := cmd.Flags().GetString("config")
+	configpath2, _ := cmd.Flags().GetString("c")
+	if configpath1 != "" {
+		configs.ConfigFilePath = configpath1
+	} else {
+		configs.ConfigFilePath = configpath2
+	}
+	parseProfile()
+}
+
+func parseProfile() {
+	var (
+		err          error
+		confFilePath string
+	)
+	if configs.ConfigFilePath == "" {
+		confFilePath = "./conf.toml"
+	} else {
+		confFilePath = configs.ConfigFilePath
+	}
+
+	f, err := os.Stat(confFilePath)
+	if err != nil {
+		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' file does not exist\n", 41, confFilePath)
+		os.Exit(1)
+	}
+	if f.IsDir() {
+		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' is not a file\n", 41, confFilePath)
+		os.Exit(1)
+	}
+
+	viper.SetConfigFile(confFilePath)
+	viper.SetConfigType("toml")
+
+	err = viper.ReadInConfig()
+	if err != nil {
+		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' file type error\n", 41, confFilePath)
+		os.Exit(1)
+	}
+	err = viper.Unmarshal(configs.C)
+	if err != nil {
+		log.Printf("\x1b[%dm[err]\x1b[0m The '%v' file format error\n", 41, confFilePath)
+		os.Exit(1)
+	}
+
+	if configs.C.CtrlPrk == "" ||
+		configs.C.DataDir == "" ||
+		configs.C.RpcAddr == "" ||
+		configs.C.ServiceAddr == "" ||
+		configs.C.StashAcc == "" {
+		log.Printf("\x1b[%dm[err]\x1b[0m The configuration file cannot have empty entries.\n", 41)
+		os.Exit(1)
+	}
+
+	if configs.C.ServicePort != "" {
+		port, err := strconv.Atoi(configs.C.ServicePort)
+		if err != nil {
+			log.Printf("\x1b[%dm[err]\x1b[0m Please fill in the correct port number.\n", 41)
+			os.Exit(1)
+		}
+		if port < 1024 {
+			log.Printf("\x1b[%dm[err]\x1b[0m Prohibit the use of system reserved port: %v.\n", 41, port)
+			os.Exit(1)
+		}
+		if port > 65535 {
+			log.Printf("\x1b[%dm[err]\x1b[0m The port number cannot exceed 65535.\n", 41)
+			os.Exit(1)
+		}
+	} else {
+		log.Printf("\x1b[%dm[err]\x1b[0m Please set the port number.\n", 41)
+		os.Exit(1)
+	}
+
+	err = tools.CreatDirIfNotExist(configs.C.DataDir)
+	if err != nil {
+		log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		os.Exit(1)
+	}
+
+	//
+	configs.PublicKey, err = chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
+	if err != nil {
+		log.Printf("[err] %v\n", err)
+		os.Exit(1)
+	}
 }

@@ -20,15 +20,10 @@ func init() {
 	p.Blacklist = make(map[string]int64, 10)
 }
 
-func IsBliacklist(key string) bool {
+func DeleteBliacklist(key string) {
 	p.L.Lock()
-	v, ok := p.Blacklist[key]
-	if time.Since(time.Unix(v, 0)).Minutes() > 10 {
-		delete(p.Blacklist, key)
-		ok = false
-	}
+	delete(p.Blacklist, key)
 	p.L.Unlock()
-	return ok
 }
 
 func AddBlacklist(key string) {

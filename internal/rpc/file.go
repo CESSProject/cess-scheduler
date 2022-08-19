@@ -93,7 +93,6 @@ func init() {
 // Start tcp service.
 // If an error occurs, it will exit immediately.
 func Rpc_Main() {
-	// go task_Management()
 	srv := NewServer()
 	err := srv.Register(RpcService_Scheduler, WService{})
 	if err != nil {

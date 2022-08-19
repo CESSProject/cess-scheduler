@@ -45,12 +45,12 @@ func task_SubmitFillerMeta(ch chan bool) {
 						continue
 					}
 					pattern.FillerMap.Delete(k)
-					sm.Delete(k)
+					pattern.DeleteSpacemap(k)
 					fpath := filepath.Join(configs.SpaceCacheDir, addr)
 					os.RemoveAll(fpath)
 					Tsfm.Sugar().Infof("[%v] %v", addr, txhash)
 				} else {
-					ok := sm.IsExit(k)
+					ok := pattern.IsExitSpacem(k)
 					if !ok && len(v) > 0 {
 						txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:])
 						if txhash == "" {

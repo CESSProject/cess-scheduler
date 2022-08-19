@@ -171,7 +171,7 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
 	if b.BlockIndex == 1 {
-		sm.UpdateTimeIfExists(pubkey, ip, fname)
+		pattern.UpdateSpacemap(pubkey, ip, fname)
 	}
 	co.UpdateTime(pubkey)
 

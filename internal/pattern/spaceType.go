@@ -22,35 +22,35 @@ type authspaceinfo struct {
 	updateTime int64
 }
 
-var sm *spacemap
+var spacem *spacemap
 
 func init() {
-	sm = new(spacemap)
-	sm.lock = new(sync.Mutex)
-	sm.miners = make(map[string]string, 10)
-	sm.tokens = make(map[string]authspaceinfo, 10)
+	spacem = new(spacemap)
+	spacem.lock = new(sync.Mutex)
+	spacem.miners = make(map[string]string, 10)
+	spacem.tokens = make(map[string]authspaceinfo, 10)
 }
 
 func VerifySpaceToken(token string) (string, string, string, error) {
-	sm.lock.Lock()
-	v, ok := sm.tokens[token]
-	sm.lock.Unlock()
+	spacem.lock.Lock()
+	v, ok := spacem.tokens[token]
+	spacem.lock.Unlock()
 	if !ok {
 		return "", "", "", errors.New("Invalid token")
 	}
 	return v.publicKey, v.fillerId, v.ip, nil
 }
 
-func (this *spacemap) UpdateSpacemap(key, ip, fid string) string {
-	this.lock.Lock()
-	defer this.lock.Unlock()
+func UpdateSpacemap(key, ip, fid string) string {
+	spacem.lock.Lock()
+	defer spacem.lock.Unlock()
 
-	v, _ := this.miners[key]
-	info, ok2 := this.tokens[v]
+	v, _ := spacem.miners[key]
+	info, ok2 := spacem.tokens[v]
 	if ok2 {
 		info.updateTime = time.Now().Unix()
 		info.fillerId = fid
-		this.tokens[v] = info
+		spacem.tokens[v] = info
 		return v
 	}
 	token := tools.RandStr(16)
@@ -59,20 +59,19 @@ func (this *spacemap) UpdateSpacemap(key, ip, fid string) string {
 	data.ip = ip
 	data.fillerId = fid
 	data.updateTime = time.Now().Unix()
-	this.miners[key] = token
-	this.tokens[token] = data
+	spacem.miners[key] = token
+	spacem.tokens[token] = data
 	return token
 }
 
-func (this *spacemap) Delete(key string) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	v, ok := this.tokens[key]
+func DeleteSpacemap(key string) {
+	spacem.lock.Lock()
+	v, ok := spacem.tokens[key]
 	if ok {
-		delete(this.miners, v.publicKey)
-		delete(this.tokens, key)
+		delete(spacem.miners, v.publicKey)
+		delete(spacem.tokens, key)
 	}
+	spacem.lock.Unlock()
 }
 
 func (this *spacemap) DeleteExpired() {
@@ -102,10 +101,10 @@ func (this *spacemap) GetConnsMinerNum() int {
 	return len(this.miners)
 }
 
-func (this *spacemap) IsExit(pubkey string) bool {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	_, ok := this.miners[pubkey]
+func IsExitSpacem(pubkey string) bool {
+	spacem.lock.Lock()
+	_, ok := spacem.miners[pubkey]
+	spacem.lock.Unlock()
 	return ok
 }
 
@@ -128,27 +127,4 @@ func (this *spacemap) Connect(pubkey string) bool {
 		this.tokens[v] = info
 	}
 	return true
-}
-
-func UpdateSpacemap(key, ip, fid string) string {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
-
-	v, _ := sm.miners[key]
-	info, ok2 := sm.tokens[v]
-	if ok2 {
-		info.updateTime = time.Now().Unix()
-		info.fillerId = fid
-		sm.tokens[v] = info
-		return v
-	}
-	token := tools.RandStr(16)
-	data := authspaceinfo{}
-	data.publicKey = key
-	data.ip = ip
-	data.fillerId = fid
-	data.updateTime = time.Now().Unix()
-	sm.miners[key] = token
-	sm.tokens[token] = data
-	return token
 }
