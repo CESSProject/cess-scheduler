@@ -3,6 +3,7 @@ package task
 import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/chain"
+	"cess-scheduler/internal/db"
 	. "cess-scheduler/internal/logger"
 	apiv1 "cess-scheduler/internal/proof/apiv1"
 	"cess-scheduler/internal/rpc"
@@ -77,56 +78,54 @@ func task_ValidateProof(ch chan bool) {
 
 		var respData []byte
 		var tag apiv1.TagInfo
-		var minerInfo chain.MinerInfo
 		for i := 0; i < len(proofs); i++ {
 			if len(verifyResults) > 45 {
 				break
 			}
 			goeson = false
-
 			addr, err := tools.EncodeToCESSAddr(proofs[i].Miner_pubkey[:])
 			if err != nil {
 				Tvp.Sugar().Errorf("%v EncodeToCESSAddr: %v", proofs[i].Miner_pubkey, err)
 			}
-			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
-			req_proto, err := proto.Marshal(&reqtag)
+
+			cacheData, err := db.Get(proofs[i].Miner_pubkey[:])
 			if err != nil {
-				Tvp.Sugar().Errorf("[%v] Marshal: %v", addr, err)
-			}
-
-			for j := 0; j < 3; j++ {
-				minerInfo, err = chain.GetMinerInfo(proofs[i].Miner_pubkey)
-				if err != nil {
-					if err.Error() == chain.ERR_Empty {
-						goeson = false
-						break
-					}
-					Tvp.Sugar().Errorf("[%v] GetMinerDetailsById: %v", addr, err)
-					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
-				}
-
-				if err == nil {
-					goeson = true
-					break
-				}
-			}
-
-			if !goeson {
 				resultTemp := chain.VerifyResult{}
 				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
-				resultTemp.Result = false
+				if err.Error() == "leveldb: not found" {
+					resultTemp.Result = false
+				} else {
+					resultTemp.Result = true
+				}
+				verifyResults = append(verifyResults, resultTemp)
+				continue
+			}
+
+			var minerinfo chain.Cache_MinerInfo
+			err = json.Unmarshal(cacheData, &minerinfo)
+			if err != nil {
+				Tvp.Sugar().Errorf("[%v] Unmarshal: %v", addr, err)
+				resultTemp := chain.VerifyResult{}
+				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Result = true
 				verifyResults = append(verifyResults, resultTemp)
 				continue
 			}
 
 			goeson = false
+			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
+			req_proto, err := proto.Marshal(&reqtag)
+			if err != nil {
+				Tvp.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+			}
 			for j := 0; j < 3; j++ {
 				respData, err = rpc.WriteData(
-					string(minerInfo.Ip),
+					string(minerinfo.Ip),
 					rpc.RpcService_Miner,
 					rpc.RpcMethod_Miner_ReadFileTag,
-					time.Duration(time.Second*20),
+					time.Duration(time.Second*30),
 					req_proto,
 				)
 				if err != nil {
@@ -188,21 +187,19 @@ func task_ValidateProof(ch chan bool) {
 
 func processProofResult(data []chain.VerifyResult) {
 	var (
-		err    error
-		txhash string
-		ts     = time.Now().Unix()
-		code   = 0
+		err      error
+		txhash   string
+		tryCount uint8
 	)
-	for code != int(configs.Code_200) && code != int(configs.Code_600) {
+	for tryCount < 3 {
 		txhash, err = chain.PutProofResult(configs.C.CtrlPrk, data)
 		if txhash != "" {
 			Tvp.Sugar().Infof("Proof result submitted: %v", txhash)
-			break
+			if err == nil {
+				return
+			}
 		}
-		if time.Since(time.Unix(ts, 0)).Minutes() > 2.0 {
-			Tvp.Sugar().Errorf("Proof result submitted timeout: %v", err)
-			break
-		}
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 20)))
+		tryCount++
+		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 15)))
 	}
 }

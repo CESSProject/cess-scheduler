@@ -39,6 +39,19 @@ func VerifySpaceToken(token string) (string, string, string, error) {
 	return v.publicKey, v.fillerId, v.ip, nil
 }
 
+func IsMaxSpacem(key string) bool {
+	spacem.lock.Lock()
+	defer spacem.lock.Unlock()
+	_, ok := spacem.miners[key]
+	if !ok {
+		if len(spacem.miners) <= 30 {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 func UpdateSpacemap(key, ip, fid string) string {
 	spacem.lock.Lock()
 	defer spacem.lock.Unlock()
@@ -99,8 +112,8 @@ func IsExitSpacem(pubkey string) bool {
 func GetConnectedSpacem() []string {
 	var data = make([]string, 0)
 	spacem.lock.Lock()
-	for k, _ := range spacem.tokens {
-		addr, _ := tools.EncodeToCESSAddr([]byte(k))
+	for _, v := range spacem.tokens {
+		addr, _ := tools.EncodeToCESSAddr([]byte(v.publicKey))
 		data = append(data, addr)
 	}
 	spacem.lock.Unlock()

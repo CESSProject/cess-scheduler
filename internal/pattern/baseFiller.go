@@ -87,3 +87,13 @@ func GetBaseFillerLength() int {
 	defer basefiller.Lock.Unlock()
 	return len(basefiller.BaseFiller)
 }
+
+func DelereBaseFiller(fillerid string) {
+	basefiller.Lock.Lock()
+	for k, _ := range basefiller.BaseFiller {
+		if k == fillerid {
+			delete(basefiller.BaseFiller, k)
+		}
+	}
+	basefiller.Lock.Unlock()
+}

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "cess-scheduler/internal/rpc/protobuf"
 
@@ -40,10 +41,13 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Forbidden"}, nil
 	}
 
+	if pattern.IsMaxSpacem(string(b.Publickey)) {
+		return &RespBody{Code: 403, Msg: "Busy"}, nil
+	}
+
 	minercache, err := db.Get(b.Publickey)
 	if err != nil {
 		pattern.AddBlacklist(string(b.Publickey))
-		Com.Sugar().Infof("Add blacklist: %v", b.Publickey)
 		return &RespBody{Code: http.StatusNotFound, Msg: "Not found"}, nil
 	}
 
@@ -133,6 +137,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
+	time.Sleep(time.Second * 3)
 	Flr.Sugar().Infof("[%v] Copy filler: %v, %v", addr, fillerid, ip)
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
@@ -218,7 +223,7 @@ func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
-	if len(b.FileId) == 0 || len(b.FileHash) == 0 {
+	if len(b.FileId) == 0 {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
@@ -236,6 +241,30 @@ func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 	data.BlockSize = types.U32(uint32(configs.BlockSize))
 	data.ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	pattern.Chan_FillerMeta <- data
+
+	return &RespBody{Code: 200, Msg: "success"}, nil
+}
+
+func (WService) FillerfallAction(body []byte) (proto.Message, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+		}
+	}()
+
+	var b FillerBackReq
+	err := proto.Unmarshal(body, &b)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if len(b.FileId) == 0 {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if len(b.FileHash) == 0 {
+		pattern.DelereBaseFiller(string(b.FileId))
+	}
 
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }

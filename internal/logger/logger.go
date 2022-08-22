@@ -45,7 +45,7 @@ func Logger_Init() {
 		"t_smi.log",
 		"panic.log",
 		"t_sfm.log",
-		"T_gf.log",
+		"t_gf.log",
 	}
 
 	for i := 0; i < len(log_file); i++ {
