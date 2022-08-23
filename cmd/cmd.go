@@ -326,6 +326,7 @@ func Command_Update_Runfunc(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 		res := base58.Encode([]byte(os.Args[2] + ":" + os.Args[3]))
+		chain.ChainInit()
 		txhash, err := chain.UpdatePublicIp(configs.C.CtrlPrk, res)
 		if err != nil {
 			if err.Error() == chain.ERR_Empty {
