@@ -11,6 +11,7 @@ import (
 	"cess-scheduler/tools"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -134,6 +135,15 @@ func Command_Register_Runfunc(cmd *cobra.Command, args []string) {
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 	refreshProfile(cmd)
 	chain.ChainInit()
+	accountinfo, err := chain.GetAccountInfo(configs.PublicKey)
+	if err != nil {
+		log.Printf("Failed to get account information, please try again later.\n")
+		os.Exit(1)
+	}
+	if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(2000000000000)) == -1 {
+		log.Printf("Insufficient balance\n")
+		os.Exit(1)
+	}
 	flag := register_if()
 	if !flag {
 		logger.Logger_Init()

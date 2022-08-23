@@ -107,7 +107,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	fillerid, ip, err := pattern.GetAndInsertBaseFiller(minerinfo.Ip)
-	if err != nil {
+	if err != nil || Dial(ip) != nil {
 		if len(pattern.Chan_Filler) == 0 {
 			return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
 		}

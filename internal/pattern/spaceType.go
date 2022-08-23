@@ -112,8 +112,8 @@ func IsExitSpacem(pubkey string) bool {
 func GetConnectedSpacem() []string {
 	var data = make([]string, 0)
 	spacem.lock.Lock()
-	for _, v := range spacem.tokens {
-		addr, _ := tools.EncodeToCESSAddr([]byte(v.publicKey))
+	for k, _ := range spacem.miners {
+		addr, _ := tools.EncodeToCESSAddr([]byte(k))
 		data = append(data, addr)
 	}
 	spacem.lock.Unlock()

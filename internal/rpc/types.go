@@ -11,6 +11,10 @@ import (
 func Dial(url string) error {
 	wsURL := "ws://" + string(base58.Decode(url))
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err := rpc.DialWebsocket(ctx, wsURL, "")
-	return err
+	cli, err := rpc.DialWebsocket(ctx, wsURL, "")
+	if err != nil {
+		return err
+	}
+	cli.Close()
+	return nil
 }
