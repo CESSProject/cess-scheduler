@@ -63,15 +63,8 @@ type RespSpaceInfo struct {
 	Sigmas [][]byte `json:"sigmas"`
 }
 
-type connmap struct {
-	lock  *sync.Mutex
-	conns map[string]int64
-}
-
-var co *connmap
 var ctl *calcTagLock
 
-var cacheSt bool = false
 var globalTransport *http.Transport
 
 // init
@@ -79,10 +72,6 @@ func init() {
 	globalTransport = &http.Transport{
 		DisableKeepAlives: true,
 	}
-
-	co = new(connmap)
-	co.lock = new(sync.Mutex)
-	co.conns = make(map[string]int64, 10)
 
 	ctl = new(calcTagLock)
 	ctl.lock = new(sync.Mutex)
@@ -93,7 +82,6 @@ func init() {
 // Start tcp service.
 // If an error occurs, it will exit immediately.
 func Rpc_Main() {
-	// go task_Management()
 	srv := NewServer()
 	err := srv.Register(RpcService_Scheduler, WService{})
 	if err != nil {
@@ -106,43 +94,6 @@ func Rpc_Main() {
 		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
-}
-
-func (this *connmap) UpdateTime(key string) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	this.conns[key] = time.Now().Unix()
-}
-
-func (this *connmap) DeleteExpired() {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	for k, v := range this.conns {
-		if time.Since(time.Unix(v, 0)).Minutes() > 1 {
-			delete(this.conns, k)
-		}
-	}
-}
-
-func (this *connmap) GetConnsNum() int {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	return len(this.conns)
-}
-
-func (this *connmap) IsExist(pubkey string) bool {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	for k, v := range this.conns {
-		addr, _ := tools.EncodeToCESSAddr([]byte(k))
-		fmt.Println("k:", addr, "  v:", v)
-	}
-
-	_, ok := this.conns[pubkey]
-	addr, _ := tools.EncodeToCESSAddr([]byte(pubkey))
-	fmt.Println("is: ", ok, "   ", addr)
-	return ok
 }
 
 func (this *calcTagLock) TryLock() bool {
@@ -190,40 +141,6 @@ func (this *calcTagLock) FreeLock() {
 // 	}
 // }
 
-// func task_ClearAuthMap(ch chan bool) {
-// 	defer func() {
-// 		if err := recover(); err != nil {
-// 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-// 		}
-// 		ch <- true
-// 	}()
-// 	var count uint8
-// 	for {
-// 		count++
-// 		if count >= 3 {
-// 			count = 0
-// 			Com.Info("Connected miners:")
-// 			sm.lock.Lock()
-// 			for _, v := range sm.miners {
-// 				addr, _ := tools.EncodeToCESSAddr([]byte(sm.tokens[v].publicKey))
-// 				Com.Sugar().Infof("  %v", addr)
-// 			}
-// 			sm.lock.Unlock()
-// 			Com.Info("Black miners:")
-// 			sm.lock.Lock()
-// 			for k, v := range sm.blacklist {
-// 				addr, _ := tools.EncodeToCESSAddr([]byte(k))
-// 				Com.Sugar().Infof("  %v : %v", addr, time.Since(time.Unix(v, 0)).Seconds())
-// 			}
-// 			sm.lock.Unlock()
-// 		}
-// 		time.Sleep(time.Minute)
-// 		am.DeleteExpired()
-// 		sm.DeleteExpired()
-// 		co.DeleteExpired()
-// 	}
-// }
-
 // AuthAction is used to generate credentials.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
@@ -240,7 +157,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
 	}
 
-	if pattern.IsPass(string(b.PublicKey)) {
+	if !pattern.IsPass(string(b.PublicKey)) {
 		return &RespBody{Code: 403, Msg: "Forbidden"}, nil
 	}
 
@@ -514,7 +431,7 @@ func (WService) StateAction(body []byte) (proto.Message, error) {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
 		}
 	}()
-	l := co.GetConnsNum()
+	l := pattern.GetConnsMinerNum()
 	bb := make([]byte, 4)
 	bb[0] = uint8(l >> 24)
 	bb[1] = uint8(l >> 26)

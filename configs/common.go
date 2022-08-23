@@ -3,22 +3,14 @@ package configs
 import "time"
 
 // type and version
-const Version = "cess-scheduler v0.2.0"
+const Version = "cess-scheduler v0.2.1"
 
 // return code
 const (
 	//success
 	Code_200 = 200
-	//bad request
-	//Code_400 = 400
-	//forbidden
-	//Code_403 = 403
 	//not found
 	Code_404 = 404
-	//server internal error
-	//Code_500 = 500
-	//The block was produced but the event was not resolved
-	Code_600 = 600
 )
 
 //

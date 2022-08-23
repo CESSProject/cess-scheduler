@@ -495,11 +495,7 @@ func PutProofResult(signaturePrk string, data []VerifyResult) (string, error) {
 				}
 
 				if len(events.SegmentBook_VerifyProof) > 0 {
-					for i := 0; i < len(events.SegmentBook_VerifyProof); i++ {
-						if string(events.SegmentBook_VerifyProof[i].Miner[:]) == string(data[0].Miner_pubkey[:]) {
-							return txhash, nil
-						}
-					}
+					return txhash, nil
 				}
 				return txhash, errors.New(ERR_Failed)
 			}

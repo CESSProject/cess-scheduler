@@ -25,11 +25,6 @@ import (
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
-	if !cacheSt {
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(2, 5)))
-		return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
-	}
-
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -42,8 +37,12 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: http.StatusForbidden, Msg: "Bad request"}, nil
 	}
 
-	if pattern.IsPass(string(b.Publickey)) {
+	if !pattern.IsPass(string(b.Publickey)) {
 		return &RespBody{Code: 403, Msg: "Forbidden"}, nil
+	}
+
+	if pattern.IsMaxSpacem(string(b.Publickey)) {
+		return &RespBody{Code: 403, Msg: "Busy"}, nil
 	}
 
 	minercache, err := db.Get(b.Publickey)
@@ -108,7 +107,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	fillerid, ip, err := pattern.GetAndInsertBaseFiller(minerinfo.Ip)
-	if err != nil {
+	if err != nil || Dial(ip) != nil {
 		if len(pattern.Chan_Filler) == 0 {
 			return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
 		}
@@ -138,6 +137,7 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
+	time.Sleep(time.Second * 3)
 	Flr.Sugar().Infof("[%v] Copy filler: %v, %v", addr, fillerid, ip)
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
@@ -171,9 +171,8 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
 	if b.BlockIndex == 1 {
-		sm.UpdateTimeIfExists(pubkey, ip, fname)
+		pattern.UpdateSpacemap(pubkey, ip, fname)
 	}
-	co.UpdateTime(pubkey)
 
 	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
 	if err != nil {
@@ -224,7 +223,7 @@ func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
-	if len(b.FileId) == 0 || len(b.FileHash) == 0 {
+	if len(b.FileId) == 0 {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
@@ -242,6 +241,30 @@ func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 	data.BlockSize = types.U32(uint32(configs.BlockSize))
 	data.ScanSize = types.U32(uint32(configs.ScanBlockSize))
 	pattern.Chan_FillerMeta <- data
+
+	return &RespBody{Code: 200, Msg: "success"}, nil
+}
+
+func (WService) FillerfallAction(body []byte) (proto.Message, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+		}
+	}()
+
+	var b FillerBackReq
+	err := proto.Unmarshal(body, &b)
+	if err != nil {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if len(b.FileId) == 0 {
+		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
+	}
+
+	if len(b.FileHash) == 0 {
+		pattern.DelereBaseFiller(string(b.FileId))
+	}
 
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }

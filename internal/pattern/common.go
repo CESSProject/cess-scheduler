@@ -21,7 +21,5 @@ var Chan_FillerMeta chan chain.SpaceFileInfo
 
 func init() {
 	Chan_Filler = make(chan Filler, Chan_Filler_len)
-
 	Chan_FillerMeta = make(chan chain.SpaceFileInfo, 100)
-
 }
