@@ -7,8 +7,6 @@ type Reader interface {
 
 	// Get fetch the given key if it's present in the key-value data store.
 	Get(key []byte) ([]byte, error)
-
-	IteratorKeys() ([][]byte, error)
 }
 
 type Writer interface {

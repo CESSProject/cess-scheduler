@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
+
 	"os"
 
 	"github.com/Nik-U/pbc"
@@ -63,9 +64,6 @@ func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segm
 }
 
 func GenerateAuthenticator(i int64, s int64, T0 T0, piece []byte, Alpha *pbc.Element, pairing *pbc.Pairing, segmentSize int64) []byte {
-	//H(name||i)
-	hash_name_i := hashNameI(pairing.NewZr().SetBytes(T0.Name), i+1, pairing)
-
 	productory := pairing.NewG2()
 	//for j := int64(0); j < s; j++ {
 	//	//mij
@@ -90,17 +88,13 @@ func GenerateAuthenticator(i int64, s int64, T0 T0, piece []byte, Alpha *pbc.Ele
 		productory.Mul(productory, pairing.NewG2().PowZn(pairing.NewG2().SetBytes(T0.U[j]), piece_sigle))
 	}
 	//H(name||i) · uj^mij
-	innerProduct := pairing.NewG2().Mul(productory, &hash_name_i)
+	innerProduct := pairing.NewG2().Mul(productory, buildHashNameElement(pairing, T0.Name, i+1))
 	return pairing.NewG2().PowZn(innerProduct, Alpha).Bytes()
 }
 
-func hashNameI(name *pbc.Element, i int64, pairing *pbc.Pairing) pbc.Element {
-	i_bytes := make([]byte, 4)
-	binary.PutVarint(i_bytes, i)
-	hashArgument := append(name.Bytes(), i_bytes...)
-	hash_array := sha256.Sum256(hashArgument)
-
-	hash_res := pairing.NewG2().SetFromHash(hash_array[:])
-	//hash_res := new(pbc.Element).SetFromStringHash(string(HashTemp), sha256.New())
-	return *hash_res
+func buildHashNameElement(pairing *pbc.Pairing, t0Name []byte, i int64) *pbc.Element {
+	indexBytes := make([]byte, 4)
+	binary.PutVarint(indexBytes, i)
+	hash_array := sha256.Sum256(append(pairing.NewZr().SetBytes(t0Name).Bytes(), indexBytes...))
+	return pairing.NewG2().SetFromHash(hash_array[:])
 }
