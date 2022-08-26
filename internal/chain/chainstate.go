@@ -11,7 +11,7 @@ import (
 )
 
 // Get miner information on the chain
-func GetMinerInfo(pubkey types.AccountID) (MinerInfo, error) {
+func (c *chainClient) GetStorageMinerInfo() (MinerInfo, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -20,8 +20,7 @@ func GetMinerInfo(pubkey types.AccountID) (MinerInfo, error) {
 
 	var data MinerInfo
 
-	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
-	defer Free()
+	api, err := c.GetChainClient()
 	if err != nil {
 		return data, errors.Wrap(err, "[GetRpcClient_Safe]")
 	}

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"math/big"
 	"net/http"
@@ -48,9 +47,6 @@ const (
 
 const mutexLocked = 1 << iota
 
-type WService struct {
-}
-
 type calcTagLock struct {
 	flag bool
 	lock *sync.Mutex
@@ -77,23 +73,6 @@ func init() {
 	ctl.lock = new(sync.Mutex)
 	ctl.flag = false
 
-}
-
-// Start tcp service.
-// If an error occurs, it will exit immediately.
-func Rpc_Main() {
-	srv := NewServer()
-	err := srv.Register(RpcService_Scheduler, WService{})
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
-	log.Println("Start and listen on port ", configs.C.ServicePort, "...")
-	err = http.ListenAndServe(":"+configs.C.ServicePort, srv.WebsocketHandler([]string{"*"}))
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
 }
 
 func (this *calcTagLock) TryLock() bool {
@@ -219,7 +198,7 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 			continue
 		}
 
-		if string(fmeta.FileState) == "active" {
+		if string(fmeta.State) == "active" {
 			return &RespBody{Code: 201, Msg: "success"}, nil
 		}
 		break
@@ -380,11 +359,11 @@ func storeFiles(fid, fpath, name, pubkey string) {
 
 	Uld.Sugar().Infof("[%v] D: %v  R: %v", fid, datachunks, rduchunks)
 
-	var chunksInfo = make([]chain.ChunkInfo, datachunks+rduchunks)
-	var channel_chunks = make(map[int]chan chain.ChunkInfo, datachunks+rduchunks)
+	var chunksInfo = make([]chain.BlockInfo, datachunks+rduchunks)
+	var channel_chunks = make(map[int]chan chain.BlockInfo, datachunks+rduchunks)
 
 	for i := 0; i < len(chunkspath); i++ {
-		channel_chunks[i] = make(chan chain.ChunkInfo, 1)
+		channel_chunks[i] = make(chan chain.BlockInfo, 1)
 		go backupFile(channel_chunks[i], chunkspath[i], pubkey, i)
 	}
 
@@ -780,14 +759,14 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) {
+func backupFile(ch chan chain.BlockInfo, fpath, userkey string, chunkindex int) {
 	var (
 		err            error
 		allMinerPubkey []types.AccountID
 	)
 	defer func() {
 		if len(ch) == 0 {
-			ch <- chain.ChunkInfo{}
+			ch <- chain.BlockInfo{}
 		}
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -960,7 +939,7 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 
 	Uld.Sugar().Infof("[%v] Transfer tag completed", fname)
 
-	var chunk chain.ChunkInfo
+	var chunk chain.BlockInfo
 	chunk.ChunkId = types.NewBytes([]byte(fname))
 	chunk.ChunkSize = types.U64(fstat.Size())
 	chunk.MinerAcc = allMinerPubkey[index]
@@ -970,8 +949,8 @@ func backupFile(ch chan chain.ChunkInfo, fpath, userkey string, chunkindex int) 
 	ch <- chunk
 }
 
-func combineFillerMeta(addr, fileid, fpath string, pubkey []byte) (chain.SpaceFileInfo, error) {
-	var metainfo chain.SpaceFileInfo
+func combineFillerMeta(addr, fileid, fpath string, pubkey []byte) (chain.FillerMetaInfo, error) {
+	var metainfo chain.FillerMetaInfo
 	metainfo.FileId = []byte(fileid)
 	metainfo.Index = 0
 	fstat, err := os.Stat(fpath)

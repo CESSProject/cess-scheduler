@@ -28,9 +28,12 @@ func task_GenerateFiller(ch chan bool) {
 		fillerpath string
 	)
 	for {
-		for len(pattern.Chan_Filler) < pattern.Chan_Filler_len {
+		for len(pattern.C_Filler) < pattern.C_Filler_Maxlen {
 			for {
 				uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
+				if uid == "" {
+					continue
+				}
 				fillerpath = filepath.Join(configs.SpaceCacheDir, fmt.Sprintf("%s", uid))
 				_, err = os.Stat(fillerpath)
 				if err != nil {
@@ -59,32 +62,23 @@ func task_GenerateFiller(ch chan bool) {
 			PoDR2commit.FilePath = fillerpath
 			PoDR2commit.BlockSize = configs.BlockSize
 
-			gWait := make(chan bool)
-			go func(ch chan bool) {
-				commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
-					apiv1.Key_Ssk,
-					string(apiv1.Key_SharedParams),
-					int64(configs.ScanBlockSize),
-				)
-				if err != nil {
-					ch <- false
-					return
-				}
-				aft := time.After(time.Second * 5)
-				select {
-				case commitResponse = <-commitResponseCh:
-				case <-aft:
-					ch <- false
-					return
-				}
-				if commitResponse.StatueMsg.StatusCode != apiv1.Success {
-					ch <- false
-				} else {
-					ch <- true
-				}
-			}(gWait)
+			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
+				apiv1.Key_Ssk,
+				string(apiv1.Key_SharedParams),
+				int64(configs.ScanBlockSize),
+			)
+			if err != nil {
+				os.Remove(fillerpath)
+				Tgf.Sugar().Errorf("PoDR2ProofCommit false")
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				continue
+			}
 
-			if rst := <-gWait; !rst {
+			select {
+			case commitResponse = <-commitResponseCh:
+			}
+
+			if commitResponse.StatueMsg.StatusCode != apiv1.Success {
 				os.Remove(fillerpath)
 				Tgf.Sugar().Errorf("PoDR2ProofCommit false")
 				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
@@ -109,13 +103,8 @@ func generateFiller(fpath string) error {
 		return err
 	}
 	defer f.Close()
-	for i := 0; i < 2047; i++ {
-		f.WriteString(tools.RandStr(4096) + "\n")
-	}
-	_, err = f.WriteString(tools.RandStr(212))
-	if err != nil {
-		os.Remove(fpath)
-		return err
+	for i := 0; i < 2048; i++ {
+		f.WriteString(tools.RandStr(4095) + "\n")
 	}
 	err = f.Sync()
 	if err != nil {

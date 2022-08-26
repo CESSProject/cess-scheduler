@@ -142,7 +142,7 @@ func RegisterToChain(transactionPrK, stash_acc, ipAddr string) (string, error) {
 }
 
 // Update file meta information
-func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, chunk []ChunkInfo) (string, error) {
+func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, chunk []BlockInfo) (string, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -271,7 +271,7 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, c
 }
 
 // Update file meta information
-func PutSpaceTagInfoToChain(transactionPrK string, miner_acc types.AccountID, info []SpaceFileInfo) (string, error) {
+func PutSpaceTagInfoToChain(transactionPrK string, miner_acc types.AccountID, info []FileMetaInfo) (string, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))

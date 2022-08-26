@@ -67,23 +67,45 @@ type Cache_MinerInfo struct {
 	Pubkey []byte `json:"pubkey"`
 }
 
-// public user file meta info
+// file meta info
 type FileMetaInfo struct {
-	FileSize  types.U64
+	Size      types.U64
 	Index     types.U32
-	FileState types.Bytes
+	State     types.Bytes
 	Users     []types.AccountID
 	Names     []types.Bytes
-	ChunkInfo []ChunkInfo
+	BlockInfo []BlockInfo
 }
 
-type ChunkInfo struct {
+type BlockInfo struct {
 	MinerId   types.U64
-	ChunkSize types.U64
+	BlockSize types.U64
 	BlockNum  types.U32
-	ChunkId   types.Bytes
+	BlockId   types.Bytes
 	MinerIp   types.Bytes
 	MinerAcc  types.AccountID
+	Tag       TagInfo
+}
+
+type TagInfo struct {
+	Name   types.Bytes
+	N      types.U64
+	U      []types.Bytes
+	Sigmas []types.Bytes
+	Pkey   types.Bytes
+	Sign   types.Bytes
+}
+
+// filler meta info
+type FillerMetaInfo struct {
+	Size      types.U64
+	Index     types.U32
+	BlockNum  types.U32
+	BlockSize types.U32
+	Acc       types.AccountID
+	Id        types.Bytes
+	Hash      types.Bytes
+	Tag       TagInfo
 }
 
 // scheduler info
@@ -91,18 +113,6 @@ type SchedulerInfo struct {
 	Ip             types.Bytes
 	StashUser      types.AccountID
 	ControllerUser types.AccountID
-}
-
-// filler info
-type SpaceFileInfo struct {
-	FileSize  types.U64
-	Index     types.U32
-	BlockNum  types.U32
-	BlockSize types.U32
-	ScanSize  types.U32
-	Acc       types.AccountID
-	FileId    types.Bytes
-	FileHash  types.Bytes
 }
 
 type Chain_SchedulerPuk struct {
@@ -153,6 +163,6 @@ const (
 	ERR_Empty   = "Empty"
 )
 
-func (this ChunkInfo) IsEmpty() bool {
-	return reflect.DeepEqual(this, ChunkInfo{})
+func (this BlockInfo) IsEmpty() bool {
+	return reflect.DeepEqual(this, BlockInfo{})
 }

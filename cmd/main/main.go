@@ -1,10 +1,8 @@
 package main
 
-import (
-	"cess-scheduler/cmd"
-)
+import "cess-scheduler/internal/command"
 
 // program entry
 func main() {
-	cmd.Execute()
+	command.Execute()
 }

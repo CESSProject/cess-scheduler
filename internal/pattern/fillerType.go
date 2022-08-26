@@ -7,23 +7,23 @@ import (
 
 type Fillermetamap struct {
 	lock        *sync.Mutex
-	Fillermetas map[string][]chain.SpaceFileInfo
+	Fillermetas map[string][]chain.FillerMetaInfo
 }
 
 var FillerMap *Fillermetamap
 
 func init() {
 	FillerMap = new(Fillermetamap)
-	FillerMap.Fillermetas = make(map[string][]chain.SpaceFileInfo)
+	FillerMap.Fillermetas = make(map[string][]chain.FillerMetaInfo)
 	FillerMap.lock = new(sync.Mutex)
 }
 
-func (this *Fillermetamap) Add(pubkey string, data chain.SpaceFileInfo) {
+func (this *Fillermetamap) Add(pubkey string, data chain.FillerMetaInfo) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 	_, ok := this.Fillermetas[pubkey]
 	if !ok {
-		this.Fillermetas[pubkey] = make([]chain.SpaceFileInfo, 0)
+		this.Fillermetas[pubkey] = make([]chain.FillerMetaInfo, 0)
 	}
 	this.Fillermetas[pubkey] = append(this.Fillermetas[pubkey], data)
 }
