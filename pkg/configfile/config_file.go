@@ -1,4 +1,4 @@
-package configs
+package configfile
 
 import (
 	"cess-scheduler/tools"

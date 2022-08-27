@@ -3,12 +3,9 @@ package tools
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -85,49 +82,11 @@ func BytesToInteger(n []byte) (int32, error) {
 	return x, err
 }
 
-// Calculate the file hash value
-func CalcFileHash(fpath string) (string, error) {
-	f, err := os.Open(fpath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// Calculate the file hash value
-func CalcFileHash2(f *os.File) (string, error) {
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
 // Get a random integer in a specified range
 func RandomInRange(min, max int) int {
 	time.Sleep(time.Nanosecond)
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min) + min
-}
-
-// Write string content to file
-func WriteStringtoFile(content, fileName string) error {
-	f, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(content)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 //  ----------------------- Random key -----------------------
@@ -256,18 +215,6 @@ func RandStr(n int) string {
 		remain--
 	}
 	return sb.String()
-}
-
-func CalcHash(data []byte) (string, error) {
-	if len(data) <= 0 {
-		return "", errors.New("data is nil")
-	}
-	h := sha256.New()
-	_, err := h.Write(data)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func GetStringWithoutNumbers(in string) string {
