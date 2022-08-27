@@ -10,6 +10,12 @@ import (
 
 type Chainer interface {
 	GetStorageMinerInfo() (MinerInfo, error)
+	GetAllMinerDataOnChain() ([]types.AccountID, error)
+	GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error)
+	GetSchedulerInfo() ([]SchedulerInfo, error)
+	GetProofs() ([]Proof, error)
+	GetCessAccount() (types.Bytes, error)
+	GetSpacePackageInfo() (SpacePackage, error)
 }
 
 type chainClient struct {
@@ -89,16 +95,16 @@ func ReconnectChainClient(rpcAddr string, keyring signature.KeyringPair) (*chain
 	return cli, nil
 }
 
-func (c *chainClient) GetChainClient() (*gsrpc.SubstrateAPI, error) {
+func (c *chainClient) IsChainClientOk() bool {
 	id, err := healthchek(c.c)
 	if id == 0 || err != nil {
 		c, err = ReconnectChainClient(c.rpcAddr, c.keyring)
 		if err != nil {
-			return nil, err
+			return false
 		}
-		return c.c, nil
+		return true
 	}
-	return c.c, nil
+	return true
 }
 
 func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
