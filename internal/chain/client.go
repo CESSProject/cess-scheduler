@@ -16,6 +16,7 @@ type Chainer interface {
 	GetSchedulerInfo() ([]SchedulerInfo, error)
 	GetProofs() ([]Proof, error)
 	GetCessAccount() (types.Bytes, error)
+	GetAccountInfo() (types.AccountInfo, error)
 	GetSpacePackageInfo() (SpacePackage, error)
 	Register(stash, contact string) (string, error)
 	SubmitProofResults(data []ProofResult) (string, error)
@@ -34,7 +35,7 @@ type chainClient struct {
 	timeForBlockOut time.Duration
 }
 
-func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
+func NewChainClient(rpcAddr, secret string, t time.Duration) (*chainClient, error) {
 	var (
 		err error
 		cli = &chainClient{}
@@ -55,7 +56,12 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli.keyEvents, err = types.CreateStorageKey(cli.metadata, "System", "Events", nil)
+	cli.keyEvents, err = types.CreateStorageKey(
+		cli.metadata,
+		State_System,
+		System_Account,
+		nil,
+	)
 	if err != nil {
 		return nil, err
 	}

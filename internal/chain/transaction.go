@@ -7,15 +7,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type CessInfo struct {
-	RpcAddr                string
-	IdentifyAccountPhrase  string
-	IncomeAccountPublicKey string
-	TransactionName        string
-	ChainModule            string
-	ChainModuleMethod      string
-}
-
 func (c *chainClient) Register(stash, contact string) (string, error) {
 	var txhash string
 	var accountInfo types.AccountInfo

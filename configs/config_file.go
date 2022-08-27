@@ -41,12 +41,12 @@ type Confile struct {
 }
 
 type configfile struct {
-	confile *Confile
+	*Confile
 }
 
-func NewConfigfile(confile *Confile) Configfiler {
+func NewConfigfile(confile *Confile) *configfile {
 	return &configfile{
-		confile: confile,
+		confile,
 	}
 }
 
@@ -70,21 +70,21 @@ func (c *configfile) Parse(fpath string) error {
 	if err != nil {
 		return errors.Errorf("ReadInConfig: %v", err)
 	}
-	err = viper.Unmarshal(c.confile)
+	err = viper.Unmarshal(c)
 	if err != nil {
 		return errors.Errorf("Unmarshal: %v", err)
 	}
 
-	if c.confile.CtrlPrk == "" ||
-		c.confile.DataDir == "" ||
-		c.confile.RpcAddr == "" ||
-		c.confile.ServiceAddr == "" ||
-		c.confile.StashAcc == "" ||
-		c.confile.ServicePort == "" {
+	if c.CtrlPrk == "" ||
+		c.DataDir == "" ||
+		c.RpcAddr == "" ||
+		c.ServiceAddr == "" ||
+		c.StashAcc == "" ||
+		c.ServicePort == "" {
 		return errors.New("The configuration file cannot have empty entries")
 	}
 
-	port, err := strconv.Atoi(c.confile.ServicePort)
+	port, err := strconv.Atoi(c.ServicePort)
 	if err != nil {
 		return errors.New("The port number should be between 1025~65535")
 	}
@@ -95,7 +95,7 @@ func (c *configfile) Parse(fpath string) error {
 		return errors.New("The port number cannot exceed 65535")
 	}
 
-	err = tools.CreatDirIfNotExist(c.confile.DataDir)
+	err = tools.CreatDirIfNotExist(c.DataDir)
 	if err != nil {
 		return errors.Errorf("Creat dir: %v", err)
 	}

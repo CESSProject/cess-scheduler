@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ import (
 
 // start service
 func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
+	// config file
 	var configFilePath string
 	configpath1, _ := cmd.Flags().GetString("config")
 	configpath2, _ := cmd.Flags().GetString("c")
@@ -35,8 +37,20 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		log.Println(err)
 		os.Exit(1)
 	}
-	chain.ChainInit()
-	accountinfo, err := chain.GetAccountInfo(configs.PublicKey)
+
+	// chain client
+	c, err := chain.NewChainClient(
+		confile.RpcAddr,
+		confile.CtrlPrk,
+		time.Duration(time.Second*15),
+	)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	// judge the balance
+	accountinfo, err := c.GetAccountInfo()
 	if err != nil {
 		log.Printf("Failed to get account information, please try again later.\n")
 		os.Exit(1)
@@ -45,6 +59,8 @@ func Command_Run_Runfunc(cmd *cobra.Command, args []string) {
 		log.Printf("Insufficient balance\n")
 		os.Exit(1)
 	}
+
+	//
 	flag := register_if()
 	if !flag {
 		logger.Logger_Init()
