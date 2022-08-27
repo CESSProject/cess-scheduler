@@ -120,11 +120,11 @@ type SpacePackage struct {
 	State           types.Bytes
 }
 
-//
-type VerifyResult struct {
-	Miner_pubkey types.AccountID
-	FileId       types.Bytes
-	Result       types.Bool
+// proof result
+type ProofResult struct {
+	PublicKey types.AccountID
+	FileId    types.Bytes
+	Result    types.Bool
 }
 
 func (this BlockInfo) IsEmpty() bool {

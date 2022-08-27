@@ -1,8 +1,6 @@
 package chain
 
 import (
-	"cess-scheduler/configs"
-
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
@@ -10,19 +8,24 @@ import (
 )
 
 // Get miner information on the chain
-func (c *chainClient) GetStorageMinerInfo() (MinerInfo, error) {
+func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 	var data MinerInfo
 
 	if !c.IsChainClientOk() {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.EncodeToBytes(c.keyring.PublicKey)
+	b, err := types.EncodeToBytes(pkey)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
-	key, err := types.CreateStorageKey(c.metadata, State_Sminer, Sminer_MinerItems, b)
+	key, err := types.CreateStorageKey(
+		c.metadata,
+		State_Sminer,
+		Sminer_MinerItems,
+		b,
+	)
 	if err != nil {
 		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
@@ -38,7 +41,7 @@ func (c *chainClient) GetStorageMinerInfo() (MinerInfo, error) {
 }
 
 // Get all miner information on the cess chain
-func (c *chainClient) GetAllMinerDataOnChain() ([]types.AccountID, error) {
+func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 	var data []types.AccountID
 
 	if !c.IsChainClientOk() {
@@ -136,7 +139,7 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 		c.metadata,
 		State_SegmentBook,
 		SegmentBook_UnVerifyProof,
-		configs.PublicKey,
+		c.keyring.PublicKey,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")

@@ -3,7 +3,7 @@ package chain
 import "github.com/centrifuge/go-substrate-rpc-client/v4/types"
 
 // **************************************************************
-// custom event type
+// cess event type
 // **************************************************************
 
 //------------------------SegmentBook----------------------------
@@ -322,7 +322,7 @@ type Event_Balances_Withdraw struct {
 //**************************************************************
 
 // All event types
-type MyEventRecords struct {
+type CessEventRecords struct {
 	//system
 	types.EventRecords
 	//SegmentBook

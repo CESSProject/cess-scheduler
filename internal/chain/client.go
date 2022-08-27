@@ -2,6 +2,7 @@ package chain
 
 import (
 	"sync"
+	"time"
 
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
@@ -9,27 +10,31 @@ import (
 )
 
 type Chainer interface {
-	GetStorageMinerInfo() (MinerInfo, error)
-	GetAllMinerDataOnChain() ([]types.AccountID, error)
+	GetStorageMinerInfo(pkey []byte) (MinerInfo, error)
+	GetAllStorageMiner() ([]types.AccountID, error)
 	GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error)
 	GetSchedulerInfo() ([]SchedulerInfo, error)
 	GetProofs() ([]Proof, error)
 	GetCessAccount() (types.Bytes, error)
 	GetSpacePackageInfo() (SpacePackage, error)
+	Register(stash, contact string) (string, error)
+	SubmitProofResults(data []ProofResult) (string, error)
+	Update(contact string) (string, error)
 }
 
 type chainClient struct {
-	l              *sync.Mutex
-	c              *gsrpc.SubstrateAPI
-	metadata       *types.Metadata
-	keyEvents      types.StorageKey
-	runtimeVersion *types.RuntimeVersion
-	genesisHash    types.Hash
-	keyring        signature.KeyringPair
-	rpcAddr        string
+	l               *sync.Mutex
+	c               *gsrpc.SubstrateAPI
+	metadata        *types.Metadata
+	keyEvents       types.StorageKey
+	runtimeVersion  *types.RuntimeVersion
+	genesisHash     types.Hash
+	keyring         signature.KeyringPair
+	rpcAddr         string
+	timeForBlockOut time.Duration
 }
 
-func NewChainClient(rpcAddr, secret string) (Chainer, error) {
+func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 	var (
 		err error
 		cli = &chainClient{}
@@ -61,10 +66,11 @@ func NewChainClient(rpcAddr, secret string) (Chainer, error) {
 		}
 	}
 	cli.l = new(sync.Mutex)
+	cli.timeForBlockOut = t
 	return cli, nil
 }
 
-func ReconnectChainClient(rpcAddr string, keyring signature.KeyringPair) (*chainClient, error) {
+func ReconnectChainClient(rpcAddr string, t time.Duration, keyring signature.KeyringPair) (*chainClient, error) {
 	var (
 		err error
 		cli = &chainClient{}
@@ -92,13 +98,14 @@ func ReconnectChainClient(rpcAddr string, keyring signature.KeyringPair) (*chain
 
 	cli.keyring = keyring
 	cli.l = new(sync.Mutex)
+	cli.timeForBlockOut = t
 	return cli, nil
 }
 
 func (c *chainClient) IsChainClientOk() bool {
 	id, err := healthchek(c.c)
 	if id == 0 || err != nil {
-		c, err = ReconnectChainClient(c.rpcAddr, c.keyring)
+		c, err = ReconnectChainClient(c.rpcAddr, c.timeForBlockOut, c.keyring)
 		if err != nil {
 			return false
 		}
