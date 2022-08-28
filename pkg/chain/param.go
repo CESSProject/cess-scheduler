@@ -61,9 +61,3 @@ const (
 	Tx_FileMap_UpdateScheduler = "FileMap.update_scheduler"
 	Tx_FileMap_Add_schedule    = "FileMap.registration_scheduler"
 )
-
-var (
-	SSPrefix        = []byte{0x53, 0x53, 0x35, 0x38, 0x50, 0x52, 0x45}
-	SubstratePrefix = []byte{0x2a}
-	CessPrefix      = []byte{0x50, 0xac}
-)

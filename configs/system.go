@@ -23,4 +23,6 @@ const Version = "cess-scheduler v0.5.1"
 const (
 	Name        = "cess-scheduler"
 	Description = "Implementation of Scheduling Service for Consensus Nodes"
+	BaseDir     = "scheduler"
+	NameSpace   = "scheduler"
 )

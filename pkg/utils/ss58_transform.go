@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package tools
+package utils
 
 import (
 	"errors"
@@ -25,21 +25,33 @@ import (
 )
 
 var (
-	SSPrefix            = []byte{0x53, 0x53, 0x35, 0x38, 0x50, 0x52, 0x45}
-	SubstratePrefix     = []byte{0x2a}
-	ChainCessTestPrefix = []byte{0x50, 0xac}
+	SSPrefix        = []byte{0x53, 0x53, 0x35, 0x38, 0x50, 0x52, 0x45}
+	SubstratePrefix = []byte{0x2a}
+	CessPrefix      = []byte{0x50, 0xac}
 )
 
-func DecodeToPub(address string, prefix []byte) ([]byte, error) {
-	err := VerityAddress(address, prefix)
+func DecodePublicKeyOfCessAccount(address string) ([]byte, error) {
+	err := VerityAddress(address, CessPrefix)
 	if err != nil {
 		return nil, errors.New("Invalid addrss")
 	}
 	data := base58.Decode(address)
-	if len(data) != (34 + len(prefix)) {
+	if len(data) != (34 + len(CessPrefix)) {
 		return nil, errors.New("base58 decode error")
 	}
-	return data[len(prefix) : len(data)-2], nil
+	return data[len(CessPrefix) : len(data)-2], nil
+}
+
+func DecodePublicKeyOfSubstrateAccount(address string) ([]byte, error) {
+	err := VerityAddress(address, SubstratePrefix)
+	if err != nil {
+		return nil, errors.New("Invalid addrss")
+	}
+	data := base58.Decode(address)
+	if len(data) != (34 + len(SubstratePrefix)) {
+		return nil, errors.New("base58 decode error")
+	}
+	return data[len(SubstratePrefix) : len(data)-2], nil
 }
 
 func PubBytesToString(b []byte) string {
@@ -51,11 +63,11 @@ func PubBytesToString(b []byte) string {
 	return s
 }
 
-func EncodeToSS58(publicKeyHash []byte) (string, error) {
-	if len(publicKeyHash) != 32 {
+func EncodePublicKeyAsSubstrateAccount(publicKey []byte) (string, error) {
+	if len(publicKey) != 32 {
 		return "", errors.New("public hash length is not equal 32")
 	}
-	payload := appendBytes(SubstratePrefix, publicKeyHash)
+	payload := appendBytes(SubstratePrefix, publicKey)
 	input := appendBytes(SSPrefix, payload)
 	ck := blake2b.Sum512(input)
 	checkum := ck[:2]
@@ -66,11 +78,11 @@ func EncodeToSS58(publicKeyHash []byte) (string, error) {
 	return address, nil
 }
 
-func EncodeToCESSAddr(publicKeyHash []byte) (string, error) {
-	if len(publicKeyHash) != 32 {
+func EncodePublicKeyAsCessAccount(publicKey []byte) (string, error) {
+	if len(publicKey) != 32 {
 		return "", errors.New("public hash length is not equal 32")
 	}
-	payload := appendBytes(ChainCessTestPrefix, publicKeyHash)
+	payload := appendBytes(CessPrefix, publicKey)
 	input := appendBytes(SSPrefix, payload)
 	ck := blake2b.Sum512(input)
 	checkum := ck[:2]

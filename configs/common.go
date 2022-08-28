@@ -16,16 +16,6 @@
 
 package configs
 
-import "time"
-
-// return code
-const (
-	//success
-	Code_200 = 200
-	//not found
-	Code_404 = 404
-)
-
 //
 const (
 	LengthOfALine = 4096
@@ -35,19 +25,11 @@ const (
 	SIZE_1KB      = 1024
 	BlockSize     = 1024 * 1024
 	ScanBlockSize = 512 * 1024
-
-	// the time to wait for the event, in seconds
-	TimeToWaitEvents = time.Duration(time.Second * 15)
-	BaseDir          = "scheduler"
 )
 
-var (
-	PublicKey []byte
-	//data dir
-	LogFileDir    = "log"
-	FileCacheDir  = "file"
-	DbFileDir     = "db"
-	SpaceCacheDir = "filler"
+const (
+	MinimumBalance = 2_000_000_000_000
+	FillerSize     = 8 * 1024 * 1024
 )
 
 const (
@@ -60,4 +42,8 @@ const (
 	HELP_update = `    3.Check the FileMap.UpdateScheduler transaction event result in the block hash above:
         If system.ExtrinsicFailed is prompted, it means failure;
         If system.ExtrinsicSuccess is prompted, it means success;`
+)
+
+var (
+	LogName = [9]string{"common", "upfile", "downfile", "filler", "panic", "vp", "smi", "sfm", "gf"}
 )

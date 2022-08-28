@@ -1,7 +1,7 @@
 package pattern
 
 import (
-	"cess-scheduler/internal/chain"
+	"cess-scheduler/pkg/chain"
 )
 
 const (

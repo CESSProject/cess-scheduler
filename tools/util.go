@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -29,7 +28,6 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -230,14 +228,6 @@ func RemoveX(str string, x string) string {
 		}
 	}
 	return res
-}
-
-func RecoverError(err interface{}) string {
-	buf := new(bytes.Buffer)
-	fmt.Fprintf(buf, "%v\n", "--------------------panic--------------------")
-	fmt.Fprintf(buf, "%v\n", err)
-	fmt.Fprintf(buf, "%v\n", string(debug.Stack()))
-	return buf.String()
 }
 
 // Generate random password

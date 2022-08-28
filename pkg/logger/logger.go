@@ -29,7 +29,7 @@ import (
 )
 
 type Logger interface {
-	Log(string, string, string)
+	Log(string, string, error)
 }
 
 type logs struct {
@@ -65,16 +65,16 @@ func NewLogs(logfiles map[string]string) (Logger, error) {
 	}, nil
 }
 
-func (l *logs) Log(name, level, content string) {
+func (l *logs) Log(name, level string, err error) {
 	v, ok := l.log[name]
 	if ok {
 		switch level {
 		case "info":
-			v.Sugar().Infof("%v", content)
+			v.Sugar().Infof("%v", err)
 		case "error":
-			v.Sugar().Errorf("%v", content)
+			v.Sugar().Errorf("%v", err)
 		case "warn":
-			v.Sugar().Warnf("%v", content)
+			v.Sugar().Warnf("%v", err)
 		}
 	}
 }

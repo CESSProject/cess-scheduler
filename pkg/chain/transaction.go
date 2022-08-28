@@ -17,6 +17,7 @@
 package chain
 
 import (
+	"cess-scheduler/pkg/utils"
 	"time"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -31,10 +32,15 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 		return txhash, errors.New("rpc connection failed")
 	}
 
+	stashPuk, err := utils.DecodePublicKeyOfCessAccount(stash)
+	if err != nil {
+		return txhash, errors.Wrap(err, "DecodePublicKeyOfCessAccount")
+	}
+
 	call, err := types.NewCall(
 		c.metadata,
 		Tx_FileMap_Add_schedule,
-		types.NewAccountID(c.keyring.PublicKey),
+		types.NewAccountID(stashPuk),
 		types.Bytes([]byte(contact)),
 	)
 	if err != nil {

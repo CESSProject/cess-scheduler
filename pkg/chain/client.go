@@ -26,12 +26,13 @@ import (
 )
 
 type Chainer interface {
+	GetPublicKey() []byte
 	GetStorageMinerInfo(pkey []byte) (MinerInfo, error)
 	GetAllStorageMiner() ([]types.AccountID, error)
 	GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error)
 	GetSchedulerInfo() ([]SchedulerInfo, error)
 	GetProofs() ([]Proof, error)
-	GetCessAccount() (types.Bytes, error)
+	GetCessAccount() (string, error)
 	GetAccountInfo() (types.AccountInfo, error)
 	GetSpacePackageInfo() (SpacePackage, error)
 	Register(stash, contact string) (string, error)

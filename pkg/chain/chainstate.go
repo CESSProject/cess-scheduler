@@ -17,11 +17,16 @@
 package chain
 
 import (
-	"github.com/btcsuite/btcutil/base58"
+	"cess-scheduler/pkg/utils"
+
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/blake2b"
 )
+
+// GetPublicKey returns your own public key
+func (c *chainClient) GetPublicKey() []byte {
+	return c.keyring.PublicKey
+}
 
 // Get miner information on the chain
 func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
@@ -172,31 +177,8 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 }
 
 //
-func (c *chainClient) GetCessAccount() (types.Bytes, error) {
-	acc, err := encodeToCessAccount(c.keyring.PublicKey)
-	return types.NewBytes([]byte(acc)), err
-}
-
-func encodeToCessAccount(publicKey []byte) (string, error) {
-	if len(publicKey) != 32 {
-		return "", errors.New("invalid publicKey")
-	}
-	payload := appendBytes(CessPrefix, publicKey)
-	input := appendBytes(SSPrefix, payload)
-	ck := blake2b.Sum512(input)
-	checkum := ck[:2]
-	address := base58.Encode(appendBytes(payload, checkum))
-	if address == "" {
-		return address, errors.New("base58 encode error")
-	}
-	return address, nil
-}
-
-func appendBytes(data1, data2 []byte) []byte {
-	if data2 == nil {
-		return data1
-	}
-	return append(data1, data2...)
+func (c *chainClient) GetCessAccount() (string, error) {
+	return utils.EncodePublicKeyAsCessAccount(c.keyring.PublicKey)
 }
 
 //

@@ -35,7 +35,6 @@ func init() {
 	rootCmd.AddCommand(
 		versionCommand(),
 		defaultCommand(),
-		registerCommand(),
 		runCommand(),
 		updateCommand(),
 	)
@@ -70,16 +69,6 @@ func defaultCommand() *cobra.Command {
 		Use:                   "default",
 		Short:                 "Generate configuration file template",
 		Run:                   defaultCmd,
-		DisableFlagsInUseLine: true,
-	}
-	return cc
-}
-
-func registerCommand() *cobra.Command {
-	cc := &cobra.Command{
-		Use:                   "register",
-		Short:                 "Register scheduler information to the chain",
-		Run:                   registerCmd,
 		DisableFlagsInUseLine: true,
 	}
 	return cc

@@ -17,7 +17,6 @@
 package db
 
 import (
-	"cess-scheduler/configs"
 	"os"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -42,19 +41,19 @@ type LevelDB struct {
 	db *leveldb.DB
 }
 
-func NewLevelDB(fpath string, cache int, handles int, namespace string) (Cache, error) {
-	_, err := os.Stat(configs.DbFileDir)
+func NewLevelDB(fpath string, memory int, handles int, namespace string) (Cache, error) {
+	_, err := os.Stat(fpath)
 	if err != nil {
-		err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
+		err = os.MkdirAll(fpath, os.ModeDir)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return newLevelDB(configs.DbFileDir, cache, handles, namespace)
+	return newLevelDB(fpath, memory, handles, namespace)
 }
 
-func newLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {
-	options := configureOptions(cache, handles)
+func newLevelDB(file string, memory int, handles int, namespace string) (Cache, error) {
+	options := configureOptions(memory, handles)
 	db, err := leveldb.OpenFile(file, options)
 	if _, corrupted := err.(*errors.ErrCorrupted); corrupted {
 		db, err = leveldb.RecoverFile(file, nil)
