@@ -5,7 +5,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-		http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,12 +18,12 @@ package console
 
 import (
 	"cess-scheduler/configs"
+	"cess-scheduler/internal/com"
 	"cess-scheduler/internal/task"
 	"cess-scheduler/pkg/chain"
 	"cess-scheduler/pkg/configfile"
 	"cess-scheduler/pkg/db"
 	"cess-scheduler/pkg/logger"
-	"cess-scheduler/pkg/rpc"
 	"fmt"
 	"log"
 	"math/big"
@@ -127,8 +127,9 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// run task
 	go task.Run(confile, c, db, logs, fillerDir)
-	rpc.Rpc_Main()
+	com.Start(confile)
 }
 
 func register(confile configfile.Configfiler, c chain.Chainer) error {
@@ -156,7 +157,10 @@ func register(confile configfile.Configfiler, c chain.Chainer) error {
 	return nil
 }
 
-func creatDataDir(confile configfile.Configfiler, c chain.Chainer) (string, string, string, error) {
+func creatDataDir(
+	confile configfile.Configfiler,
+	c chain.Chainer,
+) (string, string, string, error) {
 	ctlAccount, err := c.GetCessAccount()
 	if err != nil {
 		return "", "", "", err
@@ -170,87 +174,20 @@ func creatDataDir(confile configfile.Configfiler, c chain.Chainer) (string, stri
 			return "", "", "", err
 		}
 	}
-	return filepath.Join(baseDir, "log"),
-		filepath.Join(baseDir, "db"),
-		filepath.Join(baseDir, "filler"),
-		nil
+
+	logDir := filepath.Join(baseDir, "log")
+	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
+		return "", "", "", err
+	}
+
+	dbDir := filepath.Join(baseDir, "db")
+	if err := os.MkdirAll(dbDir, os.ModeDir); err != nil {
+		return "", "", "", err
+	}
+
+	fillerDir := filepath.Join(baseDir, "filler")
+	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
+		return "", "", "", err
+	}
+	return logDir, dbDir, fillerDir, nil
 }
-
-// func register_if() bool {
-// 	var reg bool
-// 	sd, err := chain.GetSchedulerInfoOnChain()
-// 	if err != nil {
-// 		if err.Error() == chain.ERR_Empty {
-// 			rgst()
-// 			return true
-// 		}
-// 		log.Printf("\x1b[%dm[err]\x1b[0m Please try again later. [%v]\n", 41, err)
-// 		os.Exit(1)
-// 	}
-
-// 	for _, v := range sd {
-// 		if v.ControllerUser == types.NewAccountID(configs.PublicKey) {
-// 			reg = true
-// 		}
-// 	}
-// 	if !reg {
-// 		rgst()
-// 		return true
-// 	}
-
-// 	log.Printf("\x1b[%dm[ok]\x1b[0m Registered schedule\n", 42)
-
-// 	addr, err := chain.GetAddressByPrk(configs.C.CtrlPrk)
-// 	if err != nil {
-// 		log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-// 		os.Exit(1)
-// 	}
-
-// 	baseDir := filepath.Join(configs.C.DataDir, addr, configs.BaseDir)
-
-// 	configs.LogFileDir = filepath.Join(baseDir, configs.LogFileDir)
-// 	log.Printf(configs.LogFileDir)
-// 	err = os.RemoveAll(configs.LogFileDir)
-// 	if err != nil {
-// 		log.Println(err)
-// 	}
-// 	if err = tools.CreatDirIfNotExist(configs.LogFileDir); err != nil {
-// 		goto Err
-// 	}
-// 	//
-// 	configs.FileCacheDir = filepath.Join(baseDir, configs.FileCacheDir)
-// 	log.Printf(configs.FileCacheDir)
-// 	err = os.RemoveAll(configs.FileCacheDir)
-// 	if err != nil {
-// 		log.Println(err)
-// 	}
-// 	if err = tools.CreatDirIfNotExist(configs.FileCacheDir); err != nil {
-// 		goto Err
-// 	}
-// 	//
-// 	configs.DbFileDir = filepath.Join(baseDir, configs.DbFileDir)
-// 	log.Printf(configs.DbFileDir)
-// 	err = os.RemoveAll(configs.DbFileDir)
-// 	if err != nil {
-// 		log.Println(err)
-// 	}
-// 	if err = tools.CreatDirIfNotExist(configs.DbFileDir); err != nil {
-// 		goto Err
-// 	}
-// 	//
-// 	configs.SpaceCacheDir = filepath.Join(baseDir, configs.SpaceCacheDir)
-// 	log.Printf(configs.SpaceCacheDir)
-// 	err = os.RemoveAll(configs.SpaceCacheDir)
-// 	if err != nil {
-// 		log.Println(err)
-// 	}
-// 	if err = tools.CreatDirIfNotExist(configs.SpaceCacheDir); err != nil {
-// 		goto Err
-// 	}
-
-// 	return false
-// Err:
-// 	log.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-// 	os.Exit(1)
-// 	return false
-// }

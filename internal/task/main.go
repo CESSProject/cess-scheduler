@@ -5,7 +5,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-		http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,7 +40,7 @@ func Run(
 	go task_SyncMinersInfo(channel_1)
 	go task_ValidateProof(channel_2)
 	go task_SubmitFillerMeta(channel_3)
-	go task_GenerateFiller(channel_4)
+	go task_GenerateFiller(channel_4, logs, fillerDir)
 	go task_ClearAuthMap(channel_5)
 	for {
 		select {
@@ -51,7 +51,7 @@ func Run(
 		case <-channel_3:
 			go task_SubmitFillerMeta(channel_3)
 		case <-channel_4:
-			go task_GenerateFiller(channel_4)
+			go task_GenerateFiller(channel_4, logs, fillerDir)
 		case <-channel_5:
 			go task_ClearAuthMap(channel_5)
 		}

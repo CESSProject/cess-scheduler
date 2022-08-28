@@ -5,7 +5,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-		http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,11 +14,11 @@
    limitations under the License.
 */
 
-package rpc
+package com
 
 import (
-	"cess-scheduler/configs"
-	"fmt"
+	"cess-scheduler/pkg/configfile"
+	"cess-scheduler/pkg/rpc"
 	"log"
 	"net/http"
 	"os"
@@ -29,17 +29,17 @@ type WService struct {
 
 // Start tcp service.
 // If an error occurs, it will exit immediately.
-func Rpc_Main() {
-	srv := NewServer()
+func Start(c configfile.Configfiler) {
+	srv := rpc.NewServer()
 	err := srv.Register(RpcService_Scheduler, WService{})
 	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		log.Printf("[err] %v\n", err)
 		os.Exit(1)
 	}
-	log.Println("Start and listen on port ", configs.C.ServicePort, "...")
-	err = http.ListenAndServe(":"+configs.C.ServicePort, srv.WebsocketHandler([]string{"*"}))
+	log.Println("Start and listen on port ", c.GetServicePort(), "...")
+	err = http.ListenAndServe(":"+c.GetServicePort(), srv.WebsocketHandler([]string{"*"}))
 	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
+		log.Printf("[err] %v\n", err)
 		os.Exit(1)
 	}
 }
