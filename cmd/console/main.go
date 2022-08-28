@@ -30,16 +30,6 @@ var rootCmd = &cobra.Command{
 	Short: configs.Description,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	rootCmd.CompletionOptions.HiddenDefaultCmd = true
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
-}
-
 // init
 func init() {
 	rootCmd.AddCommand(
@@ -50,6 +40,16 @@ func init() {
 		updateCommand(),
 	)
 	//rootCmd.PersistentFlags().StringVarP(&configs.ConfigFilePath, "config", "c", "", "Custom profile")
+}
+
+// Execute adds all child commands to the root command and sets flags appropriately.
+// This is called by main.main(). It only needs to happen once to the rootCmd.
+func Execute() {
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+	err := rootCmd.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
 }
 
 func versionCommand() *cobra.Command {

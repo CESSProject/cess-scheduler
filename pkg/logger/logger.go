@@ -1,10 +1,26 @@
+/*
+   Copyright 2022 CESS scheduler authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+		http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package logger
 
 import (
-	"cess-scheduler/configs"
-	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/natefinch/lumberjack"
@@ -12,83 +28,66 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var (
-	Com  *zap.Logger
-	Uld  *zap.Logger
-	Dld  *zap.Logger
-	Flr  *zap.Logger
-	Tvp  *zap.Logger
-	Trf  *zap.Logger
-	Tsmi *zap.Logger
-	Pnc  *zap.Logger
-	Tsfm *zap.Logger
-	Tgf  *zap.Logger
-)
+type Logger interface {
+	Log(string, string, string)
+}
 
-func Logger_Init() {
-	_, err := os.Stat(configs.LogFileDir)
-	if err != nil {
-		err = os.MkdirAll(configs.LogFileDir, os.ModeDir)
+type logs struct {
+	logpath map[string]string
+	log     map[string]*zap.Logger
+}
+
+func NewLogs(logfiles map[string]string) (Logger, error) {
+	var (
+		logpath = make(map[string]string, 0)
+		logCli  = make(map[string]*zap.Logger)
+	)
+	for name, fpath := range logfiles {
+		dir := getFilePath(fpath)
+		_, err := os.Stat(dir)
 		if err != nil {
-			fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-			os.Exit(1)
+			err = os.MkdirAll(dir, os.ModeDir)
+			if err != nil {
+				return nil, err
+			}
 		}
+		Encoder := getEncoder()
+		newCore := zapcore.NewTee(
+			zapcore.NewCore(Encoder, getWriteSyncer(fpath), zap.NewAtomicLevel()),
+		)
+		logpath[name] = fpath
+		logCli[name] = zap.New(newCore, zap.AddCaller())
+		logCli[name].Sugar().Infof("%v", fpath)
 	}
+	return &logs{
+		logpath: logpath,
+		log:     logCli,
+	}, nil
+}
 
-	var log_file = []string{
-		"common.log",
-		"upfile.log",
-		"downfile.log",
-		"filler.log",
-		"t_vp.log",
-		"t_rf.log",
-		"t_smi.log",
-		"panic.log",
-		"t_sfm.log",
-		"t_gf.log",
-	}
-
-	for i := 0; i < len(log_file); i++ {
-		Encoder := GetEncoder()
-		fpath := filepath.Join(configs.LogFileDir, log_file[i])
-		WriteSyncer := GetWriteSyncer(fpath)
-		newCore := zapcore.NewTee(zapcore.NewCore(Encoder, WriteSyncer, zap.NewAtomicLevel()))
-		switch i {
-		case 0:
-			Com = zap.New(newCore, zap.AddCaller())
-			Com.Sugar().Infof("%v", fpath)
-		case 1:
-			Uld = zap.New(newCore, zap.AddCaller())
-			Uld.Sugar().Infof("%v", fpath)
-		case 2:
-			Dld = zap.New(newCore, zap.AddCaller())
-			Dld.Sugar().Infof("%v", fpath)
-		case 3:
-			Flr = zap.New(newCore, zap.AddCaller())
-			Flr.Sugar().Infof("%v", fpath)
-		case 4:
-			Tvp = zap.New(newCore, zap.AddCaller())
-			Tvp.Sugar().Infof("%v", fpath)
-		case 5:
-			Trf = zap.New(newCore, zap.AddCaller())
-			Trf.Sugar().Infof("%v", fpath)
-		case 6:
-			Tsmi = zap.New(newCore, zap.AddCaller())
-			Tsmi.Sugar().Infof("%v", fpath)
-		case 7:
-			Pnc = zap.New(newCore, zap.AddCaller())
-			Pnc.Sugar().Infof("%v", fpath)
-		case 8:
-			Tsfm = zap.New(newCore, zap.AddCaller())
-			Tsfm.Sugar().Infof("%v", fpath)
-		case 9:
-			Tgf = zap.New(newCore, zap.AddCaller())
-			Tgf.Sugar().Infof("%v", fpath)
+func (l *logs) Log(name, level, content string) {
+	v, ok := l.log[name]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("%v", content)
+		case "error":
+			v.Sugar().Errorf("%v", content)
+		case "warn":
+			v.Sugar().Warnf("%v", content)
 		}
 	}
 }
 
-func GetEncoder() zapcore.Encoder {
+func getFilePath(fpath string) string {
+	file, _ := exec.LookPath(fpath)
+	path, _ := filepath.Abs(file)
+	index := strings.LastIndex(path, string(os.PathSeparator))
+	ret := path[:index]
+	return ret
+}
+
+func getEncoder() zapcore.Encoder {
 	return zapcore.NewConsoleEncoder(
 		zapcore.EncoderConfig{
 			TimeKey:        "ts",
@@ -106,10 +105,10 @@ func GetEncoder() zapcore.Encoder {
 		})
 }
 
-func GetWriteSyncer(fpath string) zapcore.WriteSyncer {
+func getWriteSyncer(fpath string) zapcore.WriteSyncer {
 	lumberJackLogger := &lumberjack.Logger{
 		Filename:   fpath,
-		MaxSize:    30,
+		MaxSize:    10,
 		MaxBackups: 99,
 		MaxAge:     180,
 		LocalTime:  true,

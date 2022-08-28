@@ -1,3 +1,19 @@
+/*
+   Copyright 2022 CESS scheduler authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+		http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package tools
 
 import (
@@ -13,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
-	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -29,16 +44,6 @@ const (
 	letterIdMask = 1<<letterIdBits - 1
 	letterIdMax  = 63 / letterIdBits
 )
-
-// Determine if the operating system is linux
-func RunOnLinuxSystem() bool {
-	return runtime.GOOS == "linux"
-}
-
-// Allocate all cores to the program
-func SetAllCores() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-}
 
 // Integer to bytes
 func IntegerToBytes(n interface{}) ([]byte, error) {
@@ -111,15 +116,6 @@ func B2S(b []byte) string {
 // string to bytes
 func S2B(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&s))
-}
-
-// Create a directory
-func CreatDirIfNotExist(dir string) error {
-	_, err := os.Stat(dir)
-	if err != nil {
-		return os.MkdirAll(dir, os.ModeDir)
-	}
-	return nil
 }
 
 // Get the name of a first-level subdirectory in a given directory

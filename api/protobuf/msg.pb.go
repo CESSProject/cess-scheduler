@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: msg.proto
 
-package rpc
+package protobuf
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

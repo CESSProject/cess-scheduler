@@ -1,6 +1,25 @@
+/*
+   Copyright 2022 CESS scheduler authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+		http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package db
 
 import (
+	"cess-scheduler/configs"
+	"os"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -9,11 +28,12 @@ import (
 )
 
 const (
-	// minCache is the minimum amount of memory in megabytes to allocate to leveldb
+	// minCache is the minimum amount of memory in megabytes
+	// to allocate to leveldb.
 	minCache = 16
 
-	// minHandles is the minimum number of files handles to allocate to the open
-	// database files.
+	// minHandles is the minimum number of files handles to
+	// allocate to the open database files.
 	minHandles = 32
 )
 
@@ -22,40 +42,16 @@ type LevelDB struct {
 	db *leveldb.DB
 }
 
-var c Cache
-
-// func GetCache() (Cache, error) {
-// 	var err error
-// 	if c == nil {
-// 		_, err = os.Stat(configs.DbFileDir)
-// 		if err != nil {
-// 			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 		}
-// 		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		return c, nil
-// 	}
-// 	if err = c.Delete([]byte("NIL")); err != nil {
-// 		_, err = os.Stat(configs.DbFileDir)
-// 		if err != nil {
-// 			err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 		}
-// 		c, err = newLevelDB(configs.DbFileDir, 0, 0, "scheduler")
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		return c, nil
-// 	}
-// 	return c, nil
-// }
+func NewLevelDB(fpath string, cache int, handles int, namespace string) (Cache, error) {
+	_, err := os.Stat(configs.DbFileDir)
+	if err != nil {
+		err = os.MkdirAll(configs.DbFileDir, os.ModeDir)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return newLevelDB(configs.DbFileDir, cache, handles, namespace)
+}
 
 func newLevelDB(file string, cache int, handles int, namespace string) (Cache, error) {
 	options := configureOptions(cache, handles)

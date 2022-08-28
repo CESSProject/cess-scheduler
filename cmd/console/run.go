@@ -17,12 +17,12 @@
 package console
 
 import (
-	"cess-scheduler/internal/db"
-	"cess-scheduler/internal/rpc"
 	"cess-scheduler/internal/task"
 	"cess-scheduler/pkg/chain"
 	"cess-scheduler/pkg/configfile"
+	"cess-scheduler/pkg/db"
 	"cess-scheduler/pkg/logger"
+	"cess-scheduler/pkg/rpc"
 	"cess-scheduler/tools"
 	"fmt"
 	"log"
@@ -36,8 +36,11 @@ import (
 	"storj.io/common/base58"
 )
 
+var logs_info = make(map[string]string)
+
 // runCmd is used to start the scheduling service
 func runCmd(cmd *cobra.Command, args []string) {
+	// config file
 	var configFilePath string
 	configpath1, _ := cmd.Flags().GetString("config")
 	configpath2, _ := cmd.Flags().GetString("c")
@@ -47,7 +50,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		configFilePath = configpath2
 	}
 
-	confile := configfile.NewConfigfile(new(configfile.Confile))
+	confile := configfile.NewConfigfile()
 	if err := confile.Parse(configFilePath); err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -55,8 +58,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 
 	// chain client
 	c, err := chain.NewChainClient(
-		confile.RpcAddr,
-		confile.CtrlPrk,
+		confile.GetRpcAddr(),
+		confile.GetCtrlPrk(),
 		time.Duration(time.Second*15),
 	)
 	if err != nil {
@@ -72,6 +75,20 @@ func runCmd(cmd *cobra.Command, args []string) {
 	}
 	if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(2000000000000)) == -1 {
 		log.Printf("Insufficient balance\n")
+		os.Exit(1)
+	}
+
+	// cache
+	db, err := db.NewLevelDB(confile.GetDataDir(), 0, 0, "scheduler")
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	// logs
+	logs, err := logger.NewLogs(logs_info)
+	if err != nil {
+		log.Println(err)
 		os.Exit(1)
 	}
 
