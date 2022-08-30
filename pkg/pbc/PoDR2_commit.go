@@ -1,4 +1,4 @@
-package proof
+package pbc
 
 import (
 	"cess-scheduler/tools"

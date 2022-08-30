@@ -1,4 +1,4 @@
-package proof
+package pbc
 
 import (
 	"github.com/Nik-U/pbc"

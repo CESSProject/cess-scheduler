@@ -20,6 +20,7 @@ import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/pattern"
 	"cess-scheduler/pkg/logger"
+	"cess-scheduler/pkg/pbc"
 	"cess-scheduler/pkg/utils"
 	"cess-scheduler/tools"
 	"fmt"
@@ -75,8 +76,42 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			}
 
 			// call the sgx service interface to get the tag
-			// TODO:
+			// calculate file tag info
+			var PoDR2commit pbc.PoDR2Commit
+			var commitResponse pbc.PoDR2CommitResponse
+			PoDR2commit.FilePath = fillerpath
+			PoDR2commit.BlockSize = configs.BlockSize
 
+			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
+				pbc.Key_Ssk,
+				string(pbc.Key_SharedParams),
+				int64(configs.ScanBlockSize),
+			)
+			if err != nil {
+				logs.Log("gf", "error", err)
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				continue
+			}
+
+			select {
+			case commitResponse = <-commitResponseCh:
+			}
+			if commitResponse.StatueMsg.StatusCode != pbc.Success {
+				os.Remove(fillerpath)
+				logs.Log("gf", "error", errors.New("PoDR2ProofCommit false"))
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				continue
+			}
+
+			var fillerEle pattern.Filler
+			fillerEle.FillerId = uid
+			fillerEle.Path = fillerpath
+			fillerEle.Tag.N = commitResponse.T.N
+			fillerEle.Tag.Name = commitResponse.T.Name
+			fillerEle.Tag.U = commitResponse.T.U
+			fillerEle.Tag.Signature = commitResponse.T.Signature
+			fillerEle.Tag.Sigmas = commitResponse.Sigmas
+			pattern.C_Filler <- fillerEle
 			logs.Log("gf", "info", errors.Errorf("Produced a filler: %v", uid))
 		}
 		time.Sleep(time.Second)

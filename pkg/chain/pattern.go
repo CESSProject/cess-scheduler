@@ -74,12 +74,11 @@ type BlockInfo struct {
 }
 
 type TagInfo struct {
-	Name   types.Bytes
-	N      types.U64
-	U      []types.Bytes
-	Sigmas []types.Bytes
-	Pkey   types.Bytes
-	Sign   types.Bytes
+	Name      []byte   `json:"name"`
+	N         int64    `json:"n"`
+	U         [][]byte `json:"u"`
+	Signature []byte   `json:"signature"`
+	Sigmas    [][]byte `json:"sigmas"`
 }
 
 // filler meta info
