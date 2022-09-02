@@ -20,8 +20,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/ethereum/go-ethereum/rpc"
-	"storj.io/common/base58"
 )
 
 func Dial(url string) error {

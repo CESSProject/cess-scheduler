@@ -23,8 +23,7 @@ import (
 	"sync"
 	"unicode"
 
-	. "cess-scheduler/api/protobuf"
-
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -94,7 +93,7 @@ func suitableHandlers(receiver reflect.Value) map[string]handleWrapper {
 		if strings.HasSuffix(method.Name, methodSuffix) {
 			fn := method.Func
 			name := formatName(method.Name)
-			handlers[name] = func(id uint64, body []byte) *RespMsg {
+			handlers[name] = func(id uint64, body []byte) *protobuf.RespMsg {
 				results := fn.Call([]reflect.Value{receiver, reflect.ValueOf(body)})
 				var (
 					rel proto.Message
@@ -111,7 +110,7 @@ func suitableHandlers(receiver reflect.Value) map[string]handleWrapper {
 					return resp
 				}
 
-				resp := &RespMsg{
+				resp := &protobuf.RespMsg{
 					Id: uint64(id),
 				}
 				bs, _ := proto.Marshal(rel)

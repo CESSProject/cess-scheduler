@@ -19,8 +19,7 @@ package rpc
 import (
 	"io"
 
-	. "cess-scheduler/api/protobuf"
-
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 )
@@ -77,10 +76,10 @@ func (p *protoCodec) getConn() *websocket.Conn {
 	return p.conn
 }
 
-func errorMessage(err error) *RespMsg {
-	msg := &RespMsg{}
+func errorMessage(err error) *protobuf.RespMsg {
+	msg := &protobuf.RespMsg{}
 	ec, ok := err.(Error)
-	errMsg := &RespBody{
+	errMsg := &protobuf.RespBody{
 		Code: defaultErrorCode,
 		Msg:  err.Error(),
 	}

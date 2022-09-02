@@ -1,14 +1,14 @@
 package task
 
 import (
-	"cess-scheduler/internal/chain"
-	"cess-scheduler/internal/db"
-	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/internal/rpc"
-	"cess-scheduler/tools"
 	"encoding/json"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/rpc"
+	"github.com/CESSProject/cess-scheduler/tools"
 )
 
 func task_SyncMinersInfo(ch chan bool) {

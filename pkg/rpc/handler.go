@@ -19,15 +19,14 @@ package rpc
 import (
 	"context"
 
-	. "cess-scheduler/api/protobuf"
-
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	"github.com/golang/protobuf/proto"
 )
 
-type handleWrapper func(id uint64, body []byte) *RespMsg
+type handleWrapper func(id uint64, body []byte) *protobuf.RespMsg
 type Handler func(body []byte) (proto.Message, error)
 
-func (s *Server) handle(msg *ReqMsg, c *SrvConn) {
+func (s *Server) handle(msg *protobuf.ReqMsg, c *SrvConn) {
 	s.processMsg(func(ctx context.Context) {
 		answer := s.callMethod(msg)
 		c.codec.WriteMsg(ctx, answer)
@@ -44,7 +43,7 @@ func (s *Server) processMsg(fn func(ctx context.Context)) {
 	}()
 }
 
-func (s *Server) callMethod(msg *ReqMsg) *RespMsg {
+func (s *Server) callMethod(msg *protobuf.ReqMsg) *protobuf.RespMsg {
 	handler := s.router.lookup(msg.Service, msg.Method)
 	if handler == nil {
 		err := &methodNotFoundError{msg.Service + "." + msg.Method}

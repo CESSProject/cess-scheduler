@@ -17,17 +17,18 @@
 package rpc
 
 import (
-	. "cess-scheduler/api/protobuf"
 	"context"
 	"sync"
 	"sync/atomic"
+
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 )
 
 type ID uint32
 
 type call struct {
 	id ID
-	ch chan<- RespMsg
+	ch chan<- protobuf.RespMsg
 }
 
 type Client struct {
@@ -69,7 +70,7 @@ func (c *Client) dispatch() {
 }
 
 func (c *Client) receive() {
-	go c.conn.readLoop(func(msg RespMsg) {
+	go c.conn.readLoop(func(msg protobuf.RespMsg) {
 		c.Lock()
 		id := ID(msg.Id)
 		ca, exist := c.pending[id]
@@ -89,8 +90,8 @@ func (c *Client) nextId() ID {
 	return ID(n)
 }
 
-func (c *Client) Call(ctx context.Context, msg *ReqMsg) (*RespMsg, error) {
-	ch := make(chan RespMsg)
+func (c *Client) Call(ctx context.Context, msg *protobuf.ReqMsg) (*protobuf.RespMsg, error) {
+	ch := make(chan protobuf.RespMsg)
 	ca := call{
 		id: c.nextId(),
 		ch: ch,

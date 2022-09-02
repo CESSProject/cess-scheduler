@@ -17,10 +17,10 @@
 package console
 
 import (
-	"cess-scheduler/configs"
 	"fmt"
 	"os"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/spf13/cobra"
 )
 

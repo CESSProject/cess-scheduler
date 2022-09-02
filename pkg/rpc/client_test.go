@@ -17,13 +17,14 @@
 package rpc
 
 import (
-	. "cess-scheduler/api/protobuf"
 	"context"
 	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -33,7 +34,7 @@ type testService struct{}
 func (testService) HelloAction(body []byte) (proto.Message, error) {
 	fmt.Println(len(body))
 	fmt.Println(string(body[5242870:]))
-	return &RespBody{Msg: "test hello"}, nil
+	return &protobuf.RespBody{Msg: "test hello"}, nil
 }
 
 func TestDialWebsocket(t *testing.T) {
@@ -50,7 +51,7 @@ func TestDialWebsocket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := &ReqMsg{
+	req := &protobuf.ReqMsg{
 		Service: "wservice",
 		Method:  "writefile",
 	}

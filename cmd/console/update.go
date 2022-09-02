@@ -17,9 +17,6 @@
 package console
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/configfile"
 	"fmt"
 	"log"
 	"net"
@@ -28,6 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/spf13/cobra"
 )

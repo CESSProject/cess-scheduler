@@ -17,10 +17,10 @@
 package task
 
 import (
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/configfile"
-	"cess-scheduler/pkg/db"
-	"cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
 )
 
 func Run(

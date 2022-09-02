@@ -17,11 +17,11 @@
 package console
 
 import (
-	"cess-scheduler/pkg/configfile"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/spf13/cobra"
 )
 

@@ -16,7 +16,7 @@
 
 package main
 
-import "cess-scheduler/cmd/console"
+import "github.com/CESSProject/cess-scheduler/cmd/console"
 
 // program entry
 func main() {

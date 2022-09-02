@@ -17,13 +17,6 @@
 package com
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/fileHandling"
-	"cess-scheduler/pkg/pbc"
-	apiv1 "cess-scheduler/pkg/proof/apiv1"
-	"cess-scheduler/tools"
 	"context"
 	"fmt"
 	"io"
@@ -39,14 +32,21 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/fileHandling"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/tools"
+
 	"github.com/pkg/errors"
 
-	. "cess-scheduler/api/protobuf"
+	. "github.com/CESSProject/cess-scheduler/api/protobuf"
 
 	keyring "github.com/CESSProject/go-keyring"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"google.golang.org/protobuf/proto"
-	"storj.io/common/base58"
 )
 
 // rpc service and method
@@ -918,11 +918,11 @@ func backupFile(ch chan chain.BlockInfo, fpath, userkey string, chunkindex int) 
 	}
 	Uld.Sugar().Infof("[%v] Calculate tag information", fname)
 	// calculate file tag info
-	var PoDR2commit apiv1.PoDR2Commit
-	var commitResponse apiv1.PoDR2CommitResponse
+	var PoDR2commit pbc.PoDR2Commit
+	var commitResponse pbc.PoDR2CommitResponse
 	PoDR2commit.FilePath = fpath
 	PoDR2commit.BlockSize = bs
-	commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(apiv1.Key_Ssk, string(apiv1.Key_SharedParams), sbs)
+	commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(pbc.Key_Ssk, string(pbc.Key_SharedParams), sbs)
 	if err != nil {
 		Uld.Sugar().Errorf("[%v] [%v] PoDR2ProofCommit: %v", fname, sbs, err)
 		return
@@ -930,7 +930,7 @@ func backupFile(ch chan chain.BlockInfo, fpath, userkey string, chunkindex int) 
 	select {
 	case commitResponse = <-commitResponseCh:
 	}
-	if commitResponse.StatueMsg.StatusCode != apiv1.Success {
+	if commitResponse.StatueMsg.StatusCode != pbc.Success {
 		Uld.Sugar().Errorf("[%v] [%v] PoDR2ProofCommit failed", fname, sbs)
 		return
 	}

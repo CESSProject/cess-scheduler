@@ -19,8 +19,7 @@ package rpc
 import (
 	"context"
 
-	. "cess-scheduler/api/protobuf"
-
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -32,7 +31,7 @@ type SrvConn struct {
 func (c *SrvConn) readLoop() {
 	defer c.codec.close()
 	for {
-		msg := ReqMsg{}
+		msg := protobuf.ReqMsg{}
 		err := c.codec.read(&msg)
 		if _, ok := err.(*proto.ParseError); ok {
 			c.codec.WriteMsg(context.Background(), errorMessage(&parseError{err.Error()}))
@@ -54,9 +53,9 @@ type ClientConn struct {
 	closeCh chan<- struct{}
 }
 
-func (c *ClientConn) readLoop(recv func(msg RespMsg)) {
+func (c *ClientConn) readLoop(recv func(msg protobuf.RespMsg)) {
 	for {
-		msg := RespMsg{}
+		msg := protobuf.RespMsg{}
 		err := c.codec.read(&msg)
 		if _, ok := err.(*proto.ParseError); ok {
 			continue

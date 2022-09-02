@@ -17,17 +17,17 @@
 package task
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/pkg/logger"
-	"cess-scheduler/pkg/pbc"
-	"cess-scheduler/pkg/utils"
-	"cess-scheduler/tools"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
+	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/pkg/errors"
 )
 

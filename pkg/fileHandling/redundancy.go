@@ -17,7 +17,6 @@
 package fileHandling
 
 import (
-	"cess-scheduler/configs"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -25,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/klauspost/reedsolomon"
 )
 

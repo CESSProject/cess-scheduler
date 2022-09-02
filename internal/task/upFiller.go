@@ -1,17 +1,17 @@
 package task
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/configfile"
-	"cess-scheduler/pkg/logger"
-	"cess-scheduler/pkg/utils"
 	"errors"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 

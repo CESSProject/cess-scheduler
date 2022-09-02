@@ -1,13 +1,12 @@
 package pbc
 
 import (
-	"cess-scheduler/tools"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
-
 	"os"
 
+	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/Nik-U/pbc"
 )
 

@@ -1,20 +1,18 @@
 package task
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/chain"
-	"cess-scheduler/internal/db"
-	. "cess-scheduler/internal/logger"
-	apiv1 "cess-scheduler/internal/proof/apiv1"
-	"cess-scheduler/internal/rpc"
-	"cess-scheduler/tools"
 	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
-	. "cess-scheduler/internal/rpc/protobuf"
-
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/pkg/rpc"
+	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"google.golang.org/protobuf/proto"
 )
@@ -25,8 +23,8 @@ func task_ValidateProof(ch chan bool) {
 		err         error
 		goeson      bool
 		puk         chain.Chain_SchedulerPuk
-		poDR2verify apiv1.PoDR2Verify
-		reqtag      ReadTagReq
+		poDR2verify pbc.PoDR2Verify
+		reqtag      protobuf.ReadTagReq
 		proofs      = make([]chain.Chain_Proofs, 0)
 	)
 	defer func() {
@@ -77,7 +75,7 @@ func task_ValidateProof(ch chan bool) {
 		Tvp.Sugar().Infof("--> Ready to verify %v proofs", len(proofs))
 
 		var respData []byte
-		var tag apiv1.TagInfo
+		var tag pbc.TagInfo
 		for i := 0; i < len(proofs); i++ {
 			if len(verifyResults) > 45 {
 				break
@@ -150,7 +148,7 @@ func task_ValidateProof(ch chan bool) {
 			if err != nil {
 				Tvp.Sugar().Errorf("[%v] Unmarshal: %v", addr, err)
 			}
-			qSlice, err := apiv1.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
+			qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
 			if err != nil {
 				Tvp.Sugar().Errorf("[%v] [%v] [%v] qslice: %v", addr, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
 			}

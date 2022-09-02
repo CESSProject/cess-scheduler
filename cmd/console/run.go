@@ -17,13 +17,6 @@
 package console
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/com"
-	"cess-scheduler/internal/task"
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/configfile"
-	"cess-scheduler/pkg/db"
-	"cess-scheduler/pkg/logger"
 	"fmt"
 	"log"
 	"math/big"
@@ -31,9 +24,16 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/com"
+	"github.com/CESSProject/cess-scheduler/internal/task"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/spf13/cobra"
-	"storj.io/common/base58"
 )
 
 // runCmd is used to start the scheduling service

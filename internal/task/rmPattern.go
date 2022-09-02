@@ -1,15 +1,15 @@
 package task
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/chain"
-	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/tools"
 	"log"
 	"math/big"
 	"os"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/tools"
 )
 
 func task_ClearAuthMap(ch chan bool) {

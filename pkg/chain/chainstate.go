@@ -17,8 +17,7 @@
 package chain
 
 import (
-	"cess-scheduler/pkg/utils"
-
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
@@ -36,7 +35,7 @@ func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.EncodeToBytes(pkey)
+	b, err := types.Encode(pkey)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
@@ -96,7 +95,7 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.EncodeToBytes(fid)
+	b, err := types.Encode(fid)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
@@ -189,7 +188,7 @@ func (c *chainClient) GetSpacePackageInfo() (SpacePackage, error) {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.EncodeToBytes(c.keyring.PublicKey)
+	b, err := types.Encode(c.keyring.PublicKey)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
@@ -222,7 +221,7 @@ func (c *chainClient) GetAccountInfo() (types.AccountInfo, error) {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.EncodeToBytes(types.NewAccountID(c.keyring.PublicKey))
+	b, err := types.Encode(types.NewAccountID(c.keyring.PublicKey))
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}

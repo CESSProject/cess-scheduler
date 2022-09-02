@@ -45,7 +45,7 @@ func DecodePublicKeyOfCessAccount(address string) ([]byte, error) {
 func DecodePublicKeyOfSubstrateAccount(address string) ([]byte, error) {
 	err := VerityAddress(address, SubstratePrefix)
 	if err != nil {
-		return nil, errors.New("Invalid addrss")
+		return nil, errors.New("Invalid address")
 	}
 	data := base58.Decode(address)
 	if len(data) != (34 + len(SubstratePrefix)) {
