@@ -2,10 +2,12 @@ package task
 
 import (
 	"cess-scheduler/configs"
-	"cess-scheduler/internal/chain"
-	. "cess-scheduler/internal/logger"
 	"cess-scheduler/internal/pattern"
-	"cess-scheduler/tools"
+	"cess-scheduler/pkg/chain"
+	"cess-scheduler/pkg/configfile"
+	"cess-scheduler/pkg/logger"
+	"cess-scheduler/pkg/utils"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,15 +15,20 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
-func task_SubmitFillerMeta(ch chan bool) {
+func task_SubmitFillerMeta(
+	ch chan bool,
+	logs logger.Logger,
+	confile configfile.Configfiler,
+	cli chain.Chainer,
+) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			logs.Log("panic", "err", utils.RecoverError(err))
 		}
 	}()
 
-	Tsfm.Info("-----> Start task_SubmitFillerMeta")
+	logs.Log("sfm", "info", errors.New("-----> Start task_SubmitFillerMeta"))
 
 	var (
 		err    error
@@ -30,14 +37,14 @@ func task_SubmitFillerMeta(ch chan bool) {
 	t_active := time.Now()
 	for {
 		time.Sleep(time.Second * 1)
-		for len(pattern.Chan_FillerMeta) > 0 {
-			var tmp = <-pattern.Chan_FillerMeta
+		for len(pattern.C_FillerMeta) > 0 {
+			var tmp = <-pattern.C_FillerMeta
 			pattern.FillerMap.Add(string(tmp.Acc[:]), tmp)
 		}
 		if time.Since(t_active).Seconds() > 5 {
 			t_active = time.Now()
 			for k, v := range pattern.FillerMap.Fillermetas {
-				addr, _ := tools.EncodeToCESSAddr([]byte(k))
+				addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
 				if len(v) >= 8 {
 					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:8])
 					if txhash == "" {

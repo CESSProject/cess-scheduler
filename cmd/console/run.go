@@ -129,7 +129,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 
 	// run task
 	go task.Run(confile, c, db, logs, fillerDir)
-	com.Start(confile)
+	com.Start(confile, c, db, logs, fillerDir)
 }
 
 func register(confile configfile.Configfiler, c chain.Chainer) error {

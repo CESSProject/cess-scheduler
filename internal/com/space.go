@@ -20,9 +20,7 @@ import (
 	"cess-scheduler/configs"
 	"cess-scheduler/internal/pattern"
 	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/db"
-	. "cess-scheduler/pkg/logger"
-	"cess-scheduler/tools"
+	"cess-scheduler/pkg/utils"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -34,16 +32,17 @@ import (
 
 	keyring "github.com/CESSProject/go-keyring"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
 // SpaceAction is used to handle miner requests to space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
-func (WService) SpaceAction(body []byte) (proto.Message, error) {
+func (w *WService) SpaceAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			w.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
 
@@ -61,18 +60,18 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 403, Msg: "Busy"}, nil
 	}
 
-	minercache, err := db.Get(b.Publickey)
+	minercache, err := w.Get(b.Publickey)
 	if err != nil {
 		pattern.AddBlacklist(string(b.Publickey))
 		return &RespBody{Code: http.StatusNotFound, Msg: "Not found"}, nil
 	}
 
-	addr, err := tools.EncodeToCESSAddr(b.Publickey)
+	addr, err := utils.EncodePublicKeyAsCessAccount(b.Publickey)
 	if err != nil {
 		return &RespBody{Code: http.StatusForbidden, Msg: "Invalid public key"}, nil
 	}
 
-	ss58addr, err := tools.EncodeToSS58(b.Publickey)
+	ss58addr, err := utils.EncodePublicKeyAsSubstrateAccount(b.Publickey)
 	if err != nil {
 		return &RespBody{Code: http.StatusForbidden, Msg: "Invalid public key"}, nil
 	}
@@ -100,48 +99,52 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	if pattern.GetBaseFillerLength() == 0 {
-		if len(pattern.Chan_Filler) == 0 {
+		if len(pattern.C_Filler) == 0 {
 			return &RespBody{Code: http.StatusServiceUnavailable, Msg: "Filler is empty"}, nil
 		}
 
-		filler := <-pattern.Chan_Filler
-		Tgf.Sugar().Infof("Consumes a filler: %v", filler.FillerId)
+		filler := <-pattern.C_Filler
+		w.Log("gf", "info", errors.Errorf("Consumes a filler: %v", filler.FillerId))
 		var resp RespSpaceInfo
 		resp.Token = pattern.UpdateSpacemap(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
-		resp.T = filler.T
-		resp.Sigmas = filler.Sigmas
+		resp.T.N = filler.Tag.N
+		resp.T.Name = filler.Tag.Name
+		resp.T.U = filler.Tag.U
+		resp.T.Signature = filler.Tag.Signature
+		resp.Sigmas = filler.Tag.Sigmas
 		resp_b, err := json.Marshal(resp)
 		if err != nil {
 			os.Remove(filler.Path)
-			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+			w.Log("filler", "error", errors.Errorf("[%v] Marshal: %v", addr, err))
 			return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 		}
-
-		Flr.Sugar().Infof("[%v] Base filler: %v", addr, filler.FillerId)
+		w.Log("filler", "info", errors.Errorf("[%v] Base filler: %v", addr, filler.FillerId))
 		return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 	}
 
 	fillerid, ip, err := pattern.GetAndInsertBaseFiller(minerinfo.Ip)
 	if err != nil || Dial(ip) != nil {
-		if len(pattern.Chan_Filler) == 0 {
+		if len(pattern.C_Filler) == 0 {
 			return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
 		}
-		filler := <-pattern.Chan_Filler
-		Tgf.Sugar().Infof("Consumes a filler: %v", filler.FillerId)
+		filler := <-pattern.C_Filler
+		w.Log("gf", "info", errors.Errorf("Consumes a filler: %v", filler.FillerId))
 		var resp RespSpaceInfo
 		resp.Token = pattern.UpdateSpacemap(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
-		resp.T = filler.T
-		resp.Sigmas = filler.Sigmas
+		resp.T.T0.N = filler.Tag.N
+		resp.T.T0.Name = filler.Tag.Name
+		resp.T.T0.U = filler.Tag.U
+		resp.T.Signature = filler.Tag.Signature
+		resp.Sigmas = filler.Tag.Sigmas
 		resp_b, err := json.Marshal(resp)
 		if err != nil {
 			os.Remove(filler.Path)
-			Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+			w.Log("filler", "error", errors.Errorf("[%v] Marshal: %v", addr, err))
 			return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 		}
-
-		Flr.Sugar().Infof("[%v] Base filler: %v", addr, filler.FillerId)
+		w.Log("filler", "info", errors.Errorf("[%v] Base filler: %v", addr, filler.FillerId))
 		return &RespBody{Code: 200, Msg: "success", Data: resp_b}, nil
 	}
 	var resp pattern.BaseFiller
@@ -150,21 +153,21 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 	resp.MinerIp = append(resp.MinerIp, ip)
 	resp_b, err := json.Marshal(resp)
 	if err != nil {
-		Flr.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+		w.Log("filler", "error", errors.Errorf("[%v] Marshal: %v", addr, err))
 		return &RespBody{Code: http.StatusInternalServerError, Msg: err.Error()}, nil
 	}
 	time.Sleep(time.Second * 3)
-	Flr.Sugar().Infof("[%v] Copy filler: %v, %v", addr, fillerid, ip)
+	w.Log("filler", "info", errors.Errorf("[%v] Copy filler: %v, %v", addr, fillerid, ip))
 	return &RespBody{Code: 201, Msg: "success", Data: resp_b}, nil
 }
 
 // SpacefileAction is used to handle miner requests to download space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
-func (WService) SpacefileAction(body []byte) (proto.Message, error) {
+func (w *WService) SpacefileAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			w.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
 
@@ -190,22 +193,22 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 		pattern.UpdateSpacemap(pubkey, ip, fname)
 	}
 
-	addr, err := tools.EncodeToCESSAddr([]byte(pubkey))
+	addr, err := utils.EncodePublicKeyAsCessAccount([]byte(pubkey))
 	if err != nil {
 		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
 	}
 
-	filefullpath := filepath.Join(configs.SpaceCacheDir, fname)
+	filefullpath := filepath.Join(w.string, fname)
 	if b.BlockIndex == 16 {
-		Flr.Sugar().Infof("[%v] Transferred filler: %v", addr, fname)
-		var data chain.SpaceFileInfo
+		w.Log("filler", "info", errors.Errorf("[%v] Transferred filler: %v", addr, fname))
+		var data chain.FillerMetaInfo
 		data, err = combineFillerMeta(addr, fname, filefullpath, []byte(pubkey))
 		if err != nil {
 			os.Remove(filefullpath)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 		pattern.AddBaseFiller(ip, fname)
-		pattern.Chan_FillerMeta <- data
+		pattern.C_FillerMeta <- data
 		os.Remove(filefullpath)
 		return &RespBody{Code: 200, Msg: "success"}, nil
 	}
@@ -226,10 +229,10 @@ func (WService) SpacefileAction(body []byte) (proto.Message, error) {
 // SpacefileAction is used to handle miner requests to download space files.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
-func (WService) FillerbackAction(body []byte) (proto.Message, error) {
+func (w *WService) FillerbackAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			w.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
 
@@ -243,11 +246,11 @@ func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Request"}, nil
 	}
 
-	var data chain.SpaceFileInfo
-	data.FileId = b.FileId
-	data.FileHash = b.FileHash
+	var data chain.FillerMetaInfo
+	data.Id = b.FileId
+	data.Hash = b.FileHash
 	data.Index = 0
-	data.FileSize = 8388608
+	data.Size = 8386771
 	data.Acc = types.NewAccountID(b.Publickey)
 	blocknum := uint64(math.Ceil(float64(8386771 / configs.BlockSize)))
 	if blocknum == 0 {
@@ -255,16 +258,15 @@ func (WService) FillerbackAction(body []byte) (proto.Message, error) {
 	}
 	data.BlockNum = types.U32(blocknum)
 	data.BlockSize = types.U32(uint32(configs.BlockSize))
-	data.ScanSize = types.U32(uint32(configs.ScanBlockSize))
-	pattern.Chan_FillerMeta <- data
+	pattern.C_FillerMeta <- data
 
 	return &RespBody{Code: 200, Msg: "success"}, nil
 }
 
-func (WService) FillerfallAction(body []byte) (proto.Message, error) {
+func (w *WService) FillerfallAction(body []byte) (proto.Message, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			w.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
 

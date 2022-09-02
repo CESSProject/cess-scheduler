@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/natefinch/lumberjack"
@@ -35,6 +36,7 @@ type Logger interface {
 type logs struct {
 	logpath map[string]string
 	log     map[string]*zap.Logger
+	rl      *sync.RWMutex
 }
 
 func NewLogs(logfiles map[string]string) (Logger, error) {
@@ -62,11 +64,14 @@ func NewLogs(logfiles map[string]string) (Logger, error) {
 	return &logs{
 		logpath: logpath,
 		log:     logCli,
+		rl:      new(sync.RWMutex),
 	}, nil
 }
 
 func (l *logs) Log(name, level string, err error) {
+	l.rl.RLock()
 	v, ok := l.log[name]
+	l.rl.RUnlock()
 	if ok {
 		switch level {
 		case "info":

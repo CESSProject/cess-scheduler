@@ -21,6 +21,7 @@ import (
 	"cess-scheduler/internal/pattern"
 	"cess-scheduler/pkg/chain"
 	"cess-scheduler/pkg/fileHandling"
+	"cess-scheduler/pkg/pbc"
 	apiv1 "cess-scheduler/pkg/proof/apiv1"
 	"cess-scheduler/tools"
 	"context"
@@ -70,7 +71,7 @@ type calcTagLock struct {
 type RespSpaceInfo struct {
 	FileId string `json:"fileId"`
 	Token  string `json:"token"`
-	T      apiv1.FileTagT
+	T      pbc.FileTagT
 	Sigmas [][]byte `json:"sigmas"`
 }
 

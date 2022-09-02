@@ -17,7 +17,10 @@
 package com
 
 import (
+	"cess-scheduler/pkg/chain"
 	"cess-scheduler/pkg/configfile"
+	"cess-scheduler/pkg/db"
+	"cess-scheduler/pkg/logger"
 	"cess-scheduler/pkg/rpc"
 	"log"
 	"net/http"
@@ -25,19 +28,36 @@ import (
 )
 
 type WService struct {
+	configfile.Configfiler
+	logger.Logger
+	db.Cache
+	chain.Chainer
+	string
 }
 
 // Start tcp service.
 // If an error occurs, it will exit immediately.
-func Start(c configfile.Configfiler) {
+func Start(
+	confile configfile.Configfiler,
+	c chain.Chainer,
+	db db.Cache,
+	logs logger.Logger,
+	fillerDir string,
+) {
 	srv := rpc.NewServer()
-	err := srv.Register(RpcService_Scheduler, WService{})
+	err := srv.Register(
+		RpcService_Scheduler,
+		&WService{confile, logs, db, c, fillerDir},
+	)
 	if err != nil {
 		log.Printf("[err] %v\n", err)
 		os.Exit(1)
 	}
-	log.Println("Start and listen on port ", c.GetServicePort(), "...")
-	err = http.ListenAndServe(":"+c.GetServicePort(), srv.WebsocketHandler([]string{"*"}))
+	log.Println("Start and listen on port ", confile.GetServicePort(), "...")
+	err = http.ListenAndServe(
+		":"+confile.GetServicePort(),
+		srv.WebsocketHandler([]string{"*"}),
+	)
 	if err != nil {
 		log.Printf("[err] %v\n", err)
 		os.Exit(1)

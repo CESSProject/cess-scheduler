@@ -39,7 +39,7 @@ func Run(
 	)
 	go task_SyncMinersInfo(channel_1)
 	go task_ValidateProof(channel_2)
-	go task_SubmitFillerMeta(channel_3)
+	go task_SubmitFillerMeta(channel_3, logs, confile, c)
 	go task_GenerateFiller(channel_4, logs, fillerDir)
 	go task_ClearAuthMap(channel_5)
 	for {
@@ -49,7 +49,7 @@ func Run(
 		case <-channel_2:
 			go task_ValidateProof(channel_2)
 		case <-channel_3:
-			go task_SubmitFillerMeta(channel_3)
+			go task_SubmitFillerMeta(channel_3, logs, confile, c)
 		case <-channel_4:
 			go task_GenerateFiller(channel_4, logs, fillerDir)
 		case <-channel_5:
