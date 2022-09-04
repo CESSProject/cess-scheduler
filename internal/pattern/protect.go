@@ -1,9 +1,10 @@
 package pattern
 
 import (
-	"cess-scheduler/tools"
 	"sync"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/tools"
 )
 
 type Protect struct {

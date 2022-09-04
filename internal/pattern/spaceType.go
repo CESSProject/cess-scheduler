@@ -1,10 +1,11 @@
 package pattern
 
 import (
-	"cess-scheduler/tools"
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/tools"
 )
 
 type spacemap struct {

@@ -37,19 +37,19 @@ func Run(
 		channel_4 = make(chan bool, 1)
 		channel_5 = make(chan bool, 1)
 	)
-	go task_SyncMinersInfo(channel_1)
-	go task_ValidateProof(channel_2)
-	go task_SubmitFillerMeta(channel_3, logs, confile, c)
+	go task_SyncMinersInfo(channel_1, logs, c, db)
+	go task_ValidateProof(channel_2, logs, c, db)
+	go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
 	go task_GenerateFiller(channel_4, logs, fillerDir)
 	go task_ClearAuthMap(channel_5)
 	for {
 		select {
 		case <-channel_1:
-			go task_SyncMinersInfo(channel_1)
+			go task_SyncMinersInfo(channel_1, logs, c, db)
 		case <-channel_2:
-			go task_ValidateProof(channel_2)
+			go task_ValidateProof(channel_2, logs, c, db)
 		case <-channel_3:
-			go task_SubmitFillerMeta(channel_3, logs, confile, c)
+			go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
 		case <-channel_4:
 			go task_GenerateFiller(channel_4, logs, fillerDir)
 		case <-channel_5:

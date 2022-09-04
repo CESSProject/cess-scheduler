@@ -103,7 +103,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 	}
 
 	// create data dir
-	logDir, dbDir, fillerDir, err := creatDataDir(confile, c)
+	logDir, dbDir, fillerDir, fileDir, err := creatDataDir(confile, c)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -129,7 +129,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 
 	// run task
 	go task.Run(confile, c, db, logs, fillerDir)
-	com.Start(confile, c, db, logs, fillerDir)
+	com.Start(confile, c, db, logs, fillerDir, fileDir)
 }
 
 func register(confile configfile.Configfiler, c chain.Chainer) error {
@@ -160,10 +160,10 @@ func register(confile configfile.Configfiler, c chain.Chainer) error {
 func creatDataDir(
 	confile configfile.Configfiler,
 	c chain.Chainer,
-) (string, string, string, error) {
+) (string, string, string, string, error) {
 	ctlAccount, err := c.GetCessAccount()
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	baseDir := filepath.Join(confile.GetDataDir(), ctlAccount, configs.BaseDir)
 	log.Println(baseDir)
@@ -171,23 +171,28 @@ func creatDataDir(
 	if err != nil {
 		err = os.MkdirAll(baseDir, os.ModeDir)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", "", err
 		}
 	}
 
 	logDir := filepath.Join(baseDir, "log")
 	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
 	dbDir := filepath.Join(baseDir, "db")
 	if err := os.MkdirAll(dbDir, os.ModeDir); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
 	fillerDir := filepath.Join(baseDir, "filler")
 	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
-	return logDir, dbDir, fillerDir, nil
+
+	fileDir := filepath.Join(baseDir, "file")
+	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
+		return "", "", "", "", err
+	}
+	return logDir, dbDir, fillerDir, fileDir, nil
 }

@@ -123,254 +123,187 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 }
 
 // Update file meta information
-// func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, chunk []BlockInfo) (string, error) {
-// 	defer func() {
-// 		if err := recover(); err != nil {
-// 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-// 		}
-// 	}()
+func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, user []byte, chunk []BlockInfo) (string, error) {
+	var (
+		txhash      string
+		accountInfo types.AccountInfo
+	)
+	if !c.IsChainClientOk() {
+		return txhash, errors.New("rpc connection failed")
+	}
 
-// 	var txhash string
-// 	var accountInfo types.AccountInfo
+	call, err := types.NewCall(
+		c.metadata,
+		Tx_FileBank_Upload,
+		types.NewBytes([]byte(fid)),
+		types.U64(fsize),
+		chunk,
+		types.NewAccountID(user),
+	)
+	if err != nil {
+		return txhash, errors.Wrap(err, "NewCall")
+	}
 
-// 	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
-// 	defer Free()
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetRpcClient_Safe]")
-// 	}
+	ext := types.NewExtrinsic(call)
+	if err != nil {
+		return txhash, errors.Wrap(err, "NewExtrinsic")
+	}
 
-// 	meta, err := GetMetadata(api)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetMetadataLatest]")
-// 	}
+	key, err := types.CreateStorageKey(
+		c.metadata,
+		State_System,
+		System_Account,
+		c.keyring.PublicKey,
+	)
+	if err != nil {
+		return txhash, errors.Wrap(err, "CreateStorageKey")
+	}
 
-// 	c, err := types.NewCall(
-// 		meta,
-// 		Tx_FileBank_Upload,
-// 		types.NewBytes([]byte(fid)),
-// 		types.U64(fsize),
-// 		chunk,
-// 		types.NewAccountID(user),
-// 	)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "NewCall")
-// 	}
+	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	if err != nil {
+		return txhash, errors.Wrap(err, "GetStorageLatest err")
+	}
 
-// 	ext := types.NewExtrinsic(c)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "NewExtrinsic")
-// 	}
+	if !ok {
+		return txhash, errors.New(ERR_Empty)
+	}
 
-// 	genesisHash, err := GetGenesisHash(api)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetGenesisHash]")
-// 	}
+	o := types.SignatureOptions{
+		BlockHash:          c.genesisHash,
+		Era:                types.ExtrinsicEra{IsMortalEra: false},
+		GenesisHash:        c.genesisHash,
+		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
+		SpecVersion:        c.runtimeVersion.SpecVersion,
+		Tip:                types.NewUCompactFromUInt(0),
+		TransactionVersion: c.runtimeVersion.TransactionVersion,
+	}
 
-// 	rv, err := GetRuntimeVersion(api)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetRuntimeVersion]")
-// 	}
+	// Sign the transaction
+	err = ext.Sign(c.keyring, o)
+	if err != nil {
+		return txhash, errors.Wrap(err, "Sign")
+	}
 
-// 	key, err := types.CreateStorageKey(meta, "System", "Account", configs.PublicKey)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "CreateStorageKey")
-// 	}
+	// Do the transfer and track the actual status
+	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	if err != nil {
+		return txhash, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
+	}
+	defer sub.Unsubscribe()
+	timeout := time.After(c.timeForBlockOut)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsInBlock {
+				events := CessEventRecords{}
+				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				if err != nil {
+					return txhash, errors.Wrap(err, "GetStorageRaw")
+				}
 
-// 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "GetStorageLatest err")
-// 	}
+				types.EventRecordsRaw(*h).DecodeEventRecords(c.metadata, &events)
 
-// 	if !ok {
-// 		return txhash, errors.New(ERR_Empty)
-// 	}
-
-// 	o := types.SignatureOptions{
-// 		BlockHash:          genesisHash,
-// 		Era:                types.ExtrinsicEra{IsMortalEra: false},
-// 		GenesisHash:        genesisHash,
-// 		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
-// 		SpecVersion:        rv.SpecVersion,
-// 		Tip:                types.NewUCompactFromUInt(0),
-// 		TransactionVersion: rv.TransactionVersion,
-// 	}
-
-// 	kring, err := GetKeyring()
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "GetKeyring")
-// 	}
-
-// 	// Sign the transaction
-// 	err = ext.Sign(kring, o)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "Sign")
-// 	}
-
-// 	// Do the transfer and track the actual status
-// 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
-// 	}
-// 	defer sub.Unsubscribe()
-// 	timeout := time.After(configs.TimeToWaitEvents)
-// 	for {
-// 		select {
-// 		case status := <-sub.Chan():
-// 			if status.IsInBlock {
-// 				events := MyEventRecords{}
-// 				txhash, _ = types.EncodeToHexString(status.AsInBlock)
-// 				Uld.Sugar().Infof("[%v] FileMeta On-chain hash: %v", fid, txhash)
-// 				keye, err := GetKeyEvents()
-// 				if err != nil {
-// 					return txhash, errors.Wrap(err, "GetKeyEvents")
-// 				}
-// 				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-// 				if err != nil {
-// 					return txhash, errors.Wrap(err, "GetStorageRaw")
-// 				}
-
-// 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-// 				if err != nil {
-// 					Com.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
-// 				}
-
-// 				if len(events.FileBank_FileUpload) > 0 {
-// 					for i := 0; i < len(events.FileBank_FileUpload); i++ {
-// 						if string(events.FileBank_FileUpload[i].Acc[:]) == string(user) {
-// 							return txhash, nil
-// 						}
-// 					}
-// 				}
-// 				return txhash, errors.New(ERR_Failed)
-// 			}
-// 		case err = <-sub.Err():
-// 			return txhash, err
-// 		case <-timeout:
-// 			return txhash, errors.New("timeout")
-// 		}
-// 	}
-// }
+				if len(events.FileBank_FileUpload) > 0 {
+					return txhash, nil
+				}
+				return txhash, errors.New(ERR_Failed)
+			}
+		case err = <-sub.Err():
+			return txhash, errors.Wrap(err, "sub")
+		case <-timeout:
+			return txhash, errors.New(ERR_Timeout)
+		}
+	}
+}
 
 // Update file meta information
-// func PutSpaceTagInfoToChain(transactionPrK string, miner_acc types.AccountID, info []FileMetaInfo) (string, error) {
-// 	defer func() {
-// 		if err := recover(); err != nil {
-// 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-// 		}
-// 	}()
+func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error) {
+	var (
+		txhash      string
+		accountInfo types.AccountInfo
+	)
+	if !c.IsChainClientOk() {
+		return txhash, errors.New("rpc connection failed")
+	}
 
-// 	var txhash string
-// 	var accountInfo types.AccountInfo
+	call, err := types.NewCall(c.metadata, Tx_FileBank_UploadFiller, miner_acc, info)
+	if err != nil {
+		return txhash, errors.Wrap(err, "[NewCall]")
+	}
 
-// 	api, err := GetRpcClient_Safe(configs.C.RpcAddr)
-// 	defer Free()
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetRpcClient_Safe]")
-// 	}
+	ext := types.NewExtrinsic(call)
+	if err != nil {
+		return txhash, errors.Wrap(err, "[NewExtrinsic]")
+	}
 
-// 	meta, err := GetMetadata(api)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetMetadataLatest]")
-// 	}
+	key, err := types.CreateStorageKey(
+		c.metadata,
+		State_System,
+		System_Account,
+		c.keyring.PublicKey,
+	)
+	if err != nil {
+		return txhash, errors.Wrap(err, "[CreateStorageKey]")
+	}
 
-// 	c, err := types.NewCall(meta, ChainTx_FileBank_UploadFiller, miner_acc, info)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[NewCall]")
-// 	}
+	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	if err != nil {
+		return txhash, errors.Wrap(err, "[GetStorageLatest]")
+	}
 
-// 	ext := types.NewExtrinsic(c)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[NewExtrinsic]")
-// 	}
+	if !ok {
+		return txhash, errors.New(ERR_Empty)
+	}
 
-// 	genesisHash, err := GetGenesisHash(api)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetGenesisHash]")
-// 	}
+	o := types.SignatureOptions{
+		BlockHash:          c.genesisHash,
+		Era:                types.ExtrinsicEra{IsMortalEra: false},
+		GenesisHash:        c.genesisHash,
+		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
+		SpecVersion:        c.runtimeVersion.SpecVersion,
+		Tip:                types.NewUCompactFromUInt(0),
+		TransactionVersion: c.runtimeVersion.TransactionVersion,
+	}
 
-// 	rv, err := GetRuntimeVersion(api)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetRuntimeVersion]")
-// 	}
+	// Sign the transaction
+	err = ext.Sign(c.keyring, o)
+	if err != nil {
+		return txhash, errors.Wrap(err, "[Sign]")
+	}
 
-// 	key, err := types.CreateStorageKey(meta, "System", "Account", configs.PublicKey)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[CreateStorageKey]")
-// 	}
+	// Do the transfer and track the actual status
+	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	if err != nil {
+		return "", errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
+	}
+	defer sub.Unsubscribe()
+	timeout := time.After(c.timeForBlockOut)
+	for {
+		select {
+		case status := <-sub.Chan():
+			if status.IsInBlock {
+				events := CessEventRecords{}
+				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				if err != nil {
+					return txhash, errors.Wrap(err, "GetStorageRaw")
+				}
 
-// 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[GetStorageLatest]")
-// 	}
+				types.EventRecordsRaw(*h).DecodeEventRecords(c.metadata, &events)
 
-// 	if !ok {
-// 		return txhash, errors.New(ERR_Empty)
-// 	}
-
-// 	o := types.SignatureOptions{
-// 		BlockHash:          genesisHash,
-// 		Era:                types.ExtrinsicEra{IsMortalEra: false},
-// 		GenesisHash:        genesisHash,
-// 		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
-// 		SpecVersion:        rv.SpecVersion,
-// 		Tip:                types.NewUCompactFromUInt(0),
-// 		TransactionVersion: rv.TransactionVersion,
-// 	}
-
-// 	kring, err := GetKeyring()
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "GetKeyring")
-// 	}
-
-// 	// Sign the transaction
-// 	err = ext.Sign(kring, o)
-// 	if err != nil {
-// 		return txhash, errors.Wrap(err, "[Sign]")
-// 	}
-
-// 	// Do the transfer and track the actual status
-// 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
-// 	if err != nil {
-// 		return "", errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
-// 	}
-// 	defer sub.Unsubscribe()
-// 	timeout := time.After(configs.TimeToWaitEvents)
-// 	for {
-// 		select {
-// 		case status := <-sub.Chan():
-// 			if status.IsInBlock {
-// 				events := MyEventRecords{}
-// 				txhash, _ = types.EncodeToHexString(status.AsInBlock)
-// 				keye, err := GetKeyEvents()
-// 				if err != nil {
-// 					return txhash, errors.Wrap(err, "GetKeyEvents")
-// 				}
-// 				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-// 				if err != nil {
-// 					return txhash, errors.Wrap(err, "GetStorageRaw")
-// 				}
-
-// 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-// 				if err != nil {
-// 					Com.Sugar().Infof("[%v]Decode event err:%v", txhash, err)
-// 				}
-
-// 				if len(events.FileBank_FillerUpload) > 0 {
-// 					for i := 0; i < len(events.FileBank_FillerUpload); i++ {
-// 						if string(events.FileBank_FillerUpload[i].Acc[:]) == string(configs.PublicKey) {
-// 							return txhash, nil
-// 						}
-// 					}
-// 				}
-// 				return txhash, errors.New(ERR_Failed)
-// 			}
-// 		case err = <-sub.Err():
-// 			return txhash, errors.Wrap(err, "<-sub")
-// 		case <-timeout:
-// 			return txhash, errors.New(ERR_Timeout)
-// 		}
-// 	}
-// }
+				if len(events.FileBank_FillerUpload) > 0 {
+					return txhash, nil
+				}
+				return txhash, errors.New(ERR_Failed)
+			}
+		case err = <-sub.Err():
+			return txhash, errors.Wrap(err, "sub")
+		case <-timeout:
+			return txhash, errors.New(ERR_Timeout)
+		}
+	}
+}
 
 //
 func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {

@@ -34,9 +34,11 @@ type Chainer interface {
 	GetProofs() ([]Proof, error)
 	GetCessAccount() (string, error)
 	GetAccountInfo() (types.AccountInfo, error)
-	GetSpacePackageInfo() (SpacePackage, error)
+	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
 	Register(stash, contact string) (string, error)
 	SubmitProofResults(data []ProofResult) (string, error)
+	SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error)
+	SubmitFileMeta(fid string, fsize uint64, user []byte, chunk []BlockInfo) (string, error)
 	Update(contact string) (string, error)
 }
 

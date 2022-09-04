@@ -35,7 +35,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			logs.Log("panic", "err", utils.RecoverError(err))
+			logs.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
 

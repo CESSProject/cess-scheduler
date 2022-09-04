@@ -17,18 +17,20 @@
 package com
 
 import (
-	"cess-scheduler/configs"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/utils"
 	"encoding/json"
 	"math"
 	"net/http"
+
 	"os"
 	"path/filepath"
 	"time"
 
-	. "cess-scheduler/api/protobuf"
+	. "github.com/CESSProject/cess-scheduler/api/protobuf"
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/rpc"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 
 	keyring "github.com/CESSProject/go-keyring"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -124,7 +126,7 @@ func (w *WService) SpaceAction(body []byte) (proto.Message, error) {
 	}
 
 	fillerid, ip, err := pattern.GetAndInsertBaseFiller(minerinfo.Ip)
-	if err != nil || Dial(ip) != nil {
+	if err != nil || rpc.Dial(ip, time.Duration(time.Second*5)) != nil {
 		if len(pattern.C_Filler) == 0 {
 			return &RespBody{Code: http.StatusServiceUnavailable, Msg: "ServiceUnavailable"}, nil
 		}
@@ -198,7 +200,7 @@ func (w *WService) SpacefileAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad publickey"}, nil
 	}
 
-	filefullpath := filepath.Join(w.string, fname)
+	filefullpath := filepath.Join(w.fillerDir, fname)
 	if b.BlockIndex == 16 {
 		w.Log("filler", "info", errors.Errorf("[%v] Transferred filler: %v", addr, fname))
 		var data chain.FillerMetaInfo

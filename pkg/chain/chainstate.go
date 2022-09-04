@@ -181,14 +181,14 @@ func (c *chainClient) GetCessAccount() (string, error) {
 }
 
 //
-func (c *chainClient) GetSpacePackageInfo() (SpacePackage, error) {
+func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 	var data SpacePackage
 
 	if !c.IsChainClientOk() {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.Encode(c.keyring.PublicKey)
+	b, err := types.Encode(pkey)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}

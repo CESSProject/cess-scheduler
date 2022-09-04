@@ -1,68 +1,69 @@
+/*
+   Copyright 2022 CESS scheduler authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package task
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/api/protobuf"
-	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/com"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/rpc"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
 //
-func task_ValidateProof(ch chan bool) {
+func task_ValidateProof(
+	ch chan bool,
+	logs logger.Logger,
+	cli chain.Chainer,
+	db db.Cache,
+) {
 	var (
 		err         error
 		goeson      bool
-		puk         chain.Chain_SchedulerPuk
 		poDR2verify pbc.PoDR2Verify
 		reqtag      protobuf.ReadTagReq
-		proofs      = make([]chain.Chain_Proofs, 0)
+		proofs      = make([]chain.Proof, 0)
 	)
 	defer func() {
-		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-		}
 		ch <- true
-	}()
-
-	Tvp.Info("--> Start task_ValidateProof")
-
-	reqtag.Acc, err = chain.GetPublicKeyByPrk(configs.C.CtrlPrk)
-	if err != nil {
-		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
-		os.Exit(1)
-	}
-
-	Tvp.Sugar().Infof("--> %v", reqtag.Acc)
-
-	for {
-		puk, err = chain.GetSchedulerPukFromChain()
-		if err != nil {
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
-			continue
+		if err := recover(); err != nil {
+			logs.Log("panic", "error", utils.RecoverError(err))
 		}
-		Tvp.Info("--> Successfully found puk")
-		Tvp.Sugar().Infof("--> %v", puk.Shared_g)
-		Tvp.Sugar().Infof("--> %v", puk.Shared_params)
-		Tvp.Sugar().Infof("--> %v", puk.Spk)
-		break
-	}
+	}()
+	logs.Log("vp", "info", errors.New("--> Start task_ValidateProof"))
+
+	reqtag.Acc = cli.GetPublicKey()
 
 	for {
-		var verifyResults = make([]chain.VerifyResult, 0)
-		proofs, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
+		var verifyResults = make([]chain.ProofResult, 0)
+		proofs, err = cli.GetProofs()
 		if err != nil {
 			if err.Error() != chain.ERR_Empty {
-				Tvp.Sugar().Errorf("%v", err)
+				logs.Log("vp", "error", err)
 			}
 			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
 			continue
@@ -71,8 +72,7 @@ func task_ValidateProof(ch chan bool) {
 			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
 			continue
 		}
-
-		Tvp.Sugar().Infof("--> Ready to verify %v proofs", len(proofs))
+		logs.Log("vp", "info", errors.Errorf("--> Ready to verify %v proofs", len(proofs)))
 
 		var respData []byte
 		var tag pbc.TagInfo
@@ -81,15 +81,15 @@ func task_ValidateProof(ch chan bool) {
 				break
 			}
 			goeson = false
-			addr, err := tools.EncodeToCESSAddr(proofs[i].Miner_pubkey[:])
+			addr, err := utils.EncodePublicKeyAsCessAccount(proofs[i].Miner_pubkey[:])
 			if err != nil {
-				Tvp.Sugar().Errorf("%v EncodeToCESSAddr: %v", proofs[i].Miner_pubkey, err)
+				logs.Log("vp", "error", errors.Errorf("%v,%v", proofs[i].Miner_pubkey, err))
 			}
 
 			cacheData, err := db.Get(proofs[i].Miner_pubkey[:])
 			if err != nil {
-				resultTemp := chain.VerifyResult{}
-				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+				resultTemp := chain.ProofResult{}
+				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
 				if err.Error() == "leveldb: not found" {
 					resultTemp.Result = false
@@ -103,9 +103,9 @@ func task_ValidateProof(ch chan bool) {
 			var minerinfo chain.Cache_MinerInfo
 			err = json.Unmarshal(cacheData, &minerinfo)
 			if err != nil {
-				Tvp.Sugar().Errorf("[%v] Unmarshal: %v", addr, err)
-				resultTemp := chain.VerifyResult{}
-				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+				logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+				resultTemp := chain.ProofResult{}
+				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
 				resultTemp.Result = true
 				verifyResults = append(verifyResults, resultTemp)
@@ -116,18 +116,18 @@ func task_ValidateProof(ch chan bool) {
 			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
 			req_proto, err := proto.Marshal(&reqtag)
 			if err != nil {
-				Tvp.Sugar().Errorf("[%v] Marshal: %v", addr, err)
+				logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
 			}
 			for j := 0; j < 3; j++ {
 				respData, err = rpc.WriteData(
 					string(minerinfo.Ip),
-					rpc.RpcService_Miner,
-					rpc.RpcMethod_Miner_ReadFileTag,
+					com.RpcService_Miner,
+					com.RpcMethod_Miner_ReadFileTag,
 					time.Duration(time.Second*30),
 					req_proto,
 				)
 				if err != nil {
-					Tvp.Sugar().Errorf("[%v] WriteData: %v", addr, err)
+					logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
 					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
 				} else {
 					goeson = true
@@ -136,8 +136,8 @@ func task_ValidateProof(ch chan bool) {
 			}
 
 			if !goeson {
-				resultTemp := chain.VerifyResult{}
-				resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+				resultTemp := chain.ProofResult{}
+				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
 				resultTemp.Result = false
 				verifyResults = append(verifyResults, resultTemp)
@@ -146,11 +146,20 @@ func task_ValidateProof(ch chan bool) {
 
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				Tvp.Sugar().Errorf("[%v] Unmarshal: %v", addr, err)
+				logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
 			}
-			qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(proofs[i].Challenge_info.Block_list, proofs[i].Challenge_info.Random)
+			qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(
+				proofs[i].Challenge_info.Block_list,
+				proofs[i].Challenge_info.Random,
+			)
 			if err != nil {
-				Tvp.Sugar().Errorf("[%v] [%v] [%v] qslice: %v", addr, len(proofs[i].Challenge_info.Block_list), len(proofs[i].Challenge_info.Random), err)
+				logs.Log("vp", "error",
+					errors.Errorf("[%v] [%v] [%v] qslice: %v",
+						addr,
+						len(proofs[i].Challenge_info.Block_list),
+						len(proofs[i].Challenge_info.Random),
+						err,
+					))
 			}
 
 			poDR2verify.QSlice = qSlice
@@ -162,37 +171,27 @@ func task_ValidateProof(ch chan bool) {
 			poDR2verify.Sigma = proofs[i].Sigma
 			poDR2verify.T = tag.T
 
-			gWait := make(chan bool)
-			go func(ch chan bool) {
-				defer func() {
-					if err := recover(); err != nil {
-						ch <- true
-						Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-					}
-				}()
-				ch <- poDR2verify.PoDR2ProofVerify(puk.Shared_g, puk.Spk, string(puk.Shared_params))
-			}(gWait)
-			result := <-gWait
-			resultTemp := chain.VerifyResult{}
-			resultTemp.Miner_pubkey = proofs[i].Miner_pubkey
+			result := poDR2verify.PoDR2ProofVerify(pbc.Key_SharedG, pbc.Key_Spk, string(pbc.Key_SharedParams))
+			resultTemp := chain.ProofResult{}
+			resultTemp.PublicKey = proofs[i].Miner_pubkey
 			resultTemp.FileId = proofs[i].Challenge_info.File_id
 			resultTemp.Result = types.Bool(result)
 			verifyResults = append(verifyResults, resultTemp)
 		}
-		go processProofResult(verifyResults)
+		go processProofResult(logs, cli, verifyResults)
 	}
 }
 
-func processProofResult(data []chain.VerifyResult) {
+func processProofResult(logs logger.Logger, cli chain.Chainer, data []chain.ProofResult) {
 	var (
 		err      error
 		txhash   string
 		tryCount uint8
 	)
 	for tryCount < 3 {
-		txhash, err = chain.PutProofResult(configs.C.CtrlPrk, data)
+		txhash, err = cli.SubmitProofResults(data)
 		if txhash != "" {
-			Tvp.Sugar().Infof("Proof result submitted: %v", txhash)
+			logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
 			if err == nil {
 				return
 			}

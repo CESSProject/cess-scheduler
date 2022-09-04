@@ -76,7 +76,7 @@ func (l *logs) Log(name, level string, err error) {
 		switch level {
 		case "info":
 			v.Sugar().Infof("%v", err)
-		case "error":
+		case "error", "err":
 			v.Sugar().Errorf("%v", err)
 		case "warn":
 			v.Sugar().Warnf("%v", err)

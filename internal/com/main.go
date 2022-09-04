@@ -17,14 +17,15 @@
 package com
 
 import (
-	"cess-scheduler/pkg/chain"
-	"cess-scheduler/pkg/configfile"
-	"cess-scheduler/pkg/db"
-	"cess-scheduler/pkg/logger"
-	"cess-scheduler/pkg/rpc"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 )
 
 type WService struct {
@@ -32,7 +33,8 @@ type WService struct {
 	logger.Logger
 	db.Cache
 	chain.Chainer
-	string
+	fillerDir string
+	fileDir   string
 }
 
 // Start tcp service.
@@ -43,11 +45,12 @@ func Start(
 	db db.Cache,
 	logs logger.Logger,
 	fillerDir string,
+	fileDir string,
 ) {
 	srv := rpc.NewServer()
 	err := srv.Register(
 		RpcService_Scheduler,
-		&WService{confile, logs, db, c, fillerDir},
+		&WService{confile, logs, db, c, fillerDir, fileDir},
 	)
 	if err != nil {
 		log.Printf("[err] %v\n", err)

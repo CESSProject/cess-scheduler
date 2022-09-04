@@ -1,8 +1,9 @@
 package pattern
 
 import (
-	"cess-scheduler/internal/chain"
 	"sync"
+
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
 )
 
 type Fillermetamap struct {
