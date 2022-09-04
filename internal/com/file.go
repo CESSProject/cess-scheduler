@@ -35,15 +35,15 @@ import (
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/internal/pattern"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/fileHandling"
+	"github.com/CESSProject/cess-scheduler/pkg/coding"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
-	"github.com/CESSProject/cess-scheduler/tools"
 
 	"github.com/pkg/errors"
 
+	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	. "github.com/CESSProject/cess-scheduler/api/protobuf"
 
 	keyring "github.com/CESSProject/go-keyring"
@@ -196,12 +196,12 @@ func (w *WService) AuthAction(body []byte) (proto.Message, error) {
 	info.FileName = b.FileName
 	info.UpdateTime = time.Now().Unix()
 	info.BlockTotal = b.BlockTotal
-	token = tools.GetRandomcode(12)
+	token = utils.GetRandomcode(12)
 	for pattern.IsToken(token) {
-		token = tools.GetRandomcode(12)
+		token = utils.GetRandomcode(12)
 	}
 	pattern.AddAuth(string(b.PublicKey), token, info)
-	return &RespBody{Code: 200, Msg: "success", Data: []byte(token)}, nil
+	return &protobuf.RespBody{Code: 200, Msg: "success", Data: []byte(token)}, nil
 }
 
 // WritefileAction is used to handle client requests to upload files.
@@ -337,7 +337,7 @@ func storeFiles(logs logger.Logger, c chain.Chainer, fid, fpath, name, pubkey st
 	}
 
 	// redundant coding
-	chunkspath, datachunks, rduchunks, err := fileHandling.ReedSolomon(fpath, fstat.Size())
+	chunkspath, datachunks, rduchunks, err := coding.ReedSolomon(fpath, fstat.Size())
 	if err != nil {
 		logs.Log("upfile", "error", errors.Errorf("[%v] ReedSolomon: %v", fid, err))
 		return
@@ -377,7 +377,7 @@ func storeFiles(logs logger.Logger, c chain.Chainer, fid, fpath, name, pubkey st
 		txhash, err = c.SubmitFileMeta(fid, uint64(fstat.Size()), []byte(pubkey), chunksInfo)
 		if txhash == "" {
 			logs.Log("upfile", "error", errors.Errorf("[%v] FileMeta On-chain fail: %v", fid, err))
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+			time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 			continue
 		}
 		break
@@ -453,7 +453,7 @@ func ReadFile(dst string, path, fid, walletaddr string) error {
 		client, err = rpc.DialWebsocket(context.Background(), dstip, "")
 		if err != nil {
 			count++
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 5)))
+			time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 5)))
 		} else {
 			break
 		}
@@ -522,7 +522,7 @@ func ReadFile(dst string, path, fid, walletaddr string) error {
 				if i > 1 {
 					i--
 				}
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 10)))
 				continue
 			}
 
@@ -728,7 +728,7 @@ func backupFile(ch chan chain.BlockInfo, logs logger.Logger, c chain.Chainer, fp
 	for len(allMinerPubkey) == 0 {
 		allMinerPubkey, err = c.GetAllStorageMiner()
 		if err != nil {
-			time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+			time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 10)))
 		}
 	}
 	logs.Log("upfile", "info", errors.Errorf("[%v] %v miners found", fname, len(allMinerPubkey)))
@@ -785,11 +785,11 @@ func backupFile(ch chan chain.BlockInfo, logs logger.Logger, c chain.Chainer, fp
 					logs.Log("upfile", "error", errors.Errorf("[%v] All miners cannot store and refresh miner list", fname))
 					allMinerPubkey, err = c.GetAllStorageMiner()
 					if err != nil {
-						time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+						time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 10)))
 					}
 				}
 
-				index = tools.RandomInRange(0, len(allMinerPubkey))
+				index = utils.RandomInRange(0, len(allMinerPubkey))
 				if _, ok := filedIndex[index]; ok {
 					continue
 				}
@@ -832,7 +832,7 @@ func backupFile(ch chan chain.BlockInfo, logs logger.Logger, c chain.Chainer, fp
 						logs.Log("upfile", "error", errors.Errorf("[%v] transfer failed [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex))
 						return
 					}
-					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 10)))
+					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 10)))
 					continue
 				}
 				logs.Log("upfile", "info", errors.Errorf("[%v] transferred [%v-%v]", fname, bo.BlockTotal, bo.BlockIndex))

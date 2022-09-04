@@ -27,7 +27,6 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
-	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/pkg/errors"
 )
 
@@ -49,7 +48,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 	for {
 		for len(pattern.C_Filler) < pattern.C_Filler_Maxlen {
 			for {
-				uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
+				uid, _ = utils.GetGuid(int64(utils.RandomInRange(0, 1024)))
 				if uid == "" {
 					continue
 				}
@@ -63,7 +62,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			if err != nil {
 				logs.Log("gf", "error", err)
 				os.Remove(fillerpath)
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
@@ -71,7 +70,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			if fstat.Size() != configs.FillerSize {
 				logs.Log("gf", "error", errors.Errorf("filler size err: %v", err))
 				os.Remove(fillerpath)
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
@@ -89,7 +88,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			)
 			if err != nil {
 				logs.Log("gf", "error", err)
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
@@ -99,7 +98,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			if commitResponse.StatueMsg.StatusCode != pbc.Success {
 				os.Remove(fillerpath)
 				logs.Log("gf", "error", errors.New("PoDR2ProofCommit false"))
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
@@ -126,7 +125,7 @@ func generateFiller(fpath string, fsize uint64) error {
 	defer f.Close()
 	rows := fsize / 4096
 	for i := uint64(0); i < rows; i++ {
-		f.WriteString(tools.RandStr(4095) + "\n")
+		f.WriteString(utils.RandStr(4095) + "\n")
 	}
 	err = f.Sync()
 	if err != nil {

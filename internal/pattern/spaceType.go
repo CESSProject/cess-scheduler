@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CESSProject/cess-scheduler/tools"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 )
 
 type spacemap struct {
@@ -65,7 +65,7 @@ func UpdateSpacemap(key, ip, fid string) string {
 		spacem.tokens[v] = info
 		return v
 	}
-	token := tools.RandStr(16)
+	token := utils.RandStr(16)
 	data := authspaceinfo{}
 	data.publicKey = key
 	data.ip = ip
@@ -114,7 +114,7 @@ func GetConnectedSpacem() []string {
 	var data = make([]string, 0)
 	spacem.lock.Lock()
 	for k, _ := range spacem.miners {
-		addr, _ := tools.EncodeToCESSAddr([]byte(k))
+		addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
 		data = append(data, addr)
 	}
 	spacem.lock.Unlock()

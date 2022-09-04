@@ -41,7 +41,7 @@ func Run(
 	go task_ValidateProof(channel_2, logs, c, db)
 	go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
 	go task_GenerateFiller(channel_4, logs, fillerDir)
-	go task_ClearAuthMap(channel_5)
+	go task_ClearAuthMap(channel_5, logs, c)
 	for {
 		select {
 		case <-channel_1:
@@ -53,7 +53,7 @@ func Run(
 		case <-channel_4:
 			go task_GenerateFiller(channel_4, logs, fillerDir)
 		case <-channel_5:
-			go task_ClearAuthMap(channel_5)
+			go task_ClearAuthMap(channel_5, logs, c)
 		}
 	}
 }

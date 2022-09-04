@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CESSProject/cess-scheduler/tools"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 )
 
 type Protect struct {
@@ -65,7 +65,7 @@ func GetBlacklist() []string {
 	var data = make([]string, 0)
 	p.L.Lock()
 	for k, _ := range p.Blacklist {
-		addr, _ := tools.EncodeToCESSAddr([]byte(k))
+		addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
 		data = append(data, addr)
 	}
 	p.L.Unlock()

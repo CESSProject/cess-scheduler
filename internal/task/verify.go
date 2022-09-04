@@ -28,7 +28,6 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
-	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
@@ -65,11 +64,11 @@ func task_ValidateProof(
 			if err.Error() != chain.ERR_Empty {
 				logs.Log("vp", "error", err)
 			}
-			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
+			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 10)))
 			continue
 		}
 		if len(proofs) == 0 {
-			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
+			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 10)))
 			continue
 		}
 		logs.Log("vp", "info", errors.Errorf("--> Ready to verify %v proofs", len(proofs)))
@@ -128,7 +127,7 @@ func task_ValidateProof(
 				)
 				if err != nil {
 					logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
-					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 6)))
+					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 6)))
 				} else {
 					goeson = true
 					break
@@ -197,6 +196,6 @@ func processProofResult(logs logger.Logger, cli chain.Chainer, data []chain.Proo
 			}
 		}
 		tryCount++
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 15)))
+		time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
 	}
 }

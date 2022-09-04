@@ -4,9 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"math"
 	"os"
 
-	"github.com/CESSProject/cess-scheduler/tools"
 	"github.com/Nik-U/pbc"
 )
 
@@ -22,7 +23,7 @@ func (commit PoDR2Commit) PoDR2ProofCommit(ssk []byte, sharedParams string, segm
 	if err != nil {
 		return nil, err
 	}
-	matrix, n, err := tools.Split(commit.FilePath, commit.BlockSize, file.Size())
+	matrix, n, err := Split(commit.FilePath, commit.BlockSize, file.Size())
 	T := FileTagT{}
 	T.T0.N = int64(n)
 	T.T0.Name = pairing.NewZr().Rand().Bytes()
@@ -96,4 +97,31 @@ func buildHashNameElement(pairing *pbc.Pairing, t0Name []byte, i int64) *pbc.Ele
 	binary.PutVarint(indexBytes, i)
 	hash_array := sha256.Sum256(append(pairing.NewZr().SetBytes(t0Name).Bytes(), indexBytes...))
 	return pairing.NewG2().SetFromHash(hash_array[:])
+}
+
+func Split(filefullpath string, blocksize, filesize int64) ([][]byte, uint64, error) {
+	file, err := os.Open(filefullpath)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer file.Close()
+
+	if filesize/blocksize == 0 {
+		return nil, 0, errors.New("filesize invalid")
+	}
+	n := uint64(math.Ceil(float64(filesize / blocksize)))
+	if n == 0 {
+		n = 1
+	}
+	// matrix is indexed as m_ij, so the first dimension has n items and the second has s.
+	matrix := make([][]byte, n)
+	for i := uint64(0); i < n; i++ {
+		piece := make([]byte, blocksize)
+		_, err := file.Read(piece)
+		if err != nil {
+			return nil, 0, err
+		}
+		matrix[i] = piece
+	}
+	return matrix, n, nil
 }
