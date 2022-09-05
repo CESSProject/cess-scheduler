@@ -70,15 +70,6 @@ type BlockInfo struct {
 	BlockId   types.Bytes
 	MinerIp   types.Bytes
 	MinerAcc  types.AccountID
-	Tag       TagInfo
-}
-
-type TagInfo struct {
-	Name      []byte   `json:"name"`
-	N         int64    `json:"n"`
-	U         [][]byte `json:"u"`
-	Signature []byte   `json:"signature"`
-	Sigmas    [][]byte `json:"sigmas"`
 }
 
 // filler meta info
@@ -87,10 +78,10 @@ type FillerMetaInfo struct {
 	Index     types.U32
 	BlockNum  types.U32
 	BlockSize types.U32
+	ScanSize  types.U32
 	Acc       types.AccountID
 	Id        types.Bytes
 	Hash      types.Bytes
-	Tag       TagInfo
 }
 
 // scheduler info

@@ -36,7 +36,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// runCmd is used to start the scheduling service
+// runCmd is used to start the service
+//
+// Usage:
+//   scheduler run
 func runCmd(cmd *cobra.Command, args []string) {
 	var isReg bool
 	// config file
@@ -62,25 +65,26 @@ func runCmd(cmd *cobra.Command, args []string) {
 		time.Duration(time.Second*15),
 	)
 	if err != nil {
-		log.Println(err)
+		log.Println("[err]", err)
 		os.Exit(1)
 	}
 
 	// judge the balance
-	accountinfo, err := c.GetAccountInfo()
+	accountinfo, err := c.GetAccountInfo(c.GetPublicKey())
 	if err != nil {
-		log.Printf("Failed to get account information.\n")
+		log.Printf("[err] Failed to get account information\n")
 		os.Exit(1)
 	}
+
 	if accountinfo.Data.Free.CmpAbs(
 		new(big.Int).SetUint64(configs.MinimumBalance),
 	) == -1 {
-		log.Printf("Account balance is less than %v pico\n", configs.MinimumBalance)
+		log.Printf("[err] Account balance is less than %v pico\n", configs.MinimumBalance)
 		os.Exit(1)
 	}
 
 	// whether to register
-	schelist, err := c.GetSchedulerInfo()
+	schelist, err := c.GetAllSchedulerInfo()
 	if err != nil {
 		if err.Error() != chain.ERR_Empty {
 			log.Printf("%v\n", err)
@@ -176,21 +180,25 @@ func creatDataDir(
 	}
 
 	logDir := filepath.Join(baseDir, "log")
+	os.RemoveAll(logDir)
 	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
 		return "", "", "", "", err
 	}
 
 	dbDir := filepath.Join(baseDir, "db")
+	os.RemoveAll(dbDir)
 	if err := os.MkdirAll(dbDir, os.ModeDir); err != nil {
 		return "", "", "", "", err
 	}
 
 	fillerDir := filepath.Join(baseDir, "filler")
+	os.RemoveAll(fillerDir)
 	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
 		return "", "", "", "", err
 	}
 
 	fileDir := filepath.Join(baseDir, "file")
+	os.RemoveAll(fileDir)
 	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
 		return "", "", "", "", err
 	}

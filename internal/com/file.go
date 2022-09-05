@@ -267,7 +267,7 @@ func (w *WService) WritefileAction(body []byte) (proto.Message, error) {
 	if b.BlockIndex == blockTotal {
 		w.Log("upfile", "error", errors.Errorf("[%v] Receive all %v blocks", fid, blockTotal))
 		pattern.DeleteAuth(string(b.Auth))
-		filehash, err := calcFileHashByChunks(fileAbsPath, configs.SIZE_1GB)
+		filehash, err := calcFileHashByChunks(fileAbsPath, configs.SIZE_1GiB)
 		if err != nil {
 			w.Log("upfile", "error", errors.Errorf("[%v] %v", fid, err))
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
@@ -695,7 +695,7 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 		blockSize     int64
 		scanBlockSize int64
 	)
-	if fsize < configs.SIZE_1KB {
+	if fsize < configs.SIZE_1KiB {
 		return fsize, fsize
 	}
 	if fsize > math.MaxUint32 {

@@ -20,8 +20,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/natefinch/lumberjack"
@@ -36,7 +36,6 @@ type Logger interface {
 type logs struct {
 	logpath map[string]string
 	log     map[string]*zap.Logger
-	rl      *sync.RWMutex
 }
 
 func NewLogs(logfiles map[string]string) (Logger, error) {
@@ -64,22 +63,20 @@ func NewLogs(logfiles map[string]string) (Logger, error) {
 	return &logs{
 		logpath: logpath,
 		log:     logCli,
-		rl:      new(sync.RWMutex),
 	}, nil
 }
 
 func (l *logs) Log(name, level string, err error) {
-	l.rl.RLock()
+	_, file, line, _ := runtime.Caller(1)
 	v, ok := l.log[name]
-	l.rl.RUnlock()
 	if ok {
 		switch level {
 		case "info":
-			v.Sugar().Infof("%v", err)
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
 		case "error", "err":
-			v.Sugar().Errorf("%v", err)
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
 		case "warn":
-			v.Sugar().Warnf("%v", err)
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
 		}
 	}
 }
@@ -106,7 +103,7 @@ func getEncoder() zapcore.Encoder {
 			EncodeLevel:    cEncodeLevel,
 			EncodeTime:     cEncodeTime,
 			EncodeDuration: zapcore.SecondsDurationEncoder,
-			EncodeCaller:   cEncodeCaller,
+			EncodeCaller:   nil,
 		})
 }
 
@@ -128,8 +125,4 @@ func cEncodeLevel(level zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 
 func cEncodeTime(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 	enc.AppendString("[" + t.Format("2006-01-02 15:04:05") + "]")
-}
-
-func cEncodeCaller(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString("[" + caller.TrimmedPath() + "]")
 }

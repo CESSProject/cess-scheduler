@@ -33,11 +33,9 @@ import (
 )
 
 // updateCmd is used to update the communication address
-// of the scheduling service.
+//
 // Usage:
-//   scheduler update <ipv4:port>
-//   or
-//   scheduler update <domain name>
+//   scheduler update <ipv4:port> or <domain name>
 func updateCmd(cmd *cobra.Command, args []string) {
 	if len(os.Args) >= 3 {
 		addr := strings.Split(os.Args[2], ":")

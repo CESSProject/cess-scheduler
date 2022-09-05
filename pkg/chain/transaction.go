@@ -25,8 +25,13 @@ import (
 )
 
 func (c *chainClient) Register(stash, contact string) (string, error) {
-	var txhash string
-	var accountInfo types.AccountInfo
+	var (
+		txhash      string
+		accountInfo types.AccountInfo
+	)
+
+	c.l.Lock()
+	defer c.l.Unlock()
 
 	if !c.IsChainClientOk() {
 		return txhash, errors.New("rpc connection failed")
@@ -39,7 +44,7 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 
 	call, err := types.NewCall(
 		c.metadata,
-		Tx_FileMap_Add_schedule,
+		tx_FileMap_Add_schedule,
 		types.NewAccountID(stashPuk),
 		types.Bytes([]byte(contact)),
 	)
@@ -54,8 +59,8 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Account,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -123,21 +128,25 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 }
 
 // Update file meta information
-func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, user []byte, chunk []BlockInfo) (string, error) {
+func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, user []byte, block []BlockInfo) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
 	)
+
+	c.l.Lock()
+	defer c.l.Unlock()
+
 	if !c.IsChainClientOk() {
 		return txhash, errors.New("rpc connection failed")
 	}
 
 	call, err := types.NewCall(
 		c.metadata,
-		Tx_FileBank_Upload,
+		tx_FileBank_Upload,
 		types.NewBytes([]byte(fid)),
 		types.U64(fsize),
-		chunk,
+		block,
 		types.NewAccountID(user),
 	)
 	if err != nil {
@@ -151,8 +160,8 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, user []byte, chun
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Account,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -223,11 +232,15 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 		txhash      string
 		accountInfo types.AccountInfo
 	)
+
+	c.l.Lock()
+	defer c.l.Unlock()
+
 	if !c.IsChainClientOk() {
 		return txhash, errors.New("rpc connection failed")
 	}
 
-	call, err := types.NewCall(c.metadata, Tx_FileBank_UploadFiller, miner_acc, info)
+	call, err := types.NewCall(c.metadata, tx_FileBank_UploadFiller, miner_acc, info)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")
 	}
@@ -239,8 +252,8 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Account,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -311,11 +324,15 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 		txhash      string
 		accountInfo types.AccountInfo
 	)
+
+	c.l.Lock()
+	defer c.l.Unlock()
+
 	if !c.IsChainClientOk() {
 		return txhash, errors.New("rpc connection failed")
 	}
 
-	call, err := types.NewCall(c.metadata, Tx_SegmentBook_VerifyProof, data)
+	call, err := types.NewCall(c.metadata, tx_SegmentBook_VerifyProof, data)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")
 	}
@@ -327,8 +344,8 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Account,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -392,143 +409,22 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	}
 }
 
-//
-// func ClearRecoveredFileNoChain(signaturePrk string, duplid types.Bytes) (int, error) {
-// 	var (
-// 		err         error
-// 		accountInfo types.AccountInfo
-// 	)
-// 	api := SubApi.getApi()
-// 	defer func() {
-// 		SubApi.free()
-// 		if err := recover(); err != nil {
-// 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
-// 		}
-// 	}()
-
-// 	keyring, err := signature.KeyringPairFromSecret(signaturePrk, 0)
-// 	if err != nil {
-// 		return configs.Code_400, errors.Wrap(err, "[KeyringPairFromSecret]")
-// 	}
-
-// 	meta, err := api.RPC.State.GetMetadataLatest()
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[GetMetadataLatest]")
-// 	}
-
-// 	c, err := types.NewCall(meta, FileBank_ClearRecoveredFile, duplid)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[NewCall]")
-// 	}
-
-// 	ext := types.NewExtrinsic(c)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[NewExtrinsic]")
-// 	}
-
-// 	genesisHash, err := api.RPC.Chain.GetBlockHash(0)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[GetBlockHash]")
-// 	}
-
-// 	rv, err := api.RPC.State.GetRuntimeVersionLatest()
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[GetRuntimeVersionLatest]")
-// 	}
-
-// 	key, err := types.CreateStorageKey(meta, "System", "Account", keyring.PublicKey)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[CreateStorageKey System Account]")
-// 	}
-
-// 	keye, err := types.CreateStorageKey(meta, "System", "Events", nil)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[CreateStorageKey System Events]")
-// 	}
-
-// 	ok, err := api.RPC.State.GetStorageLatest(key, &accountInfo)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[GetStorageLatest]")
-// 	}
-// 	if !ok {
-// 		return configs.Code_500, errors.New("[GetStorageLatest return value is empty]")
-// 	}
-
-// 	o := types.SignatureOptions{
-// 		BlockHash:          genesisHash,
-// 		Era:                types.ExtrinsicEra{IsMortalEra: false},
-// 		GenesisHash:        genesisHash,
-// 		Nonce:              types.NewUCompactFromUInt(uint64(accountInfo.Nonce)),
-// 		SpecVersion:        rv.SpecVersion,
-// 		Tip:                types.NewUCompactFromUInt(0),
-// 		TransactionVersion: rv.TransactionVersion,
-// 	}
-
-// 	// Sign the transaction
-// 	err = ext.Sign(keyring, o)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[Sign]")
-// 	}
-
-// 	// Do the transfer and track the actual status
-// 	sub, err := api.RPC.Author.SubmitAndWatchExtrinsic(ext)
-// 	if err != nil {
-// 		return configs.Code_500, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
-// 	}
-// 	defer sub.Unsubscribe()
-// 	var head *types.Header
-// 	t := tools.RandomInRange(10000000, 99999999)
-// 	timeout := time.After(time.Second * configs.TimeToWaitEvents_S)
-// 	for {
-// 		select {
-// 		case status := <-sub.Chan():
-// 			if status.IsInBlock {
-// 				events := MyEventRecords{}
-// 				head, err = api.RPC.Chain.GetHeader(status.AsInBlock)
-// 				if err == nil {
-// 					Com.Sugar().Infof("[T:%v] [BN:%v]", t, head.Number)
-// 				} else {
-// 					Com.Sugar().Infof("[T:%v] [BH:%#x]", t, status.AsInBlock)
-// 				}
-// 				h, err := api.RPC.State.GetStorageRaw(keye, status.AsInBlock)
-// 				if err != nil {
-// 					return configs.Code_600, errors.Wrapf(err, "[T:%v]", t)
-// 				}
-// 				err = types.EventRecordsRaw(*h).DecodeEventRecords(meta, &events)
-// 				if err != nil {
-// 					Com.Sugar().Errorf("[T:%v]Decode event err:%v", t, err)
-// 				}
-// 				if events.FileBank_ClearInvalidFile != nil {
-// 					for i := 0; i < len(events.FileBank_ClearInvalidFile); i++ {
-// 						if events.FileBank_ClearInvalidFile[i].Acc == types.NewAccountID(keyring.PublicKey) {
-// 							Com.Sugar().Infof("[T:%v] Submit prove success", t)
-// 							return configs.Code_200, nil
-// 						}
-// 					}
-// 					return configs.Code_600, errors.Errorf("[T:%v] events.FileBank_ClearInvalidFile data err", t)
-// 				}
-// 				return configs.Code_600, errors.Errorf("[T:%v] events.FileBank_ClearInvalidFile not found", t)
-// 			}
-// 		case err = <-sub.Err():
-// 			return configs.Code_500, err
-// 		case <-timeout:
-// 			return configs.Code_500, errors.New("Timeout")
-// 		}
-// 	}
-// }
-
 func (c *chainClient) Update(contact string) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
 	)
+
+	c.l.Lock()
+	defer c.l.Unlock()
+
 	if !c.IsChainClientOk() {
 		return txhash, errors.New("rpc connection failed")
 	}
 
 	call, err := types.NewCall(
 		c.metadata,
-		Tx_FileMap_UpdateScheduler,
+		tx_FileMap_UpdateScheduler,
 		types.Bytes([]byte(contact)),
 	)
 	if err != nil {
@@ -542,8 +438,8 @@ func (c *chainClient) Update(contact string) (string, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Account,
 		c.keyring.PublicKey,
 	)
 	if err != nil {

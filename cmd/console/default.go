@@ -25,8 +25,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// defaultCmd will generate a configuration file template
-// in the current path.
+// defaultCmd generates a configuration file template in the current path
+//
 // Usage:
 //   scheduler default
 func defaultCmd(cmd *cobra.Command, args []string) {

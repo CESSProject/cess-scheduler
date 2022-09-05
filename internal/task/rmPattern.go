@@ -42,7 +42,7 @@ func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
 	for {
 		count++
 		if count >= 5 {
-			accountinfo, err := c.GetAccountInfo()
+			accountinfo, err := c.GetAccountInfo(c.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(2000000000000)) == -1 {
 					logs.Log("comnmon", "into", errors.New("Insufficient balance, program exited"))

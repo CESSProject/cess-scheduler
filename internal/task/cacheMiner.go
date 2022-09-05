@@ -46,17 +46,18 @@ func task_SyncMinersInfo(
 	for {
 		allMinerAcc, _ := cli.GetAllStorageMiner()
 		if len(allMinerAcc) == 0 {
-			time.Sleep(time.Second * 3)
+			time.Sleep(time.Second * 6)
 			continue
 		}
+
 		for i := 0; i < len(allMinerAcc); i++ {
-			b := allMinerAcc[i][:]
-			addr, err := utils.EncodePublicKeyAsCessAccount(b)
+			addr, err := utils.EncodePublicKeyAsCessAccount(allMinerAcc[i][:])
 			if err != nil {
 				logs.Log("smi", "error", errors.Errorf("%v, %v", allMinerAcc[i], err))
 				continue
 			}
-			ok, err := db.Has(b)
+
+			ok, err := db.Has(allMinerAcc[i][:])
 			if err != nil {
 				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
@@ -73,22 +74,20 @@ func task_SyncMinersInfo(
 				err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
 				if err != nil {
 					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
-					db.Delete(b)
+					db.Delete(allMinerAcc[i][:])
 				}
-
 				cm.Peerid = uint64(mdata.PeerId)
 				cm.Ip = string(mdata.Ip)
-				cm.Pubkey = b
+				cm.Pubkey = allMinerAcc[i][:]
 				value, err := json.Marshal(&cm)
 				if err != nil {
 					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 					continue
 				}
-				err = db.Put(b, value)
+				err = db.Put(allMinerAcc[i][:], value)
 				if err != nil {
 					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				}
-				logs.Log("smi", "info", errors.Errorf("[%v] Cache updated", addr))
 				continue
 			}
 
@@ -104,19 +103,22 @@ func task_SyncMinersInfo(
 
 			cm.Peerid = uint64(mdata.PeerId)
 			cm.Ip = string(mdata.Ip)
-			cm.Pubkey = b
+			cm.Pubkey = allMinerAcc[i][:]
 
 			value, err := json.Marshal(&cm)
 			if err != nil {
 				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
-			err = db.Put(b, value)
+
+			err = db.Put(allMinerAcc[i][:], value)
 			if err != nil {
 				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 			}
-			logs.Log("smi", "error", errors.Errorf("[%v] Cache is stored", addr))
-			pattern.DeleteBliacklist(string(b))
+
+			logs.Log("smi", "info", errors.Errorf("[%v] Cache is stored", addr))
+			pattern.DeleteBliacklist(string(allMinerAcc[i][:]))
 		}
+		time.Sleep(time.Second * time.Duration(utils.RandomInRange(60, 180)))
 	}
 }

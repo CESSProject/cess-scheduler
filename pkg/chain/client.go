@@ -26,19 +26,35 @@ import (
 )
 
 type Chainer interface {
+	// Getpublickey returns its own public key
 	GetPublicKey() []byte
+	// GetSyncStatus returns whether the block is being synchronized
+	GetSyncStatus() (bool, error)
+	// Getstorageminerinfo is used to get the details of the miner
 	GetStorageMinerInfo(pkey []byte) (MinerInfo, error)
+	// Getallstorageminer is used to obtain the AccountID of all miners
 	GetAllStorageMiner() ([]types.AccountID, error)
+	// GetFileMetaInfo is used to get the meta information of the file
 	GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error)
-	GetSchedulerInfo() ([]SchedulerInfo, error)
+	// GetAllSchedulerInfo is used to get information about all schedules
+	GetAllSchedulerInfo() ([]SchedulerInfo, error)
+	// GetProofs is used to get all the proofs to be verified
 	GetProofs() ([]Proof, error)
+	// GetCessAccount is used to get the account in cess chain format
 	GetCessAccount() (string, error)
-	GetAccountInfo() (types.AccountInfo, error)
+	// GetAccountInfo is used to get account information
+	GetAccountInfo(pkey []byte) (types.AccountInfo, error)
+	// GetSpacePackageInfo is used to get the space package information of the account
 	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
+	// Register is used by the scheduling service to register
 	Register(stash, contact string) (string, error)
+	// SubmitProofResults is used to submit proof verification results
 	SubmitProofResults(data []ProofResult) (string, error)
+	// SubmitFillerMeta is used to submit the meta information of the filler
 	SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error)
-	SubmitFileMeta(fid string, fsize uint64, user []byte, chunk []BlockInfo) (string, error)
+	// SubmitFileMeta is used to submit the meta information of the file
+	SubmitFileMeta(fid string, fsize uint64, user []byte, block []BlockInfo) (string, error)
+	// Update is used to update the communication address of the scheduling service
 	Update(contact string) (string, error)
 }
 
@@ -77,8 +93,8 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 	}
 	cli.keyEvents, err = types.CreateStorageKey(
 		cli.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Events,
 		nil,
 	)
 	if err != nil {
@@ -92,6 +108,7 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 	}
 	cli.l = new(sync.Mutex)
 	cli.timeForBlockOut = t
+	cli.rpcAddr = rpcAddr
 	return cli, nil
 }
 
@@ -144,16 +161,3 @@ func healthchek(a *gsrpc.SubstrateAPI) (uint64, error) {
 	h, err := a.RPC.System.Health()
 	return uint64(h.Peers), err
 }
-
-// func SyncState() (bool, error) {
-// 	_, err := GetRpcClient_Safe(configs.C.RpcAddr)
-// 	defer Free()
-// 	if err != nil {
-// 		return false, err
-// 	}
-// 	h, err := api.RPC.System.Health()
-// 	if err != nil {
-// 		return false, err
-// 	}
-// 	return h.IsSyncing, nil
-// }

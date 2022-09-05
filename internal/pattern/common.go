@@ -2,6 +2,7 @@ package pattern
 
 import (
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 )
 
 const (
@@ -11,7 +12,8 @@ const (
 type Filler struct {
 	FillerId string
 	Path     string
-	Tag      chain.TagInfo
+	T        pbc.FileTagT
+	Sigmas   [][]byte `json:"sigmas"`
 }
 
 var C_Filler chan Filler

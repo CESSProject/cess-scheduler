@@ -38,7 +38,7 @@ func init() {
 		runCommand(),
 		updateCommand(),
 	)
-	//rootCmd.PersistentFlags().StringVarP(&configs.ConfigFilePath, "config", "c", "", "Custom profile")
+	rootCmd.PersistentFlags().StringP("config", "c", "", "Specify the configuration file")
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

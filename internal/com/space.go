@@ -110,11 +110,8 @@ func (w *WService) SpaceAction(body []byte) (proto.Message, error) {
 		var resp RespSpaceInfo
 		resp.Token = pattern.UpdateSpacemap(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
-		resp.T.N = filler.Tag.N
-		resp.T.Name = filler.Tag.Name
-		resp.T.U = filler.Tag.U
-		resp.T.Signature = filler.Tag.Signature
-		resp.Sigmas = filler.Tag.Sigmas
+		resp.T = filler.T
+		resp.Sigmas = filler.Sigmas
 		resp_b, err := json.Marshal(resp)
 		if err != nil {
 			os.Remove(filler.Path)
@@ -135,11 +132,8 @@ func (w *WService) SpaceAction(body []byte) (proto.Message, error) {
 		var resp RespSpaceInfo
 		resp.Token = pattern.UpdateSpacemap(string(b.Publickey), minerinfo.Ip, filler.FillerId)
 		resp.FileId = filler.FillerId
-		resp.T.T0.N = filler.Tag.N
-		resp.T.T0.Name = filler.Tag.Name
-		resp.T.T0.U = filler.Tag.U
-		resp.T.Signature = filler.Tag.Signature
-		resp.Sigmas = filler.Tag.Sigmas
+		resp.T = filler.T
+		resp.Sigmas = filler.Sigmas
 		resp_b, err := json.Marshal(resp)
 		if err != nil {
 			os.Remove(filler.Path)

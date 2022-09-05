@@ -27,6 +27,17 @@ func (c *chainClient) GetPublicKey() []byte {
 	return c.keyring.PublicKey
 }
 
+func (c *chainClient) GetSyncStatus() (bool, error) {
+	if !c.IsChainClientOk() {
+		return false, errors.New("rpc connection failed")
+	}
+	h, err := c.c.RPC.System.Health()
+	if err != nil {
+		return false, err
+	}
+	return h.IsSyncing, nil
+}
+
 // Get miner information on the chain
 func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 	var data MinerInfo
@@ -35,16 +46,11 @@ func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.Encode(pkey)
-	if err != nil {
-		return data, errors.Wrap(err, "[EncodeToBytes]")
-	}
-
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_Sminer,
-		Sminer_MinerItems,
-		b,
+		state_Sminer,
+		sminer_MinerItems,
+		pkey,
 	)
 	if err != nil {
 		return data, errors.Wrap(err, "[CreateStorageKey]")
@@ -70,8 +76,8 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_Sminer,
-		Sminer_AllMinerItems,
+		state_Sminer,
+		sminer_AllMinerItems,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
@@ -102,8 +108,8 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_FileBank,
-		FileMap_FileMetaInfo,
+		state_FileBank,
+		fileMap_FileMetaInfo,
 		b,
 	)
 	if err != nil {
@@ -121,7 +127,7 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 }
 
 // Query Scheduler info
-func (c *chainClient) GetSchedulerInfo() ([]SchedulerInfo, error) {
+func (c *chainClient) GetAllSchedulerInfo() ([]SchedulerInfo, error) {
 	var data []SchedulerInfo
 
 	if !c.IsChainClientOk() {
@@ -130,8 +136,8 @@ func (c *chainClient) GetSchedulerInfo() ([]SchedulerInfo, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_FileMap,
-		FileMap_SchedulerInfo,
+		state_FileMap,
+		fileMap_SchedulerInfo,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
@@ -157,8 +163,8 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_SegmentBook,
-		SegmentBook_UnVerifyProof,
+		state_SegmentBook,
+		segmentBook_UnVerifyProof,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -195,8 +201,8 @@ func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_FileBank,
-		FileBank_PurchasedPackage,
+		state_FileBank,
+		fileBank_PurchasedPackage,
 		b,
 	)
 	if err != nil {
@@ -214,22 +220,22 @@ func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 }
 
 //
-func (c *chainClient) GetAccountInfo() (types.AccountInfo, error) {
+func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 	var data types.AccountInfo
 
 	if !c.IsChainClientOk() {
 		return data, errors.New("rpc connection failed")
 	}
 
-	b, err := types.Encode(types.NewAccountID(c.keyring.PublicKey))
+	b, err := types.Encode(types.NewAccountID(pkey))
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		State_System,
-		System_Account,
+		state_System,
+		system_Account,
 		b,
 	)
 	if err != nil {

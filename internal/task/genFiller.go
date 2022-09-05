@@ -105,11 +105,8 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			var fillerEle pattern.Filler
 			fillerEle.FillerId = uid
 			fillerEle.Path = fillerpath
-			fillerEle.Tag.N = commitResponse.T.N
-			fillerEle.Tag.Name = commitResponse.T.Name
-			fillerEle.Tag.U = commitResponse.T.U
-			fillerEle.Tag.Signature = commitResponse.T.Signature
-			fillerEle.Tag.Sigmas = commitResponse.Sigmas
+			fillerEle.T = commitResponse.T
+			fillerEle.Sigmas = commitResponse.Sigmas
 			pattern.C_Filler <- fillerEle
 			logs.Log("gf", "info", errors.Errorf("Produced a filler: %v", uid))
 		}
@@ -123,7 +120,7 @@ func generateFiller(fpath string, fsize uint64) error {
 		return err
 	}
 	defer f.Close()
-	rows := fsize / 4096
+	rows := fsize / configs.FillerLineLength
 	for i := uint64(0); i < rows; i++ {
 		f.WriteString(utils.RandStr(4095) + "\n")
 	}

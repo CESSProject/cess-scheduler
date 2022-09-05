@@ -16,22 +16,35 @@
 
 package configs
 
-//
+// account
 const (
-	LengthOfALine = 4096
-	SIZE_1TB      = 1024 * 1024 * 1024 * 1024
-	SIZE_1GB      = 1024 * 1024 * 1024
-	SIZE_1MB      = 1024 * 1024
-	SIZE_1KB      = 1024
-	BlockSize     = 1024 * 1024
-	ScanBlockSize = 512 * 1024
+	// CESS token precision
+	CESSTokenPrecision = 1_000_000_000_000
+	// MinimumBalance is the minimum balance required for the program to run
+	// The unit is pico
+	MinimumBalance = 2 * CESSTokenPrecision
 )
 
+// byte size
 const (
-	MinimumBalance = 2_000_000_000_000
-	FillerSize     = 8 * 1024 * 1024
+	SIZE_1KiB = 1024
+	SIZE_1MiB = 1024 * SIZE_1KiB
+	SIZE_1GiB = 1024 * SIZE_1MiB
 )
 
+// filler
+const (
+	// FillerSize is the fill size of the uncommissioned data segment
+	FillerSize = 8 * SIZE_1MiB
+	// FillerLineLength is the number of characters in a line
+	FillerLineLength = 4096
+	// BlockSize is the block size when pbc is calculated
+	BlockSize = SIZE_1MiB
+	// ScanBlockSize is the size of the scan and cannot be larger than BlockSize
+	ScanBlockSize = BlockSize / 2
+)
+
+// explanation
 const (
 	HELP_common = `Please check with the following help information:
     1.Check if the wallet balance is sufficient

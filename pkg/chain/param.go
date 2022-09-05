@@ -18,46 +18,47 @@ package chain
 
 // cess chain state
 const (
-	State_FileBank    = "FileBank"
-	State_FileMap     = "FileMap"
-	State_Sminer      = "Sminer"
-	State_SegmentBook = "SegmentBook"
-	State_System      = "System"
+	state_FileBank    = "FileBank"
+	state_FileMap     = "FileMap"
+	state_Sminer      = "Sminer"
+	state_SegmentBook = "SegmentBook"
+	state_System      = "System"
 )
 
 // cess chain module method
 const (
 	// System
-	System_Account = "Account"
+	system_Account = "Account"
+	system_Events  = "Events"
 	// Sminer
-	Sminer_AllMinerItems  = "AllMiner"
-	Sminer_MinerItems     = "MinerItems"
-	Sminer_SegInfo        = "SegInfo"
-	Sminer_PurchasedSpace = "PurchasedSpace"
-	Sminer_TotalSpace     = "AvailableSpace"
+	sminer_AllMinerItems  = "AllMiner"
+	sminer_MinerItems     = "MinerItems"
+	sminer_SegInfo        = "SegInfo"
+	sminer_PurchasedSpace = "PurchasedSpace"
+	sminer_TotalSpace     = "AvailableSpace"
 	// FileMap
-	FileMap_FileMetaInfo  = "File"
-	FileMap_SchedulerInfo = "SchedulerMap"
-	FileMap_SchedulerPuk  = "SchedulerPuk"
+	fileMap_FileMetaInfo  = "File"
+	fileMap_SchedulerInfo = "SchedulerMap"
+	fileMap_SchedulerPuk  = "SchedulerPuk"
 	// FileBank
-	FileBank_UserSpaceList    = "UserSpaceList"
-	FileBank_PurchasedPackage = "PurchasedPackage"
-	FileBank_UserFilelist     = "UserHoldFileList"
-	FileBank_FileRecovery     = "FileRecovery"
+	fileBank_UserSpaceList    = "UserSpaceList"
+	fileBank_PurchasedPackage = "PurchasedPackage"
+	fileBank_UserFilelist     = "UserHoldFileList"
+	fileBank_FileRecovery     = "FileRecovery"
 	// SegmentBook
-	SegmentBook_UnVerifyProof = "UnVerifyProof"
+	segmentBook_UnVerifyProof = "UnVerifyProof"
 )
 
 // cess chain Transaction name
 const (
-	//
-	Tx_FileBank_Update             = "FileBank.update"
-	Tx_FileBank_Upload             = "FileBank.upload"
-	Tx_FileBank_UploadFiller       = "FileBank.upload_filler"
-	Tx_FileBank_ClearRecoveredFile = "FileBank.recover_file"
-	//
-	Tx_SegmentBook_VerifyProof = "SegmentBook.verify_proof"
-	//
-	Tx_FileMap_UpdateScheduler = "FileMap.update_scheduler"
-	Tx_FileMap_Add_schedule    = "FileMap.registration_scheduler"
+	// FileBank
+	tx_FileBank_Update             = "FileBank.update"
+	tx_FileBank_Upload             = "FileBank.upload"
+	tx_FileBank_UploadFiller       = "FileBank.upload_filler"
+	tx_FileBank_ClearRecoveredFile = "FileBank.recover_file"
+	// SegmentBook
+	tx_SegmentBook_VerifyProof = "SegmentBook.verify_proof"
+	// FileMap
+	tx_FileMap_UpdateScheduler = "FileMap.update_scheduler"
+	tx_FileMap_Add_schedule    = "FileMap.registration_scheduler"
 )

@@ -32,7 +32,7 @@ func reedSolomonRule(fsize int64) (int, int, error) {
 	var count int64
 	datachunk := int64(1)
 
-	if fsize <= configs.SIZE_1KB {
+	if fsize <= configs.SIZE_1KiB {
 		if fsize <= 1 {
 			return 1, 0, nil
 		}
@@ -40,7 +40,7 @@ func reedSolomonRule(fsize int64) (int, int, error) {
 		goto result
 	}
 
-	count = fsize / configs.SIZE_1GB
+	count = fsize / configs.SIZE_1GiB
 	if count <= 1 {
 		datachunk = 4
 	} else {
