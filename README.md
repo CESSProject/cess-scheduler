@@ -180,7 +180,7 @@ sudo ./scheduler run 2>&1 &
 
 ## Important feature 1: File routing
 **Step 1:** Declaration file
-The uploader shall first calculate the sha256 value of the file, declare it to the cess chain, and then request the scheduling to upload the file. The scheduling shall first determine whether the file is declared, and then select whether to receive the file, see: https://github.com/CESSProject/cess-scheduler/blob/main/internal/com/file.go#L112-L205
+The uploader shall first calculate the sha256 value of the file, declare it to the cess chain, and then request the scheduling to upload the file. The scheduling shall first determine whether the file is declared, and then select whether to receive the file, see: https://github.com/CESSProject/cess-scheduler/blob/6118d9eabb2b71cc1589459fff821152a3668dec/internal/com/file.go#L112-L205
 
 **Step 2:** File redundancy
 After the scheduler receives the files uploaded by the user, it performs redundant processing on it. The algorithm used is Reed-Solomon, and the redundancy is 0.5 times, see: https://github.com/CESSProject/cess-scheduler/blob/c07cff13195cda12e35d72b98b16a47f4f9c2745/pkg/coding/reedsolomon.go#L68-L182
@@ -189,4 +189,4 @@ After the scheduler receives the files uploaded by the user, it performs redunda
 Finally, the scheduling service selects miners in the entire network, and randomly stores files on these miners. Before storing, the miners' certification space will be judged. For details, see: https://github.com/CESSProject/cess-scheduler/blob/c07cff13195cda12e35d72b98b16a47f4f9c2745/internal/com/file.go#L712-L896
 
 ## Important feature 2: Proof of verification
-The scheduling service starts a scheduled task to obtain the proof to be verified. After obtaining the proof, each proof is verified, and some parameter information needs to be obtained from the corresponding miner to complete the verification. If the miner is offline at this time, the proof is reachable. Verification failed, see: https://github.com/CESSProject/cess-scheduler/blob/main/internal/task/verify.go#L37-L205
+The scheduling service starts a scheduled task to obtain the proof to be verified. After obtaining the proof, each proof is verified, and some parameter information needs to be obtained from the corresponding miner to complete the verification. If the miner is offline at this time, the proof is reachable. Verification failed, see: https://github.com/CESSProject/cess-scheduler/blob/6118d9eabb2b71cc1589459fff821152a3668dec/internal/task/verify.go#L37-L205
