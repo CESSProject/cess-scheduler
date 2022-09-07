@@ -14,20 +14,19 @@
    limitations under the License.
 */
 
-package initlz
+package utils
 
 import (
-	"log"
-	"os"
-	"runtime"
+	"bytes"
+	"errors"
+	"fmt"
+	"runtime/debug"
 )
 
-func init() {
-	// Determine if the operating system is linux
-	if runtime.GOOS != "linux" {
-		log.Println("[err] Please run on linux system.")
-		os.Exit(1)
-	}
-	// Allocate all cores to the program
-	runtime.GOMAXPROCS(runtime.NumCPU())
+func RecoverError(err interface{}) error {
+	buf := new(bytes.Buffer)
+	fmt.Fprintf(buf, "%v\n", "--------------------panic--------------------")
+	fmt.Fprintf(buf, "%v\n", err)
+	fmt.Fprintf(buf, "%v\n", string(debug.Stack()))
+	return errors.New(buf.String())
 }

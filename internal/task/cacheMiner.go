@@ -1,73 +1,98 @@
+/*
+   Copyright 2022 CESS scheduler authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package task
 
 import (
-	"cess-scheduler/internal/chain"
-	"cess-scheduler/internal/db"
-	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/pattern"
-	"cess-scheduler/internal/rpc"
-	"cess-scheduler/tools"
 	"encoding/json"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/rpc"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
+	"github.com/pkg/errors"
 )
 
-func task_SyncMinersInfo(ch chan bool) {
+func task_SyncMinersInfo(
+	ch chan bool,
+	logs logger.Logger,
+	cli chain.Chainer,
+	db db.Cache,
+) {
 	defer func() {
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			logs.Log("panic", "error", utils.RecoverError(err))
 		}
 		ch <- true
 	}()
-
-	Tsmi.Info("-----> Start task_UpdateMinerInfo")
+	logs.Log("smi", "info", errors.New("-----> Start task_SyncMinersInfo"))
 
 	for {
-		allMinerAcc, _ := chain.GetAllMinerDataOnChain()
+		allMinerAcc, _ := cli.GetAllStorageMiner()
 		if len(allMinerAcc) == 0 {
-			time.Sleep(time.Second * 3)
+			time.Sleep(time.Second * 6)
 			continue
 		}
+
 		for i := 0; i < len(allMinerAcc); i++ {
-			b := allMinerAcc[i][:]
-			addr, err := tools.EncodeToCESSAddr(b)
+			addr, err := utils.EncodePublicKeyAsCessAccount(allMinerAcc[i][:])
 			if err != nil {
-				Tsmi.Sugar().Errorf("[%v] EncodeToCESSAddr: %v", allMinerAcc[i], err)
+				logs.Log("smi", "error", errors.Errorf("%v, %v", allMinerAcc[i], err))
 				continue
 			}
-			ok, err := db.Has(b)
+
+			ok, err := db.Has(allMinerAcc[i][:])
 			if err != nil {
-				Tsmi.Sugar().Errorf("[%v] c.Has: %v", addr, err)
+				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
 			var cm chain.Cache_MinerInfo
-
-			mdata, err := chain.GetMinerInfo(allMinerAcc[i])
+			mdata, err := cli.GetStorageMinerInfo(allMinerAcc[i][:])
 			if err != nil {
-				Tsmi.Sugar().Errorf("[%v] GetMinerInfo: %v", addr, err)
+				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
 			if ok {
-				err = rpc.Dial(string(mdata.Ip))
-				if err != nil {
-					Tsmi.Sugar().Errorf("[%v] %v", addr, err)
-					db.Delete(b)
-				}
-
-				cm.Peerid = uint64(mdata.PeerId)
-				cm.Ip = string(mdata.Ip)
-				cm.Pubkey = b
-				value, err := json.Marshal(&cm)
-				if err != nil {
-					Tsmi.Sugar().Errorf("[%v] json.Marshal: %v", addr, err)
+				if string(mdata.State) == "exit" {
+					db.Delete(allMinerAcc[i][:])
 					continue
 				}
-				err = db.Put(b, value)
+
+				err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
 				if err != nil {
-					Tsmi.Sugar().Errorf("[%v] Put: %v", addr, err)
+					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+					db.Delete(allMinerAcc[i][:])
 				}
-				Tsmi.Sugar().Infof("[%v] Cache updated", addr)
+				cm.Peerid = uint64(mdata.PeerId)
+				cm.Ip = string(mdata.Ip)
+				cm.Pubkey = allMinerAcc[i][:]
+				value, err := json.Marshal(&cm)
+				if err != nil {
+					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+					continue
+				}
+				err = db.Put(allMinerAcc[i][:], value)
+				if err != nil {
+					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				}
 				continue
 			}
 
@@ -75,27 +100,30 @@ func task_SyncMinersInfo(ch chan bool) {
 				continue
 			}
 
-			err = rpc.Dial(string(mdata.Ip))
+			err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
 			if err != nil {
-				Tsmi.Sugar().Errorf("[%v] %v", addr, err)
+				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
 			cm.Peerid = uint64(mdata.PeerId)
 			cm.Ip = string(mdata.Ip)
-			cm.Pubkey = b
+			cm.Pubkey = allMinerAcc[i][:]
 
 			value, err := json.Marshal(&cm)
 			if err != nil {
-				Tsmi.Sugar().Errorf("[%v] json.Marshal: %v", addr, err)
+				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
-			err = db.Put(b, value)
+
+			err = db.Put(allMinerAcc[i][:], value)
 			if err != nil {
-				Tsmi.Sugar().Errorf("[%v] Put: %v", addr, err)
+				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 			}
-			Tsmi.Sugar().Infof("[%v] Cache is stored", addr)
-			pattern.DeleteBliacklist(string(b))
+
+			logs.Log("smi", "info", errors.Errorf("[%v] Cache is stored", addr))
+			pattern.DeleteBliacklist(string(allMinerAcc[i][:]))
 		}
+		time.Sleep(time.Second * time.Duration(utils.RandomInRange(60, 180)))
 	}
 }

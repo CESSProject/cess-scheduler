@@ -1,25 +1,25 @@
 package pattern
 
 import (
-	"cess-scheduler/internal/chain"
-	apiv1 "cess-scheduler/internal/proof/apiv1"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 )
 
 const (
-	Chan_Filler_len = 30
+	C_Filler_Maxlen = 30
 )
 
 type Filler struct {
 	FillerId string
 	Path     string
-	T        apiv1.FileTagT
+	T        pbc.FileTagT
 	Sigmas   [][]byte `json:"sigmas"`
 }
 
-var Chan_Filler chan Filler
-var Chan_FillerMeta chan chain.SpaceFileInfo
+var C_Filler chan Filler
+var C_FillerMeta chan chain.FillerMetaInfo
 
 func init() {
-	Chan_Filler = make(chan Filler, Chan_Filler_len)
-	Chan_FillerMeta = make(chan chain.SpaceFileInfo, 100)
+	C_Filler = make(chan Filler, C_Filler_Maxlen)
+	C_FillerMeta = make(chan chain.FillerMetaInfo, 100)
 }

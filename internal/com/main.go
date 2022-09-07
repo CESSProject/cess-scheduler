@@ -14,48 +14,55 @@
    limitations under the License.
 */
 
-package task
+package com
 
 import (
+	"log"
+	"net/http"
+	"os"
+
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 )
 
-func Run(
+type WService struct {
+	configfile.Configfiler
+	logger.Logger
+	db.Cache
+	chain.Chainer
+	fillerDir string
+	fileDir   string
+}
+
+// Start tcp service.
+// If an error occurs, it will exit immediately.
+func Start(
 	confile configfile.Configfiler,
 	c chain.Chainer,
 	db db.Cache,
 	logs logger.Logger,
 	fillerDir string,
+	fileDir string,
 ) {
-	var (
-		channel_1 = make(chan bool, 1)
-		channel_2 = make(chan bool, 1)
-		channel_3 = make(chan bool, 1)
-		channel_4 = make(chan bool, 1)
-		channel_5 = make(chan bool, 1)
+	srv := rpc.NewServer()
+	err := srv.Register(
+		RpcService_Scheduler,
+		&WService{confile, logs, db, c, fillerDir, fileDir},
 	)
-
-	go task_SyncMinersInfo(channel_1, logs, c, db)
-	go task_ValidateProof(channel_2, logs, c, db)
-	go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
-	go task_GenerateFiller(channel_4, logs, fillerDir)
-	go task_ClearAuthMap(channel_5, logs, c)
-
-	for {
-		select {
-		case <-channel_1:
-			go task_SyncMinersInfo(channel_1, logs, c, db)
-		case <-channel_2:
-			go task_ValidateProof(channel_2, logs, c, db)
-		case <-channel_3:
-			go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
-		case <-channel_4:
-			go task_GenerateFiller(channel_4, logs, fillerDir)
-		case <-channel_5:
-			go task_ClearAuthMap(channel_5, logs, c)
-		}
+	if err != nil {
+		log.Printf("[err] %v\n", err)
+		os.Exit(1)
+	}
+	log.Println("Start and listen on port ", confile.GetServicePort(), "...")
+	err = http.ListenAndServe(
+		":"+confile.GetServicePort(),
+		srv.WebsocketHandler([]string{"*"}),
+	)
+	if err != nil {
+		log.Printf("[err] %v\n", err)
+		os.Exit(1)
 	}
 }

@@ -1,26 +1,44 @@
+/*
+   Copyright 2022 CESS scheduler authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package task
 
 import (
-	"cess-scheduler/configs"
-	. "cess-scheduler/internal/logger"
-	"cess-scheduler/internal/pattern"
-	apiv1 "cess-scheduler/internal/proof/apiv1"
-	"cess-scheduler/tools"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
+	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
+	"github.com/pkg/errors"
 )
 
-func task_GenerateFiller(ch chan bool) {
+func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
+			logs.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
 
-	Tgf.Info("-----> Start task_GenerateFiller")
+	logs.Log("gf", "info", errors.New("-----> Start task_GenerateFiller"))
 
 	var (
 		err        error
@@ -28,66 +46,59 @@ func task_GenerateFiller(ch chan bool) {
 		fillerpath string
 	)
 	for {
-		for len(pattern.Chan_Filler) < pattern.Chan_Filler_len {
+		for len(pattern.C_Filler) < pattern.C_Filler_Maxlen {
 			for {
-				uid, _ = tools.GetGuid(int64(tools.RandomInRange(0, 1024)))
-				fillerpath = filepath.Join(configs.SpaceCacheDir, fmt.Sprintf("%s", uid))
+				uid, _ = utils.GetGuid(int64(utils.RandomInRange(0, 1024)))
+				if uid == "" {
+					continue
+				}
+				fillerpath = filepath.Join(fillerDir, fmt.Sprintf("%s", uid))
 				_, err = os.Stat(fillerpath)
 				if err != nil {
 					break
 				}
 			}
-			err = generateFiller(fillerpath)
+			err = generateFiller(fillerpath, configs.FillerSize)
 			if err != nil {
-				Tgf.Sugar().Errorf("%v", err)
+				logs.Log("gf", "error", err)
 				os.Remove(fillerpath)
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
 			fstat, _ := os.Stat(fillerpath)
-			if fstat.Size() != 8386771 {
-				Tgf.Sugar().Errorf("filler size err: %v", err)
+			if fstat.Size() != configs.FillerSize {
+				logs.Log("gf", "error", errors.Errorf("filler size err: %v", err))
 				os.Remove(fillerpath)
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
+			// call the sgx service interface to get the tag
 			// calculate file tag info
-			var PoDR2commit apiv1.PoDR2Commit
-			var commitResponse apiv1.PoDR2CommitResponse
+			var PoDR2commit pbc.PoDR2Commit
+			var commitResponse pbc.PoDR2CommitResponse
 			PoDR2commit.FilePath = fillerpath
 			PoDR2commit.BlockSize = configs.BlockSize
 
-			gWait := make(chan bool)
-			go func(ch chan bool) {
-				commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
-					apiv1.Key_Ssk,
-					string(apiv1.Key_SharedParams),
-					int64(configs.ScanBlockSize),
-				)
-				if err != nil {
-					ch <- false
-					return
-				}
-				aft := time.After(time.Second * 5)
-				select {
-				case commitResponse = <-commitResponseCh:
-				case <-aft:
-					ch <- false
-					return
-				}
-				if commitResponse.StatueMsg.StatusCode != apiv1.Success {
-					ch <- false
-				} else {
-					ch <- true
-				}
-			}(gWait)
+			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
+				pbc.Key_Ssk,
+				string(pbc.Key_SharedParams),
+				int64(configs.ScanBlockSize),
+			)
+			if err != nil {
+				logs.Log("gf", "error", err)
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
+				continue
+			}
 
-			if rst := <-gWait; !rst {
+			select {
+			case commitResponse = <-commitResponseCh:
+			}
+			if commitResponse.StatueMsg.StatusCode != pbc.Success {
 				os.Remove(fillerpath)
-				Tgf.Sugar().Errorf("PoDR2ProofCommit false")
-				time.Sleep(time.Second * time.Duration(tools.RandomInRange(5, 30)))
+				logs.Log("gf", "error", errors.New("PoDR2ProofCommit false"))
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
@@ -96,26 +107,22 @@ func task_GenerateFiller(ch chan bool) {
 			fillerEle.Path = fillerpath
 			fillerEle.T = commitResponse.T
 			fillerEle.Sigmas = commitResponse.Sigmas
-			pattern.Chan_Filler <- fillerEle
-			Tgf.Sugar().Infof("Produced a filler: %v", uid)
+			pattern.C_Filler <- fillerEle
+			logs.Log("gf", "info", errors.Errorf("Produced a filler: %v", uid))
 		}
 		time.Sleep(time.Second)
 	}
 }
 
-func generateFiller(fpath string) error {
+func generateFiller(fpath string, fsize uint64) error {
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	for i := 0; i < 2047; i++ {
-		f.WriteString(tools.RandStr(4096) + "\n")
-	}
-	_, err = f.WriteString(tools.RandStr(212))
-	if err != nil {
-		os.Remove(fpath)
-		return err
+	rows := fsize / configs.FillerLineLength
+	for i := uint64(0); i < rows; i++ {
+		f.WriteString(utils.RandStr(configs.FillerLineLength-1) + "\n")
 	}
 	err = f.Sync()
 	if err != nil {

@@ -14,20 +14,28 @@
    limitations under the License.
 */
 
-package initlz
+package db
 
-import (
-	"log"
-	"os"
-	"runtime"
-)
+import "io"
 
-func init() {
-	// Determine if the operating system is linux
-	if runtime.GOOS != "linux" {
-		log.Println("[err] Please run on linux system.")
-		os.Exit(1)
-	}
-	// Allocate all cores to the program
-	runtime.GOMAXPROCS(runtime.NumCPU())
+type Reader interface {
+	// Has returns true if the given key exists in the key-value data store.
+	Has(key []byte) (bool, error)
+
+	// Get fetch the given key if it's present in the key-value data store.
+	Get(key []byte) ([]byte, error)
+}
+
+type Writer interface {
+	// Put store the given key-value in the key-value data store
+	Put(key []byte, value []byte) error
+
+	// Delete removes the key from the key-value data store.
+	Delete(key []byte) error
+}
+
+type Cache interface {
+	Reader
+	Writer
+	io.Closer
 }

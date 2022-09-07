@@ -5,7 +5,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-        http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,20 +14,11 @@
    limitations under the License.
 */
 
-package initlz
+package main
 
-import (
-	"log"
-	"os"
-	"runtime"
-)
+import "github.com/CESSProject/cess-scheduler/cmd/console"
 
-func init() {
-	// Determine if the operating system is linux
-	if runtime.GOOS != "linux" {
-		log.Println("[err] Please run on linux system.")
-		os.Exit(1)
-	}
-	// Allocate all cores to the program
-	runtime.GOMAXPROCS(runtime.NumCPU())
+// program entry
+func main() {
+	console.Execute()
 }
