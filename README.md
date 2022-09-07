@@ -79,7 +79,7 @@ CESS-Bucket requires [Go 1.19](https://golang.org/dl/) or higher.
 
 > See the [official Golang installation instructions](https://golang.org/doc/install) If you get stuck in the following process.
 
-- Download go1.16.5 compress the package and extract it to the /use/local directory:
+- Download go1.19 compress the package and extract it to the /use/local directory:
 
 ```shell
 sudo wget -c https://golang.org/dl/go1.19.linux-amd64.tar.gz -O - | sudo tar -xz -C /usr/local
@@ -172,7 +172,7 @@ The `scheduler` has many functions, you can use `-h` or `--help` to view, as fol
 | run      | Register and run the scheduler program         |
 | update   | Update scheduling service ip and port          |
 
-**Step 5:** Start scheduler
+**Step 6:** Start scheduler
 
 ```shell
 sudo ./scheduler run 2>&1 &
@@ -190,4 +190,3 @@ Finally, the scheduling service selects miners in the entire network, and random
 
 ## Important feature 2: Proof of verification
 The scheduling service starts a scheduled task to obtain the proof to be verified. After obtaining the proof, each proof is verified, and some parameter information needs to be obtained from the corresponding miner to complete the verification. If the miner is offline at this time, the proof is reachable. Verification failed, see: https://github.com/CESSProject/cess-scheduler/blob/main/internal/task/verify.go#L37-L205
-
