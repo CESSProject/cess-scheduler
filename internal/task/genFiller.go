@@ -122,7 +122,7 @@ func generateFiller(fpath string, fsize uint64) error {
 	defer f.Close()
 	rows := fsize / configs.FillerLineLength
 	for i := uint64(0); i < rows; i++ {
-		f.WriteString(utils.RandStr(4095) + "\n")
+		f.WriteString(utils.RandStr(configs.FillerLineLength-1) + "\n")
 	}
 	err = f.Sync()
 	if err != nil {

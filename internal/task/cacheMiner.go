@@ -71,6 +71,11 @@ func task_SyncMinersInfo(
 			}
 
 			if ok {
+				if string(mdata.State) == "exit" {
+					db.Delete(allMinerAcc[i][:])
+					continue
+				}
+
 				err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
 				if err != nil {
 					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))

@@ -17,12 +17,20 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.5.2.220905.1422"
+const Version = "cess-scheduler v0.5.2"
 
-// name and description
 const (
-	Name        = "cess-scheduler"
+	// Name is the name of the program
+	Name = "cess-scheduler"
+	// Description is the description of the program
 	Description = "Implementation of Scheduling Service for Consensus Nodes"
-	BaseDir     = "scheduler"
-	NameSpace   = "scheduler"
+	// NameSpace is the cached namespace
+	NameSpace = "scheduler"
+	// BaseDir is the base directory where data is stored
+	BaseDir = NameSpace
+)
+
+const (
+	// BlockInterval is the time interval for generating blocks, in seconds
+	BlockInterval = 6
 )

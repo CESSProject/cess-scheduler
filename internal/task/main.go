@@ -37,11 +37,13 @@ func Run(
 		channel_4 = make(chan bool, 1)
 		channel_5 = make(chan bool, 1)
 	)
+
 	go task_SyncMinersInfo(channel_1, logs, c, db)
 	go task_ValidateProof(channel_2, logs, c, db)
 	go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
 	go task_GenerateFiller(channel_4, logs, fillerDir)
 	go task_ClearAuthMap(channel_5, logs, c)
+
 	for {
 		select {
 		case <-channel_1:

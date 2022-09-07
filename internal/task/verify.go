@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/api/protobuf"
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/internal/com"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
@@ -33,7 +34,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//
 func task_ValidateProof(
 	ch chan bool,
 	logs logger.Logger,
@@ -43,6 +43,7 @@ func task_ValidateProof(
 	var (
 		err         error
 		goeson      bool
+		txhash      string
 		poDR2verify pbc.PoDR2Verify
 		reqtag      protobuf.ReadTagReq
 		proofs      = make([]chain.Proof, 0)
@@ -58,26 +59,36 @@ func task_ValidateProof(
 	reqtag.Acc = cli.GetPublicKey()
 
 	for {
-		var verifyResults = make([]chain.ProofResult, 0)
 		proofs, err = cli.GetProofs()
 		if err != nil {
 			if err.Error() != chain.ERR_Empty {
 				logs.Log("vp", "error", err)
 			}
-			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 10)))
+			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 6)))
 			continue
 		}
 		if len(proofs) == 0 {
-			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 10)))
+			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 6)))
 			continue
 		}
+
 		logs.Log("vp", "info", errors.Errorf("--> Ready to verify %v proofs", len(proofs)))
 
 		var respData []byte
 		var tag pbc.TagInfo
+		var verifyResults = make([]chain.ProofResult, 0)
 		for i := 0; i < len(proofs); i++ {
-			if len(verifyResults) > 45 {
-				break
+			if len(verifyResults) >= 40 {
+				txhash = ""
+				for txhash == "" {
+					txhash, _ = cli.SubmitProofResults(verifyResults)
+					if txhash != "" {
+						logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
+						break
+					}
+					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
+				}
+				verifyResults = verifyResults[:0]
 			}
 			goeson = false
 			addr, err := utils.EncodePublicKeyAsCessAccount(proofs[i].Miner_pubkey[:])
@@ -177,25 +188,18 @@ func task_ValidateProof(
 			resultTemp.Result = types.Bool(result)
 			verifyResults = append(verifyResults, resultTemp)
 		}
-		go processProofResult(logs, cli, verifyResults)
-	}
-}
-
-func processProofResult(logs logger.Logger, cli chain.Chainer, data []chain.ProofResult) {
-	var (
-		err      error
-		txhash   string
-		tryCount uint8
-	)
-	for tryCount < 3 {
-		txhash, err = cli.SubmitProofResults(data)
-		if txhash != "" {
-			logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
-			if err == nil {
-				return
+		if len(verifyResults) > 0 {
+			txhash = ""
+			for txhash == "" {
+				txhash, _ = cli.SubmitProofResults(verifyResults)
+				if txhash != "" {
+					logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
+					break
+				}
+				time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
 			}
+			verifyResults = verifyResults[:0]
 		}
-		tryCount++
-		time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
+		time.Sleep(time.Second * configs.BlockInterval)
 	}
 }

@@ -57,6 +57,7 @@ const (
         If system.ExtrinsicSuccess is prompted, it means success;`
 )
 
+// log
 var (
 	LogName = [9]string{"common", "upfile", "downfile", "filler", "panic", "vp", "smi", "sfm", "gf"}
 )

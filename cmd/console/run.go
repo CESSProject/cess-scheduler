@@ -39,7 +39,8 @@ import (
 // runCmd is used to start the service
 //
 // Usage:
-//   scheduler run
+//
+//	scheduler run
 func runCmd(cmd *cobra.Command, args []string) {
 	var isReg bool
 	// config file
@@ -130,6 +131,20 @@ func runCmd(cmd *cobra.Command, args []string) {
 		log.Println(err)
 		os.Exit(1)
 	}
+	// sync block
+	for {
+		ok, err := c.GetSyncStatus()
+		if err != nil {
+			log.Println(err)
+			os.Exit(1)
+		}
+		if !ok {
+			break
+		}
+		log.Println("In sync block...")
+		time.Sleep(time.Second * configs.BlockInterval)
+	}
+	log.Println("Sync complete")
 
 	// run task
 	go task.Run(confile, c, db, logs, fillerDir)
@@ -180,7 +195,11 @@ func creatDataDir(
 	}
 
 	logDir := filepath.Join(baseDir, "log")
-	os.RemoveAll(logDir)
+	_, err = os.Stat(logDir)
+	if err == nil {
+		bkp := logDir + fmt.Sprintf("_%v", time.Now().Unix())
+		os.Rename(logDir, bkp)
+	}
 	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
 		return "", "", "", "", err
 	}

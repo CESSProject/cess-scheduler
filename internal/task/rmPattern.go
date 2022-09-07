@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/internal/pattern"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
@@ -36,7 +37,7 @@ func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
 			logs.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
-	logs.Log("comnmon", "into", errors.New("-----> Start task_ClearAuthMap"))
+	logs.Log("common", "info", errors.New("-----> Start task_ClearAuthMap"))
 
 	var count uint8
 	for {
@@ -44,17 +45,17 @@ func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
 		if count >= 5 {
 			accountinfo, err := c.GetAccountInfo(c.GetPublicKey())
 			if err == nil {
-				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(2000000000000)) == -1 {
-					logs.Log("comnmon", "into", errors.New("Insufficient balance, program exited"))
+				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
+					logs.Log("common", "info", errors.New("Insufficient balance, program exited"))
 					log.Printf("Insufficient balance, program exited.\n")
 					os.Exit(1)
 				}
 			}
 			count = 0
-			// Com.Info("Connected miners:")
-			// Com.Sugar().Info(pattern.GetConnectedSpacem())
-			// Com.Info("Black miners:")
-			// Com.Sugar().Info(pattern.GetBlacklist())
+			logs.Log("common", "info", errors.New("Connected miners:"))
+			logs.Log("common", "info", errors.Errorf("%v", pattern.GetConnectedSpacem()))
+			logs.Log("common", "info", errors.New("Black miners:"))
+			logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
 		}
 		time.Sleep(time.Minute)
 		pattern.DeleteExpiredAuth()
