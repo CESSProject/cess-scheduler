@@ -25,6 +25,10 @@ import (
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) SpaceAction(body []byte) (proto.Message, error) {
+	if pattern.TxStatus.Load() == false {
+		return &RespBody{Code: http.StatusInternalServerError, Msg: "Tx error"}, nil
+	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -39,6 +43,10 @@ func (WService) SpaceAction(body []byte) (proto.Message, error) {
 
 	if !pattern.IsPass(string(b.Publickey)) {
 		return &RespBody{Code: 403, Msg: "Forbidden"}, nil
+	}
+
+	if fileCtl.Length() > 0 {
+		return &RespBody{Code: 403, Msg: "Busy"}, nil
 	}
 
 	if pattern.IsMaxSpacem(string(b.Publickey)) {

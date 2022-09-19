@@ -63,6 +63,12 @@ type RespSpaceInfo struct {
 	Sigmas [][]byte `json:"sigmas"`
 }
 
+type filectl struct {
+	f map[string]int64
+	l *sync.Mutex
+}
+
+var fileCtl *filectl
 var ctl *calcTagLock
 
 var globalTransport *http.Transport
@@ -77,6 +83,10 @@ func init() {
 	ctl.lock = new(sync.Mutex)
 	ctl.flag = false
 
+	fileCtl = &filectl{
+		f: make(map[string]int64),
+		l: new(sync.Mutex),
+	}
 }
 
 // Start tcp service.
@@ -108,43 +118,42 @@ func (this *calcTagLock) FreeLock() {
 	this.lock.Unlock()
 }
 
-// func task_Management() {
-// 	var (
-// 		channel_1 = make(chan bool, 1)
-// 		//channel_2 = make(chan bool, 1)
-// 		channel_3 = make(chan bool, 1)
-// 		channel_4 = make(chan bool, 1)
-// 		channel_5 = make(chan bool, 1)
-// 		channel_6 = make(chan bool, 1)
-// 	)
-// 	go task_SyncMinersInfo(channel_1)
-// 	//go task_RecoveryFiles(channel_2)
-// 	go task_ValidateProof(channel_3)
-// 	go task_ClearAuthMap(channel_4)
-// 	go task_SubmitFillerMeta(channel_5)
-// 	go task_GenerateFiller(channel_6)
-// 	for {
-// 		select {
-// 		case <-channel_1:
-// 			go task_SyncMinersInfo(channel_1)
-// 		// case <-channel_2:
-// 		// 	go task_RecoveryFiles(channel_2)
-// 		case <-channel_3:
-// 			go task_ValidateProof(channel_3)
-// 		case <-channel_4:
-// 			go task_ClearAuthMap(channel_4)
-// 		case <-channel_5:
-// 			go task_SubmitFillerMeta(channel_5)
-// 		case <-channel_6:
-// 			go task_GenerateFiller(channel_6)
-// 		}
-// 	}
-// }
+func (f *filectl) Add(key string) {
+	f.l.Lock()
+	f.f[key] = time.Now().Unix()
+	f.l.Unlock()
+}
+
+func (f *filectl) Del(key string) {
+	f.l.Lock()
+	delete(f.f, key)
+	f.l.Unlock()
+}
+
+func (f *filectl) Length() int {
+	f.l.Lock()
+	defer f.l.Unlock()
+	return len(f.f)
+}
+
+func DelExpired() {
+	fileCtl.l.Lock()
+	defer fileCtl.l.Unlock()
+	for k, v := range fileCtl.f {
+		if time.Since(time.Unix(v, 0)).Minutes() > 10 {
+			delete(fileCtl.f, k)
+		}
+	}
+}
 
 // AuthAction is used to generate credentials.
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) AuthAction(body []byte) (proto.Message, error) {
+	if pattern.TxStatus.Load() == false {
+		return &RespBody{Code: http.StatusInternalServerError, Msg: "Tx error"}, nil
+	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -157,9 +166,9 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 		return &RespBody{Code: 400, Msg: "Bad Requset"}, nil
 	}
 
-	if !pattern.IsPass(string(b.PublicKey)) {
-		return &RespBody{Code: 403, Msg: "Forbidden"}, nil
-	}
+	// if !pattern.IsPass(string(b.PublicKey)) {
+	// 	return &RespBody{Code: 403, Msg: "Forbidden"}, nil
+	// }
 
 	if len(b.Msg) == 0 || len(b.Sign) < 64 {
 		return &RespBody{Code: 400, Msg: "Invalid Sign"}, nil
@@ -243,6 +252,10 @@ func (WService) AuthAction(body []byte) (proto.Message, error) {
 // The return code is 200 for success, non-200 for failure.
 // The returned Msg indicates the result reason.
 func (WService) WritefileAction(body []byte) (proto.Message, error) {
+	if pattern.TxStatus.Load() == false {
+		return &RespBody{Code: http.StatusInternalServerError, Msg: "Tx error"}, nil
+	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			Pnc.Sugar().Errorf("%v", tools.RecoverError(err))
@@ -261,15 +274,17 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	blockTotal, fid, pubkey, fname, err := pattern.GetAndUpdateAuth(string(b.Auth))
 	if err != nil {
+		fileCtl.Del(fid)
 		return &RespBody{Code: 403, Msg: err.Error()}, nil
 	}
-
+	fileCtl.Add(fid)
 	fileAbsPath := filepath.Join(configs.FileCacheDir, fid)
 
 	if b.BlockIndex == 1 {
 		Uld.Sugar().Infof("++> Upload file [%v] ", fid)
 		_, err = os.Create(fileAbsPath)
 		if err != nil {
+			fileCtl.Del(fid)
 			Uld.Sugar().Errorf("[%v] Create: %v", fid, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
@@ -277,12 +292,14 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	f, err := os.OpenFile(fileAbsPath, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
+		fileCtl.Del(fid)
 		Uld.Sugar().Errorf("[%v] OpenFile: %v", fid, err)
 		return &RespBody{Code: 500, Msg: err.Error()}, nil
 	}
 
 	_, err = f.Write(b.FileData)
 	if err != nil {
+		fileCtl.Del(fid)
 		f.Close()
 		os.Remove(fileAbsPath)
 		Uld.Sugar().Errorf("[%v] Write: %v", fid, err)
@@ -291,6 +308,7 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 
 	err = f.Sync()
 	if err != nil {
+		fileCtl.Del(fid)
 		f.Close()
 		os.Remove(fileAbsPath)
 		Uld.Sugar().Errorf("[%v] Sync: %v", fid, err)
@@ -304,10 +322,12 @@ func (WService) WritefileAction(body []byte) (proto.Message, error) {
 		pattern.DeleteAuth(string(b.Auth))
 		filehash, err := calcFileHashByChunks(fileAbsPath, configs.SIZE_1GB)
 		if err != nil {
+			fileCtl.Del(fid)
 			Uld.Sugar().Errorf("[%v] CalcFileHash: %v", fid, err)
 			return &RespBody{Code: 500, Msg: err.Error()}, nil
 		}
 		if filehash != fid[4:] {
+			fileCtl.Del(fid)
 			Uld.Sugar().Errorf("[%v] Invalid file hash", fid)
 			return &RespBody{Code: 400, Msg: "Invalid file hash"}, nil
 		}
@@ -406,7 +426,7 @@ func storeFiles(fid, fpath, name, pubkey string) {
 			break
 		}
 	}
-
+	fileCtl.Del(fid)
 	var txhash string
 	// Upload the file meta information to the chain
 	for {
@@ -440,7 +460,6 @@ func (WService) StateAction(body []byte) (proto.Message, error) {
 	return &RespBody{Code: 200, Msg: "success", Data: bb}, nil
 }
 
-//
 func WriteData(dst string, service, method string, t time.Duration, body []byte) ([]byte, error) {
 	dstip := "ws://" + string(base58.Decode(dst))
 	dstip = strings.Replace(dstip, " ", "", -1)
@@ -474,7 +493,6 @@ func WriteData(dst string, service, method string, t time.Duration, body []byte)
 	return nil, errors.New("return code:" + errstr)
 }
 
-//
 func WriteData2(cli *Client, service, method string, body []byte) ([]byte, error) {
 	req := &ReqMsg{
 		Service: service,
@@ -499,7 +517,6 @@ func WriteData2(cli *Client, service, method string, body []byte) ([]byte, error
 	return nil, errors.New("return code:" + errstr)
 }
 
-//
 func ReadFile(dst string, path, fid, walletaddr string) error {
 	dstip := "ws://" + string(base58.Decode(dst))
 	dstip = strings.Replace(dstip, " ", "", -1)
@@ -760,7 +777,6 @@ func ReadFile2(cli *Client, path, fid, walletaddr string) error {
 	return errors.New("receiving file failed, please try again...... ")
 }
 
-//
 func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 	var (
 		blockSize     int64

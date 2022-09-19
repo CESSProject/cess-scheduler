@@ -42,12 +42,16 @@ func task_SubmitFillerMeta(ch chan bool) {
 					txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:8])
 					if txhash == "" {
 						Tsfm.Sugar().Errorf("%v", err)
+						pattern.TxStatus.Store(false)
 						continue
 					}
+					pattern.TxStatus.Store(true)
 					pattern.FillerMap.Delete(k)
 					pattern.DeleteSpacemap(k)
-					fpath := filepath.Join(configs.SpaceCacheDir, addr)
-					os.RemoveAll(fpath)
+					for i := 0; i < 8; i++ {
+						fpath := filepath.Join(configs.SpaceCacheDir, string(v[i].FileId))
+						os.Remove(fpath)
+					}
 					Tsfm.Sugar().Infof("[%v] %v", addr, txhash)
 				} else {
 					ok := pattern.IsExitSpacem(k)
@@ -55,11 +59,15 @@ func task_SubmitFillerMeta(ch chan bool) {
 						txhash, err = chain.PutSpaceTagInfoToChain(configs.C.CtrlPrk, types.NewAccountID([]byte(k)), v[:])
 						if txhash == "" {
 							Tsfm.Sugar().Errorf("%v", err)
+							pattern.TxStatus.Store(false)
 							continue
 						}
+						pattern.TxStatus.Store(true)
 						pattern.FillerMap.Delete(k)
-						fpath := filepath.Join(configs.SpaceCacheDir, addr)
-						os.RemoveAll(fpath)
+						for i := 0; i < len(v); i++ {
+							fpath := filepath.Join(configs.SpaceCacheDir, string(v[i].FileId))
+							os.Remove(fpath)
+						}
 						Tsfm.Sugar().Infof("[%v] %v", addr, txhash)
 					}
 				}

@@ -3,6 +3,7 @@ package pattern
 import (
 	"cess-scheduler/internal/chain"
 	apiv1 "cess-scheduler/internal/proof/apiv1"
+	"sync/atomic"
 )
 
 const (
@@ -18,6 +19,7 @@ type Filler struct {
 
 var Chan_Filler chan Filler
 var Chan_FillerMeta chan chain.SpaceFileInfo
+var TxStatus atomic.Value
 
 func init() {
 	Chan_Filler = make(chan Filler, Chan_Filler_len)

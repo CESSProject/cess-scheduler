@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	. "cess-scheduler/internal/rpc/protobuf"
@@ -19,11 +20,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//
 func task_ValidateProof(ch chan bool) {
 	var (
 		err         error
 		goeson      bool
+		txhash      string
 		puk         chain.Chain_SchedulerPuk
 		poDR2verify apiv1.PoDR2Verify
 		reqtag      ReadTagReq
@@ -58,19 +59,18 @@ func task_ValidateProof(ch chan bool) {
 		Tvp.Sugar().Infof("--> %v", puk.Spk)
 		break
 	}
-
+	var verifyResults = make([]chain.VerifyResult, 0)
 	for {
-		var verifyResults = make([]chain.VerifyResult, 0)
 		proofs, err = chain.GetProofsFromChain(configs.C.CtrlPrk)
 		if err != nil {
 			if err.Error() != chain.ERR_Empty {
 				Tvp.Sugar().Errorf("%v", err)
 			}
-			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
+			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 6)))
 			continue
 		}
 		if len(proofs) == 0 {
-			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 10)))
+			time.Sleep(time.Minute * time.Duration(tools.RandomInRange(3, 6)))
 			continue
 		}
 
@@ -78,9 +78,19 @@ func task_ValidateProof(ch chan bool) {
 
 		var respData []byte
 		var tag apiv1.TagInfo
+
 		for i := 0; i < len(proofs); i++ {
-			if len(verifyResults) > 45 {
-				break
+			if len(verifyResults) >= 40 {
+				txhash = ""
+				for txhash == "" {
+					txhash, err = chain.PutProofResult(configs.C.CtrlPrk, verifyResults)
+					if txhash != "" {
+						Tvp.Sugar().Infof("Proof result submitted: %v", txhash)
+						break
+					}
+					time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 15)))
+				}
+				verifyResults = make([]chain.VerifyResult, 0)
 			}
 			goeson = false
 			addr, err := tools.EncodeToCESSAddr(proofs[i].Miner_pubkey[:])
@@ -181,25 +191,19 @@ func task_ValidateProof(ch chan bool) {
 			resultTemp.Result = types.Bool(result)
 			verifyResults = append(verifyResults, resultTemp)
 		}
-		go processProofResult(verifyResults)
-	}
-}
-
-func processProofResult(data []chain.VerifyResult) {
-	var (
-		err      error
-		txhash   string
-		tryCount uint8
-	)
-	for tryCount < 3 {
-		txhash, err = chain.PutProofResult(configs.C.CtrlPrk, data)
-		if txhash != "" {
-			Tvp.Sugar().Infof("Proof result submitted: %v", txhash)
-			if err == nil {
-				return
+		if len(verifyResults) > 0 {
+			txhash = ""
+			for txhash == "" {
+				txhash, err = chain.PutProofResult(configs.C.CtrlPrk, verifyResults)
+				if txhash != "" {
+					Tvp.Sugar().Infof("Proof result submitted: %v", txhash)
+					break
+				}
+				time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 15)))
 			}
+			verifyResults = make([]chain.VerifyResult, 0)
 		}
-		tryCount++
-		time.Sleep(time.Second * time.Duration(tools.RandomInRange(3, 15)))
+		time.Sleep(time.Second * 6)
+		runtime.GC()
 	}
 }

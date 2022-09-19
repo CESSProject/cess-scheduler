@@ -169,7 +169,6 @@ func PutMetaInfoToChain(transactionPrK, fid string, fsize uint64, user []byte, c
 		types.NewBytes([]byte(fid)),
 		types.U64(fsize),
 		chunk,
-		types.NewAccountID(user),
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "NewCall")
@@ -391,7 +390,6 @@ func PutSpaceTagInfoToChain(transactionPrK string, miner_acc types.AccountID, in
 	}
 }
 
-//
 func PutProofResult(signaturePrk string, data []VerifyResult) (string, error) {
 	defer func() {
 		if err := recover(); err != nil {

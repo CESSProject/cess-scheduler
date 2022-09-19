@@ -3,7 +3,7 @@ package configs
 import "time"
 
 // type and version
-const Version = "cess-scheduler v0.5.1"
+const Version = "cess-scheduler v0.5.2"
 
 // return code
 const (
@@ -13,7 +13,6 @@ const (
 	Code_404 = 404
 )
 
-//
 const (
 	LengthOfALine = 4096
 	SIZE_1TB      = 1024 * 1024 * 1024 * 1024

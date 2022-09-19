@@ -130,7 +130,7 @@ func WriteStringtoFile(content, fileName string) error {
 	return nil
 }
 
-//  ----------------------- Random key -----------------------
+// ----------------------- Random key -----------------------
 const baseStr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()[]{}+-*/_=.<>?:|,~"
 
 // Generate random password
@@ -238,7 +238,6 @@ func Split(filefullpath string, blocksize, filesize int64) ([][]byte, uint64, er
 	return matrix, n, nil
 }
 
-//
 func RandStr(n int) string {
 	src := rand.NewSource(time.Now().UnixNano())
 	sb := strings.Builder{}
@@ -308,7 +307,7 @@ func GetRandomcode(length uint8) string {
 	return string(bytes)
 }
 
-//Get file unique identifier
+// Get file unique identifier
 func GetGuid(num int64) (string, error) {
 	node, err := snowflake.NewNode(num)
 	if err != nil {
@@ -317,4 +316,23 @@ func GetGuid(num int64) (string, error) {
 
 	id := node.Generate()
 	return id.String(), nil
+}
+
+// Get all file names in the specified directory
+func GetAllFile(dir string) ([]string, error) {
+	var result = make([]string, 0)
+
+	fis, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return result, err
+	}
+
+	for _, fi := range fis {
+		if !fi.IsDir() {
+			fullname := dir + "/" + fi.Name()
+			result = append(result, fullname)
+		}
+	}
+
+	return result, nil
 }
