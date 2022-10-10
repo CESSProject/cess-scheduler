@@ -93,6 +93,7 @@ func DelereBaseFiller(fillerid string) {
 	for k, _ := range basefiller.BaseFiller {
 		if k == fillerid {
 			delete(basefiller.BaseFiller, k)
+			break
 		}
 	}
 	basefiller.Lock.Unlock()

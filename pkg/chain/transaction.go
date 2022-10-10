@@ -133,9 +133,7 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 				types.EventRecordsRaw(*h).DecodeEventRecords(c.metadata, &events)
 
 				if len(events.FileMap_RegistrationScheduler) > 0 {
-					if string(events.FileMap_RegistrationScheduler[0].Acc[:]) == string(c.keyring.PublicKey) {
-						return txhash, nil
-					}
+					return txhash, nil
 				}
 				return txhash, errors.New(ERR_Failed)
 			}
@@ -148,7 +146,7 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 }
 
 // Update file meta information
-func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, user []byte, block []BlockInfo) (string, error) {
+func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -167,7 +165,6 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, user []byte, bloc
 		types.NewBytes([]byte(fid)),
 		types.U64(fsize),
 		block,
-		types.NewAccountID(user),
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "NewCall")
@@ -376,7 +373,6 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 	}
 }
 
-//
 func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	var (
 		txhash      string
@@ -588,9 +584,7 @@ func (c *chainClient) Update(contact string) (string, error) {
 				types.EventRecordsRaw(*h).DecodeEventRecords(c.metadata, &events)
 
 				if len(events.FileMap_UpdateScheduler) > 0 {
-					if string(events.FileMap_UpdateScheduler[0].Acc[:]) == string(c.keyring.PublicKey) {
-						return txhash, nil
-					}
+					return txhash, nil
 				}
 				return txhash, errors.New(ERR_Failed)
 			}

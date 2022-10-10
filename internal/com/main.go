@@ -40,8 +40,8 @@ type WService struct {
 // Start tcp service.
 // If an error occurs, it will exit immediately.
 func Start(
-	confile configfile.Configfiler,
-	c chain.Chainer,
+	cfg configfile.Configfiler,
+	cli chain.Chainer,
 	db db.Cache,
 	logs logger.Logger,
 	fillerDir string,
@@ -50,15 +50,15 @@ func Start(
 	srv := rpc.NewServer()
 	err := srv.Register(
 		RpcService_Scheduler,
-		&WService{confile, logs, db, c, fillerDir, fileDir},
+		&WService{cfg, logs, db, cli, fillerDir, fileDir},
 	)
 	if err != nil {
 		log.Printf("[err] %v\n", err)
 		os.Exit(1)
 	}
-	log.Println("Start and listen on port ", confile.GetServicePort(), "...")
+	log.Println("Start and listen on port ", cfg.GetServicePort(), "...")
 	err = http.ListenAndServe(
-		":"+confile.GetServicePort(),
+		":"+cfg.GetServicePort(),
 		srv.WebsocketHandler([]string{"*"}),
 	)
 	if err != nil {

@@ -50,12 +50,12 @@ func task_SubmitFillerMeta(
 	)
 	t_active := time.Now()
 	for {
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Second)
 		for len(pattern.C_FillerMeta) > 0 {
 			var tmp = <-pattern.C_FillerMeta
 			pattern.FillerMap.Add(string(tmp.Acc[:]), tmp)
 		}
-		if time.Since(t_active).Seconds() > 5 {
+		if time.Since(t_active).Seconds() > 10 {
 			t_active = time.Now()
 			for k, v := range pattern.FillerMap.Fillermetas {
 				addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
@@ -67,8 +67,9 @@ func task_SubmitFillerMeta(
 					}
 					pattern.FillerMap.Delete(k)
 					pattern.DeleteSpacemap(k)
-					fpath := filepath.Join(fillerDir, addr)
-					os.RemoveAll(fpath)
+					for i := 0; i < 8; i++ {
+						os.Remove(filepath.Join(fillerDir, string(v[i].Id)))
+					}
 					logs.Log("sfm", "info", errors.Errorf("[%v] %v", addr, txhash))
 				} else {
 					ok := pattern.IsExitSpacem(k)
@@ -79,8 +80,9 @@ func task_SubmitFillerMeta(
 							continue
 						}
 						pattern.FillerMap.Delete(k)
-						fpath := filepath.Join(fillerDir, addr)
-						os.RemoveAll(fpath)
+						for _, vv := range v {
+							os.Remove(filepath.Join(fillerDir, string(vv.Id)))
+						}
 						logs.Log("sfm", "info", errors.Errorf("[%v] %v", addr, txhash))
 					}
 				}

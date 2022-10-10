@@ -57,8 +57,8 @@ func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
 			logs.Log("common", "info", errors.New("Black miners:"))
 			logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
 		}
-		time.Sleep(time.Minute)
 		pattern.DeleteExpiredAuth()
 		pattern.DeleteExpiredSpacem()
+		time.Sleep(time.Minute)
 	}
 }

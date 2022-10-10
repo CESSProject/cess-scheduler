@@ -374,7 +374,7 @@ func storeFiles(logs logger.Logger, c chain.Chainer, fid, fpath, name, pubkey st
 	var txhash string
 	// Upload the file meta information to the chain
 	for {
-		txhash, err = c.SubmitFileMeta(fid, uint64(fstat.Size()), []byte(pubkey), chunksInfo)
+		txhash, err = c.SubmitFileMeta(fid, uint64(fstat.Size()), chunksInfo)
 		if txhash == "" {
 			logs.Log("upfile", "error", errors.Errorf("[%v] FileMeta On-chain fail: %v", fid, err))
 			time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
@@ -404,7 +404,6 @@ func (w *WService) StateAction(body []byte) (proto.Message, error) {
 	return &RespBody{Code: 200, Msg: "success", Data: bb}, nil
 }
 
-//
 func WriteData2(cli *rpc.Client, service, method string, body []byte) ([]byte, error) {
 	req := &ReqMsg{
 		Service: service,
@@ -429,7 +428,6 @@ func WriteData2(cli *rpc.Client, service, method string, body []byte) ([]byte, e
 	return nil, errors.New("return code:" + errstr)
 }
 
-//
 func ReadFile(dst string, path, fid, walletaddr string) error {
 	dstip := "ws://" + string(base58.Decode(dst))
 	dstip = strings.Replace(dstip, " ", "", -1)
@@ -689,7 +687,6 @@ func ReadFile2(cli *rpc.Client, path, fid, walletaddr string) error {
 	return errors.New("receiving file failed, please try again...... ")
 }
 
-//
 func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 	var (
 		blockSize     int64
@@ -816,6 +813,7 @@ func backupFile(ch chan chain.BlockInfo, logs logger.Logger, c chain.Chainer, fp
 					filedIndex[index] = struct{}{}
 					continue
 				}
+				defer client.Close()
 				logs.Log("upfile", "info", errors.Errorf("[%v] connected [%v]", fname, string(minerInfo.Ip)))
 				_, err = WriteData2(client, RpcService_Miner, RpcMethod_Miner_WriteFile, bob)
 				if err == nil {

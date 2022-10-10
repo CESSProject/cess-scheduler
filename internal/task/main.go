@@ -18,14 +18,12 @@ package task
 
 import (
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 )
 
 func Run(
-	confile configfile.Configfiler,
-	c chain.Chainer,
+	cli chain.Chainer,
 	db db.Cache,
 	logs logger.Logger,
 	fillerDir string,
@@ -38,24 +36,24 @@ func Run(
 		channel_5 = make(chan bool, 1)
 	)
 
-	go task_SyncMinersInfo(channel_1, logs, c, db)
-	go task_ValidateProof(channel_2, logs, c, db)
-	go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
+	go task_SyncMinersInfo(channel_1, logs, cli, db)
+	go task_ValidateProof(channel_2, logs, cli, db)
+	go task_SubmitFillerMeta(channel_3, logs, cli, fillerDir)
 	go task_GenerateFiller(channel_4, logs, fillerDir)
-	go task_ClearAuthMap(channel_5, logs, c)
+	go task_ClearAuthMap(channel_5, logs, cli)
 
 	for {
 		select {
 		case <-channel_1:
-			go task_SyncMinersInfo(channel_1, logs, c, db)
+			go task_SyncMinersInfo(channel_1, logs, cli, db)
 		case <-channel_2:
-			go task_ValidateProof(channel_2, logs, c, db)
+			go task_ValidateProof(channel_2, logs, cli, db)
 		case <-channel_3:
-			go task_SubmitFillerMeta(channel_3, logs, c, fillerDir)
+			go task_SubmitFillerMeta(channel_3, logs, cli, fillerDir)
 		case <-channel_4:
 			go task_GenerateFiller(channel_4, logs, fillerDir)
 		case <-channel_5:
-			go task_ClearAuthMap(channel_5, logs, c)
+			go task_ClearAuthMap(channel_5, logs, cli)
 		}
 	}
 }

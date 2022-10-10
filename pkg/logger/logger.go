@@ -18,13 +18,13 @@ package logger
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/natefinch/lumberjack"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -49,7 +49,7 @@ func NewLogs(logfiles map[string]string) (Logger, error) {
 		if err != nil {
 			err = os.MkdirAll(dir, os.ModeDir)
 			if err != nil {
-				return nil, err
+				return nil, errors.Errorf("%v,%v", dir, err)
 			}
 		}
 		Encoder := getEncoder()
@@ -82,8 +82,7 @@ func (l *logs) Log(name, level string, err error) {
 }
 
 func getFilePath(fpath string) string {
-	file, _ := exec.LookPath(fpath)
-	path, _ := filepath.Abs(file)
+	path, _ := filepath.Abs(fpath)
 	index := strings.LastIndex(path, string(os.PathSeparator))
 	ret := path[:index]
 	return ret

@@ -42,6 +42,7 @@ import (
 //
 //	scheduler run
 func runCmd(cmd *cobra.Command, args []string) {
+	var err error
 	var isReg bool
 	// config file
 	var configFilePath string
@@ -53,25 +54,26 @@ func runCmd(cmd *cobra.Command, args []string) {
 		configFilePath = configpath2
 	}
 
-	confile := configfile.NewConfigfile()
-	if err := confile.Parse(configFilePath); err != nil {
+	Cfg = configfile.NewConfigfile()
+	if err = Cfg.Parse(configFilePath); err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	// chain client
-	c, err := chain.NewChainClient(
-		confile.GetRpcAddr(),
-		confile.GetCtrlPrk(),
+	Cli, err = chain.NewChainClient(
+		Cfg.GetRpcAddr(),
+		Cfg.GetCtrlPrk(),
 		time.Duration(time.Second*15),
 	)
 	if err != nil {
 		log.Println("[err]", err)
 		os.Exit(1)
+
 	}
 
 	// judge the balance
-	accountinfo, err := c.GetAccountInfo(c.GetPublicKey())
+	accountinfo, err := Cli.GetAccountInfo(Cli.GetPublicKey())
 	if err != nil {
 		log.Printf("[err] Failed to get account information\n")
 		os.Exit(1)
@@ -85,7 +87,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 	}
 
 	// whether to register
-	schelist, err := c.GetAllSchedulerInfo()
+	schelist, err := Cli.GetAllSchedulerInfo()
 	if err != nil {
 		if err.Error() != chain.ERR_Empty {
 			log.Printf("%v\n", err)
@@ -93,7 +95,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		for _, v := range schelist {
-			if v.ControllerUser == types.NewAccountID(c.GetPublicKey()) {
+			if v.ControllerUser == types.NewAccountID(Cli.GetPublicKey()) {
 				isReg = true
 				break
 			}
@@ -102,20 +104,20 @@ func runCmd(cmd *cobra.Command, args []string) {
 
 	// register
 	if !isReg {
-		if err := register(confile, c); err != nil {
+		if err := register(); err != nil {
 			os.Exit(1)
 		}
 	}
 
 	// create data dir
-	logDir, dbDir, fillerDir, fileDir, err := creatDataDir(confile, c)
+	logDir, dbDir, fillerDir, fileDir, err := creatDataDir()
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	// cache
-	db, err := db.NewLevelDB(dbDir, 0, 0, configs.NameSpace)
+	Db, err = db.NewLevelDB(dbDir, 0, 0, configs.NameSpace)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -126,14 +128,15 @@ func runCmd(cmd *cobra.Command, args []string) {
 	for _, v := range configs.LogName {
 		logs_info[v] = filepath.Join(logDir, v+".log")
 	}
-	logs, err := logger.NewLogs(logs_info)
+	Logs, err = logger.NewLogs(logs_info)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
+
 	// sync block
 	for {
-		ok, err := c.GetSyncStatus()
+		ok, err := Cli.GetSyncStatus()
 		if err != nil {
 			log.Println(err)
 			os.Exit(1)
@@ -147,15 +150,15 @@ func runCmd(cmd *cobra.Command, args []string) {
 	log.Println("Sync complete")
 
 	// run task
-	go task.Run(confile, c, db, logs, fillerDir)
-	com.Start(confile, c, db, logs, fillerDir, fileDir)
+	go task.Run(Cli, Db, Logs, fillerDir)
+	com.Start(Cfg, Cli, Db, Logs, fillerDir, fileDir)
 }
 
-func register(confile configfile.Configfiler, c chain.Chainer) error {
-	txhash, err := c.Register(
-		confile.GetStashAcc(),
+func register() error {
+	txhash, err := Cli.Register(
+		Cfg.GetStashAcc(),
 		base58.Encode(
-			[]byte(confile.GetServiceAddr()+":"+confile.GetServicePort()),
+			[]byte(Cfg.GetServiceAddr()+":"+Cfg.GetServicePort()),
 		),
 	)
 	if err != nil {
@@ -176,15 +179,12 @@ func register(confile configfile.Configfiler, c chain.Chainer) error {
 	return nil
 }
 
-func creatDataDir(
-	confile configfile.Configfiler,
-	c chain.Chainer,
-) (string, string, string, string, error) {
-	ctlAccount, err := c.GetCessAccount()
+func creatDataDir() (string, string, string, string, error) {
+	ctlAccount, err := Cli.GetCessAccount()
 	if err != nil {
 		return "", "", "", "", err
 	}
-	baseDir := filepath.Join(confile.GetDataDir(), ctlAccount, configs.BaseDir)
+	baseDir := filepath.Join(Cfg.GetDataDir(), ctlAccount, configs.BaseDir)
 	log.Println(baseDir)
 	_, err = os.Stat(baseDir)
 	if err != nil {
@@ -218,7 +218,7 @@ func creatDataDir(
 
 	fileDir := filepath.Join(baseDir, "file")
 	os.RemoveAll(fileDir)
-	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
 		return "", "", "", "", err
 	}
 	return logDir, dbDir, fillerDir, fileDir, nil

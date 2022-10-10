@@ -48,6 +48,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 	for {
 		for len(pattern.C_Filler) < pattern.C_Filler_Maxlen {
 			for {
+				time.Sleep(time.Second)
 				uid, _ = utils.GetGuid(int64(utils.RandomInRange(0, 1024)))
 				if uid == "" {
 					continue
@@ -109,6 +110,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 			fillerEle.Sigmas = commitResponse.Sigmas
 			pattern.C_Filler <- fillerEle
 			logs.Log("gf", "info", errors.Errorf("Produced a filler: %v", uid))
+			time.Sleep(time.Second)
 		}
 		time.Sleep(time.Second)
 	}
