@@ -26,6 +26,7 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/internal/com"
+	"github.com/CESSProject/cess-scheduler/internal/pattern"
 	"github.com/CESSProject/cess-scheduler/internal/task"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
@@ -71,6 +72,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 
 	}
+	pattern.ChainStatus.Store(true)
 
 	// judge the balance
 	accountinfo, err := Cli.GetAccountInfo(Cli.GetPublicKey())
@@ -89,7 +91,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 	// whether to register
 	schelist, err := Cli.GetAllSchedulerInfo()
 	if err != nil {
-		if err.Error() != chain.ERR_Empty {
+		if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
 			log.Printf("%v\n", err)
 			os.Exit(1)
 		}
@@ -162,7 +164,7 @@ func register() error {
 		),
 	)
 	if err != nil {
-		if err.Error() == chain.ERR_Empty {
+		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 			log.Println("[err] Please check your wallet balance.")
 		} else {
 			if txhash != "" {

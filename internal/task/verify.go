@@ -18,6 +18,7 @@ package task
 
 import (
 	"encoding/json"
+	"runtime"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/api/protobuf"
@@ -61,7 +62,7 @@ func task_ValidateProof(
 	for {
 		proofs, err = cli.GetProofs()
 		if err != nil {
-			if err.Error() != chain.ERR_Empty {
+			if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
 				logs.Log("vp", "error", err)
 			}
 			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 6)))
@@ -88,7 +89,7 @@ func task_ValidateProof(
 					}
 					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
 				}
-				verifyResults = verifyResults[:0]
+				verifyResults = make([]chain.ProofResult, 0)
 			}
 			goeson = false
 			addr, err := utils.EncodePublicKeyAsCessAccount(proofs[i].Miner_pubkey[:])
@@ -198,8 +199,9 @@ func task_ValidateProof(
 				}
 				time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
 			}
-			verifyResults = verifyResults[:0]
+			verifyResults = make([]chain.ProofResult, 0)
 		}
 		time.Sleep(time.Second * configs.BlockInterval)
+		runtime.GC()
 	}
 }

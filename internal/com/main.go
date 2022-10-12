@@ -17,28 +17,28 @@
 package com
 
 import (
+	"errors"
 	"log"
-	"net/http"
+	"net"
 	"os"
+	"time"
 
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
-	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 )
 
-type WService struct {
-	configfile.Configfiler
-	logger.Logger
-	db.Cache
-	chain.Chainer
-	fillerDir string
-	fileDir   string
-}
+// type WService struct {
+// 	configfile.Configfiler
+// 	logger.Logger
+// 	db.Cache
+// 	chain.Chainer
+// 	fillerDir string
+// 	fileDir   string
+// }
 
-// Start tcp service.
-// If an error occurs, it will exit immediately.
+// Start is used to start the tcp service.
 func Start(
 	cfg configfile.Configfiler,
 	cli chain.Chainer,
@@ -47,22 +47,45 @@ func Start(
 	fillerDir string,
 	fileDir string,
 ) {
-	srv := rpc.NewServer()
-	err := srv.Register(
-		RpcService_Scheduler,
-		&WService{cfg, logs, db, cli, fillerDir, fileDir},
-	)
+	// Get an address of TCP end point
+	tcpAddr, err := net.ResolveTCPAddr("tcp", ":"+cfg.GetServicePort())
 	if err != nil {
-		log.Printf("[err] %v\n", err)
+		log.Println(err)
 		os.Exit(1)
 	}
-	log.Println("Start and listen on port ", cfg.GetServicePort(), "...")
-	err = http.ListenAndServe(
-		":"+cfg.GetServicePort(),
-		srv.WebsocketHandler([]string{"*"}),
-	)
+
+	// Listen for TCP networks
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
-		log.Printf("[err] %v\n", err)
+		log.Println(err)
 		os.Exit(1)
+	}
+
+	for {
+		// Accepts the next connection
+		acceptTCP, err := listener.AcceptTCP()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				log.Println(err)
+				os.Exit(1)
+			}
+			log.Println("Accept tcp err: ", err)
+			continue
+		}
+
+		log.Println("Get conn remote addr: ", acceptTCP.RemoteAddr().String())
+
+		// Set server maximum connection control
+		if TCP_ConnLength.Load() > MAX_TCP_CONNECTION {
+			acceptTCP.Close()
+			log.Println("Connecion is max, close conn: ", acceptTCP.RemoteAddr().String())
+			continue
+		}
+
+		// Start the processing service of the new connection
+		tcpCon := NewTcp(acceptTCP)
+		srv := NewServer(tcpCon, fileDir)
+		go srv.Start()
+		time.Sleep(time.Millisecond)
 	}
 }

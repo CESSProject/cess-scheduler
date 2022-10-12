@@ -5,7 +5,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-      http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,23 +14,12 @@
    limitations under the License.
 */
 
-package main
+package com
 
-import (
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
-
-	"github.com/CESSProject/cess-scheduler/cmd/console"
-)
-
-// program entry
-func main() {
-	console.Execute()
-	osc := make(chan os.Signal, 1)
-	signal.Notify(osc, syscall.SIGTERM, syscall.SIGINT)
-	sig := <-osc
-	log.Printf("[exit] %v\n", sig)
-	// TODO: clear
+type NetConn interface {
+	HandlerLoop()
+	GetMsg() (*Message, bool)
+	SendMsg(m *Message)
+	Close() error
+	IsClose() bool
 }

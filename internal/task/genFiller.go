@@ -46,7 +46,7 @@ func task_GenerateFiller(ch chan bool, logs logger.Logger, fillerDir string) {
 		fillerpath string
 	)
 	for {
-		for len(pattern.C_Filler) < pattern.C_Filler_Maxlen {
+		for len(pattern.C_Filler) < configs.Num_Filler_Reserved {
 			for {
 				time.Sleep(time.Second)
 				uid, _ = utils.GetGuid(int64(utils.RandomInRange(0, 1024)))

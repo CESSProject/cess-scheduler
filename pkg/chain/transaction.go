@@ -35,7 +35,7 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 	defer c.l.Unlock()
 
 	if !c.IsChainClientOk() {
-		return txhash, errors.New("rpc connection failed")
+		return txhash, ERR_RPC_CONNECTION
 	}
 
 	stashPuk, err := utils.DecodePublicKeyOfCessAccount(stash)
@@ -74,7 +74,7 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 	}
 
 	if !ok {
-		return txhash, errors.New(ERR_Empty)
+		return txhash, ERR_RPC_EMPTY_VALUE
 	}
 
 	o := types.SignatureOptions{
@@ -140,7 +140,7 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "[sub]")
 		case <-timeout:
-			return txhash, errors.New(ERR_Timeout)
+			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
 }
@@ -156,7 +156,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 	defer c.l.Unlock()
 
 	if !c.IsChainClientOk() {
-		return txhash, errors.New("rpc connection failed")
+		return txhash, ERR_RPC_CONNECTION
 	}
 
 	call, err := types.NewCall(
@@ -191,7 +191,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 	}
 
 	if !ok {
-		return txhash, errors.New(ERR_Empty)
+		return txhash, ERR_RPC_EMPTY_VALUE
 	}
 
 	o := types.SignatureOptions{
@@ -257,7 +257,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
 		case <-timeout:
-			return txhash, errors.New(ERR_Timeout)
+			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 	defer c.l.Unlock()
 
 	if !c.IsChainClientOk() {
-		return txhash, errors.New("rpc connection failed")
+		return txhash, ERR_RPC_CONNECTION
 	}
 
 	call, err := types.NewCall(c.metadata, tx_FileBank_UploadFiller, miner_acc, info)
@@ -302,7 +302,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 	}
 
 	if !ok {
-		return txhash, errors.New(ERR_Empty)
+		return txhash, ERR_RPC_EMPTY_VALUE
 	}
 
 	o := types.SignatureOptions{
@@ -368,7 +368,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
 		case <-timeout:
-			return txhash, errors.New(ERR_Timeout)
+			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
 }
@@ -383,7 +383,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	defer c.l.Unlock()
 
 	if !c.IsChainClientOk() {
-		return txhash, errors.New("rpc connection failed")
+		return txhash, ERR_RPC_CONNECTION
 	}
 
 	call, err := types.NewCall(c.metadata, tx_SegmentBook_VerifyProof, data)
@@ -411,7 +411,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 		return txhash, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return txhash, errors.New(ERR_Empty)
+		return txhash, ERR_RPC_EMPTY_VALUE
 	}
 
 	o := types.SignatureOptions{
@@ -478,7 +478,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
 		case <-timeout:
-			return txhash, errors.New(ERR_Timeout)
+			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
 }
@@ -493,7 +493,7 @@ func (c *chainClient) Update(contact string) (string, error) {
 	defer c.l.Unlock()
 
 	if !c.IsChainClientOk() {
-		return txhash, errors.New("rpc connection failed")
+		return txhash, ERR_RPC_CONNECTION
 	}
 
 	call, err := types.NewCall(
@@ -525,7 +525,7 @@ func (c *chainClient) Update(contact string) (string, error) {
 		return txhash, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return txhash, errors.New(ERR_Empty)
+		return txhash, ERR_RPC_EMPTY_VALUE
 	}
 
 	o := types.SignatureOptions{
@@ -591,7 +591,7 @@ func (c *chainClient) Update(contact string) (string, error) {
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
 		case <-timeout:
-			return txhash, errors.New(ERR_Timeout)
+			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
 }

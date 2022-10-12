@@ -44,6 +44,12 @@ const (
 	ScanBlockSize = BlockSize / 2
 )
 
+const (
+	Max_Miner_Connected = 3
+	Num_Filler_Reserved = 5
+	Max_Filler_Meta     = 100
+)
+
 // explanation
 const (
 	HELP_common = `Please check with the following help information:

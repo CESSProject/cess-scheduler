@@ -20,12 +20,20 @@ import (
 	"reflect"
 
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/pkg/errors"
 )
 
 const (
-	ERR_Failed  = "Failed"
-	ERR_Timeout = "Timeout"
-	ERR_Empty   = "Empty"
+	ERR_Failed = "Failed"
+	//ERR_Timeout = "Timeout"
+	//ERR_Empty = "Empty"
+)
+
+// error type
+var (
+	ERR_RPC_CONNECTION  = errors.New("rpc connection failed")
+	ERR_RPC_TIMEOUT     = errors.New("timeout")
+	ERR_RPC_EMPTY_VALUE = errors.New("empty")
 )
 
 // storage miner info
@@ -97,7 +105,6 @@ type Chain_SchedulerPuk struct {
 	Shared_g      types.Bytes
 }
 
-//
 type Proof struct {
 	FileId         types.Bytes
 	Miner_pubkey   types.AccountID

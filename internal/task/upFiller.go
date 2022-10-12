@@ -55,30 +55,32 @@ func task_SubmitFillerMeta(
 			var tmp = <-pattern.C_FillerMeta
 			pattern.FillerMap.Add(string(tmp.Acc[:]), tmp)
 		}
-		if time.Since(t_active).Seconds() > 10 {
+		if time.Since(t_active).Seconds() > 60 {
 			t_active = time.Now()
 			for k, v := range pattern.FillerMap.Fillermetas {
 				addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
 				if len(v) >= 8 {
 					txhash, err = cli.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:8])
 					if txhash == "" {
+						pattern.ChainStatus.Store(false)
 						logs.Log("sfm", "error", err)
 						continue
 					}
+					pattern.ChainStatus.Store(true)
 					pattern.FillerMap.Delete(k)
-					pattern.DeleteSpacemap(k)
 					for i := 0; i < 8; i++ {
 						os.Remove(filepath.Join(fillerDir, string(v[i].Id)))
 					}
 					logs.Log("sfm", "info", errors.Errorf("[%v] %v", addr, txhash))
 				} else {
-					ok := pattern.IsExitSpacem(k)
-					if !ok && len(v) > 0 {
+					if len(v) > 0 {
 						txhash, err = cli.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:])
 						if txhash == "" {
+							pattern.ChainStatus.Store(false)
 							logs.Log("sfm", "error", err)
 							continue
 						}
+						pattern.ChainStatus.Store(true)
 						pattern.FillerMap.Delete(k)
 						for _, vv := range v {
 							os.Remove(filepath.Join(fillerDir, string(vv.Id)))

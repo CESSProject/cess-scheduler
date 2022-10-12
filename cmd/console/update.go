@@ -35,7 +35,8 @@ import (
 // updateCmd is used to update the communication address
 //
 // Usage:
-//   scheduler update <ipv4:port> or <domain name>
+//
+//	scheduler update <ipv4:port> or <domain name>
 func updateCmd(cmd *cobra.Command, args []string) {
 	if len(os.Args) >= 3 {
 		addr := strings.Split(os.Args[2], ":")
@@ -95,7 +96,7 @@ func updateCmd(cmd *cobra.Command, args []string) {
 
 		txhash, err := c.Update(base58.Encode([]byte(os.Args[2])))
 		if err != nil {
-			if err.Error() == chain.ERR_Empty {
+			if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 				log.Println("[err] Please check your wallet balance.")
 			} else {
 				if txhash != "" {
@@ -111,7 +112,7 @@ func updateCmd(cmd *cobra.Command, args []string) {
 		log.Println("[ok] success")
 		os.Exit(0)
 	}
-	log.Println("[err] Please enter <ipv4:port> or <domain name>")
+	log.Println("[err] Please enter <ipv4:port>")
 	os.Exit(1)
 }
 

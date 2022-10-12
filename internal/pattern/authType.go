@@ -29,6 +29,27 @@ func init() {
 	auth.tokens = make(map[string]Authinfo, 10)
 }
 
+func GetFileAuthLength() int {
+	auth.lock.Lock()
+	l := len(auth.tokens)
+	auth.lock.Unlock()
+	return l
+}
+
+func GetFileAuth(pkey string) string {
+	auth.lock.Lock()
+	v1, ok := auth.miners[pkey]
+	if ok {
+		_, ok := auth.tokens[v1]
+		if ok {
+			return v1
+		}
+		delete(auth.miners, pkey)
+	}
+	auth.lock.Unlock()
+	return ""
+}
+
 func UpdateAuth(addr string) string {
 	auth.lock.Lock()
 	v1, ok := auth.miners[addr]
@@ -45,9 +66,9 @@ func UpdateAuth(addr string) string {
 	return ""
 }
 
-func AddAuth(addr, token string, info Authinfo) {
+func AddFileAuth(pkey, token string, info Authinfo) {
 	auth.lock.Lock()
-	auth.miners[addr] = token
+	auth.miners[pkey] = token
 	auth.tokens[token] = info
 	auth.lock.Unlock()
 }
@@ -72,7 +93,7 @@ func DeleteAuth(token string) {
 func DeleteExpiredAuth() {
 	auth.lock.Lock()
 	for k, v := range auth.tokens {
-		if time.Since(time.Unix(v.UpdateTime, 0)).Minutes() > 5 {
+		if time.Since(time.Unix(v.UpdateTime, 0)).Minutes() > 3 {
 			delete(auth.miners, v.PublicKey)
 			delete(auth.tokens, k)
 		}

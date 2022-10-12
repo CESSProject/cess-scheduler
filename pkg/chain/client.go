@@ -115,6 +115,7 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 func (c *chainClient) IsChainClientOk() bool {
 	err := healthchek(c.c)
 	if err != nil {
+		c.c = nil
 		cli, err := reconnectChainClient(c.rpcAddr)
 		if err != nil {
 			return false

@@ -52,13 +52,13 @@ func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
 				}
 			}
 			count = 0
-			logs.Log("common", "info", errors.New("Connected miners:"))
-			logs.Log("common", "info", errors.Errorf("%v", pattern.GetConnectedSpacem()))
-			logs.Log("common", "info", errors.New("Black miners:"))
-			logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
+			//logs.Log("common", "info", errors.New("Connected miners:"))
+			//logs.Log("common", "info", errors.Errorf("%v", pattern.GetConnectedSpacem()))
+			//logs.Log("common", "info", errors.New("Black miners:"))
+			//logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
 		}
 		pattern.DeleteExpiredAuth()
-		pattern.DeleteExpiredSpacem()
-		time.Sleep(time.Minute)
+		//pattern.DeleteExpiredSpacem()
+		time.Sleep(time.Second * 30)
 	}
 }

@@ -29,7 +29,7 @@ func (c *chainClient) GetPublicKey() []byte {
 
 func (c *chainClient) GetSyncStatus() (bool, error) {
 	if !c.IsChainClientOk() {
-		return false, errors.New("rpc connection failed")
+		return false, ERR_RPC_CONNECTION
 	}
 	h, err := c.c.RPC.System.Health()
 	if err != nil {
@@ -43,7 +43,7 @@ func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 	var data MinerInfo
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	key, err := types.CreateStorageKey(
@@ -61,7 +61,7 @@ func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, errors.New(ERR_Empty)
+		return data, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
@@ -71,7 +71,7 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 	var data []types.AccountID
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	key, err := types.CreateStorageKey(
@@ -88,7 +88,7 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return nil, errors.New(ERR_Empty)
+		return nil, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
@@ -98,7 +98,7 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 	var data FileMetaInfo
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	b, err := types.Encode(fid)
@@ -121,7 +121,7 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, errors.New(ERR_Empty)
+		return data, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
@@ -131,7 +131,7 @@ func (c *chainClient) GetAllSchedulerInfo() ([]SchedulerInfo, error) {
 	var data []SchedulerInfo
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	key, err := types.CreateStorageKey(
@@ -148,17 +148,16 @@ func (c *chainClient) GetAllSchedulerInfo() ([]SchedulerInfo, error) {
 		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, errors.New(ERR_Empty)
+		return data, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
 
-//
 func (c *chainClient) GetProofs() ([]Proof, error) {
 	var data []Proof
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	key, err := types.CreateStorageKey(
@@ -176,22 +175,20 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return nil, errors.New(ERR_Empty)
+		return nil, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
 
-//
 func (c *chainClient) GetCessAccount() (string, error) {
 	return utils.EncodePublicKeyAsCessAccount(c.keyring.PublicKey)
 }
 
-//
 func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 	var data SpacePackage
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	b, err := types.Encode(pkey)
@@ -214,17 +211,16 @@ func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, errors.New(ERR_Empty)
+		return data, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
 
-//
 func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 	var data types.AccountInfo
 
 	if !c.IsChainClientOk() {
-		return data, errors.New("rpc connection failed")
+		return data, ERR_RPC_CONNECTION
 	}
 
 	b, err := types.Encode(types.NewAccountID(pkey))
@@ -247,7 +243,7 @@ func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
 	if !ok {
-		return data, errors.New(ERR_Empty)
+		return data, ERR_RPC_EMPTY_VALUE
 	}
 	return data, nil
 }
