@@ -22,6 +22,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync/atomic"
+
+	"github.com/CESSProject/cess-scheduler/internal/tools"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
 )
 
 const (
@@ -31,7 +34,7 @@ const (
 var TCP_ConnLength atomic.Uint32
 
 type Server interface {
-	Start()
+	Start(cli chain.Chainer)
 }
 
 type Client interface {
@@ -59,15 +62,15 @@ func NewServer(conn NetConn, dir string) Server {
 	}
 }
 
-func (c *ConMgr) Start() {
+func (c *ConMgr) Start(cli chain.Chainer) {
 	c.conn.HandlerLoop()
-	err := c.handler()
+	err := c.handler(cli)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func (c *ConMgr) handler() error {
+func (c *ConMgr) handler(cli chain.Chainer) error {
 	var fs *os.File
 	var err error
 	num := TCP_ConnLength.Load()
@@ -95,15 +98,42 @@ func (c *ConMgr) handler() error {
 
 		switch m.MsgType {
 		case MsgHead:
-			if m.FileName != "" {
-				c.fileName = m.FileName
-			} else {
+			// Verify signature
+			ok, err := tools.VerifySign(m.Pubkey, m.SignMsg, m.Sign)
+			if err != nil {
+				fmt.Println("VerifySign err: ", err)
+				c.conn.SendMsg(NewNotifyMsg(c.fileName, Status_Err))
+				return err
+			}
+			if !ok {
+				fmt.Println("Verify Sign failed: ", err)
 				c.conn.SendMsg(NewNotifyMsg(c.fileName, Status_Err))
 				return err
 			}
 
+			//Judge whether the file has been uploaded
+			fileState, err := tools.GetFileState(cli, m.FileHash)
+			if err != nil {
+				fmt.Println("GetFileState err: ", err)
+				c.conn.SendMsg(NewNotifyMsg(c.fileName, Status_Err))
+				return err
+			}
+			if fileState == chain.FILE_STATE_ACTIVE {
+				fmt.Println("Repeated upload: ", m.FileHash)
+				c.conn.SendMsg(NewNotifyMsg(c.fileName, Status_Err))
+				return err
+			}
+
+			//TODO: Judge whether the space is enough
+
+			if m.FileName != "" {
+				c.fileName = m.FileHash
+			} else {
+				c.fileName = m.FileHash
+			}
+
 			fmt.Println("recv head fileName is", c.fileName)
-			fs, err = os.OpenFile(filepath.Join(c.dir, c.fileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777)
+			fs, err = os.OpenFile(filepath.Join(c.dir, c.fileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 			if err != nil {
 				fmt.Println("os.Create err =", err)
 				c.conn.SendMsg(NewNotifyMsg(c.fileName, Status_Err))
@@ -126,8 +156,8 @@ func (c *ConMgr) handler() error {
 			}
 		case MsgEnd:
 			info, _ := fs.Stat()
-			if info.Size() != int64(m.Size) {
-				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.Size)
+			if info.Size() != int64(m.FileSize) {
+				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
 				c.conn.SendMsg(NewCloseMsg(c.fileName, Status_Err))
 				return err
 			}
@@ -138,6 +168,7 @@ func (c *ConMgr) handler() error {
 			fmt.Printf("close file %v is success \n", c.fileName)
 			_ = fs.Close()
 			fs = nil
+			// TODO: save file to miner
 		case MsgNotify:
 			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 		case MsgClose:

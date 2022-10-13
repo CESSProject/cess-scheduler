@@ -85,7 +85,7 @@ func Start(
 		// Start the processing service of the new connection
 		tcpCon := NewTcp(acceptTCP)
 		srv := NewServer(tcpCon, fileDir)
-		go srv.Start()
+		go srv.Start(cli)
 		time.Sleep(time.Millisecond)
 	}
 }

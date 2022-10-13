@@ -37,7 +37,7 @@ type TcpCon struct {
 }
 
 var (
-	MAGIC_BYTES = []byte("f00t")
+	MAGIC_BYTES = []byte("cess")
 	EmErr       = fmt.Errorf("dont have msg")
 )
 

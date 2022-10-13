@@ -17,7 +17,7 @@
 package configs
 
 // type and version
-const Version = "cess-scheduler v0.5.3.221012.1916"
+const Version = "cess-scheduler v0.5.3.221013.1110"
 
 const (
 	// Name is the name of the program

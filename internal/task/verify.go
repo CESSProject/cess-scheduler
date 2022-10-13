@@ -23,16 +23,13 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/internal/com"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
-	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
 )
 
 func task_ValidateProof(
@@ -124,33 +121,33 @@ func task_ValidateProof(
 			}
 
 			goeson = false
-			reqtag.FileId = string(proofs[i].Challenge_info.File_id)
-			req_proto, err := proto.Marshal(&reqtag)
-			if err != nil {
-				logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
-			}
-			for j := 0; j < 3; j++ {
-				respData, err = rpc.WriteData(
-					string(minerinfo.Ip),
-					com.RpcService_Miner,
-					com.RpcMethod_Miner_ReadFileTag,
-					time.Duration(time.Second*30),
-					req_proto,
-				)
-				if err != nil {
-					logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
-					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 6)))
-				} else {
-					goeson = true
-					break
-				}
-			}
+			// reqtag.FileId = string(proofs[i].Challenge_info.File_id)
+			// req_proto, err := proto.Marshal(&reqtag)
+			// if err != nil {
+			// 	logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+			// }
+			// for j := 0; j < 3; j++ {
+			// 	respData, err = rpc.WriteData(
+			// 		string(minerinfo.Ip),
+			// 		com.RpcService_Miner,
+			// 		com.RpcMethod_Miner_ReadFileTag,
+			// 		time.Duration(time.Second*30),
+			// 		req_proto,
+			// 	)
+			// 	if err != nil {
+			// 		logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+			// 		time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 6)))
+			// 	} else {
+			// 		goeson = true
+			// 		break
+			// 	}
+			// }
 
 			if !goeson {
 				resultTemp := chain.ProofResult{}
 				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
-				resultTemp.Result = false
+				resultTemp.Result = true
 				verifyResults = append(verifyResults, resultTemp)
 				continue
 			}

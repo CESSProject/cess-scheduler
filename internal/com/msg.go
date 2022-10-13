@@ -30,6 +30,10 @@ const (
 	MsgEnd
 	MsgNotify
 	MsgClose
+	MsgFillerHead
+	MsgFillerHeadNotify
+	MsgFiller
+	MsgFillerNotify
 )
 
 type Status byte
@@ -40,10 +44,14 @@ const (
 )
 
 type Message struct {
-	MsgType  MsgType `json:"t"`
-	FileName string  `json:"f"`
-	Bytes    []byte  `json:"b"`
-	Size     uint64  `json:"s"`
+	MsgType  MsgType `json:"msg_type"`
+	FileName string  `json:"file_name"`
+	FileHash string  `json:"file_hash"`
+	FileSize uint64  `json:"file_size"`
+	Pubkey   []byte  `json:"pub_key"`
+	SignMsg  []byte  `json:"sign_msg"`
+	Sign     []byte  `json:"sign"`
+	Bytes    []byte  `json:"bytes"`
 }
 
 type Notify struct {
@@ -75,8 +83,12 @@ func (m *Message) GC() {
 func (m *Message) reset() {
 	m.MsgType = MsgInvalid
 	m.FileName = ""
+	m.FileHash = ""
+	m.FileSize = 0
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
 	m.Bytes = nil
-	m.Size = 0
 }
 
 func (m *Message) String() string {
@@ -96,20 +108,29 @@ func NewNotifyMsg(fileName string, status Status) *Message {
 	m.MsgType = MsgNotify
 	m.Bytes = []byte{byte(status)}
 	m.FileName = fileName
+	m.FileHash = ""
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
 	return m
 }
 
-func NewHeadMsg(fileName string) *Message {
+func NewHeadMsg(fileName, fileHash string, pubkey, signmsg, sign []byte) *Message {
 	m := msgPool.Get().(*Message)
 	m.MsgType = MsgHead
 	m.FileName = fileName
+	m.FileHash = fileHash
+	m.Pubkey = pubkey
+	m.SignMsg = signmsg
+	m.Sign = sign
 	return m
 }
 
-func NewFileMsg(fileName string, buf []byte) *Message {
+func NewFileMsg(fileName, fileHash string, buf []byte) *Message {
 	m := msgPool.Get().(*Message)
 	m.MsgType = MsgFile
 	m.FileName = fileName
+	m.FileHash = fileHash
 	m.Bytes = buf
 	return m
 }
@@ -118,7 +139,7 @@ func NewEndMsg(fileName string, size uint64) *Message {
 	m := msgPool.Get().(*Message)
 	m.MsgType = MsgEnd
 	m.FileName = fileName
-	m.Size = size
+	m.FileSize = size
 	return m
 }
 
