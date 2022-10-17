@@ -14,41 +14,47 @@
    limitations under the License.
 */
 
-package com
+package node
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 )
 
-// type WService struct {
-// 	configfile.Configfiler
-// 	logger.Logger
-// 	db.Cache
-// 	chain.Chainer
-// 	fillerDir string
-// 	fileDir   string
-// }
+type Scheduler interface {
+	Run()
+}
 
-// Start is used to start the tcp service.
-func Start(
-	cfg configfile.Configfiler,
-	cli chain.Chainer,
-	db db.Cache,
-	logs logger.Logger,
-	fillerDir string,
-	fileDir string,
-) {
+type Node struct {
+	Conn      *ConMgr
+	Confile   configfile.Configfiler
+	Chain     chain.Chainer
+	Logs      logger.Logger
+	Cache     db.Cacher
+	FileDir   string
+	TagDir    string
+	FillerDir string
+}
+
+// New is used to build a node instance
+func New() *Node {
+	return &Node{}
+}
+
+func (n *Node) Run() {
+	go n.CoroutineMgr()
 	// Get an address of TCP end point
-	tcpAddr, err := net.ResolveTCPAddr("tcp", ":"+cfg.GetServicePort())
+	tcpAddr, err := net.ResolveTCPAddr("tcp", ":"+n.Confile.GetServicePort())
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -66,26 +72,25 @@ func Start(
 		acceptTCP, err := listener.AcceptTCP()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
-				log.Println(err)
+				log.Println("[err] The port is closed and the service exits.")
 				os.Exit(1)
 			}
-			log.Println("Accept tcp err: ", err)
+			n.Logs.Log("common", "error", fmt.Errorf("accept tcp: %v\n", err))
 			continue
 		}
 
-		log.Println("Get conn remote addr: ", acceptTCP.RemoteAddr().String())
+		remote := acceptTCP.RemoteAddr().String()
+		n.Logs.Log("common", "info", fmt.Errorf("received a conn: %v\n", remote))
 
 		// Set server maximum connection control
-		if TCP_ConnLength.Load() > MAX_TCP_CONNECTION {
+		if TCP_ConnLength.Load() > configs.MAX_TCP_CONNECTION {
 			acceptTCP.Close()
-			log.Println("Connecion is max, close conn: ", acceptTCP.RemoteAddr().String())
+			n.Logs.Log("common", "info", fmt.Errorf("close conn: %v\n", remote))
 			continue
 		}
 
 		// Start the processing service of the new connection
-		tcpCon := NewTcp(acceptTCP)
-		srv := NewServer(tcpCon, fileDir)
-		go srv.Start(cli)
+		go n.NewServer(NewTcp(acceptTCP), n.FileDir).Start()
 		time.Sleep(time.Millisecond)
 	}
 }

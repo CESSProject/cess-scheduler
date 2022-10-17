@@ -36,7 +36,7 @@ import (
 //
 // Usage:
 //
-//	scheduler update <ipv4:port> or <domain name>
+//	scheduler update <ipv4:port>
 func updateCmd(cmd *cobra.Command, args []string) {
 	if len(os.Args) >= 3 {
 		addr := strings.Split(os.Args[2], ":")

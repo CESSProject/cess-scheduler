@@ -25,15 +25,13 @@ import (
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/internal/com"
 	"github.com/CESSProject/cess-scheduler/internal/pattern"
-	"github.com/CESSProject/cess-scheduler/internal/task"
+	"github.com/CESSProject/cess-scheduler/node"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/btcsuite/btcutil/base58"
-	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/spf13/cobra"
 )
 
@@ -43,9 +41,53 @@ import (
 //
 //	scheduler run
 func runCmd(cmd *cobra.Command, args []string) {
-	var err error
-	var isReg bool
-	// config file
+	var (
+		err      error
+		logDir   string
+		cacheDir string
+		node     = node.New()
+	)
+
+	node.Confile, err = buildConfigFile(cmd)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	node.Chain, err = buildChain(node.Confile, configs.TimeOut_WaitBlock)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	pattern.ChainStatus.Store(true)
+
+	// create data dir
+	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	// cache
+	node.Cache, err = buildCache(cacheDir)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	// logs
+	node.Logs, err = buildLogs(logDir)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+
+	// run
+	node.Run()
+}
+
+func buildConfigFile(cmd *cobra.Command) (configfile.Configfiler, error) {
 	var configFilePath string
 	configpath1, _ := cmd.Flags().GetString("config")
 	configpath2, _ := cmd.Flags().GetString("c")
@@ -55,93 +97,36 @@ func runCmd(cmd *cobra.Command, args []string) {
 		configFilePath = configpath2
 	}
 
-	Cfg = configfile.NewConfigfile()
-	if err = Cfg.Parse(configFilePath); err != nil {
-		log.Println(err)
-		os.Exit(1)
+	cfg := configfile.NewConfigfile()
+	if err := cfg.Parse(configFilePath); err != nil {
+		return nil, err
 	}
+	return cfg, nil
+}
 
-	// chain client
-	Cli, err = chain.NewChainClient(
-		Cfg.GetRpcAddr(),
-		Cfg.GetCtrlPrk(),
-		time.Duration(time.Second*15),
-	)
+func buildChain(cfg configfile.Configfiler, timeout time.Duration) (chain.Chainer, error) {
+	var isReg bool
+	// connecting chain
+	client, err := chain.NewChainClient(cfg.GetRpcAddr(), cfg.GetCtrlPrk(), timeout)
 	if err != nil {
-		log.Println("[err]", err)
-		os.Exit(1)
-
+		return nil, err
 	}
-	pattern.ChainStatus.Store(true)
 
 	// judge the balance
-	accountinfo, err := Cli.GetAccountInfo(Cli.GetPublicKey())
+	accountinfo, err := client.GetAccountInfo(client.GetPublicKey())
 	if err != nil {
-		log.Printf("[err] Failed to get account information\n")
-		os.Exit(1)
+		return nil, err
 	}
 
-	if accountinfo.Data.Free.CmpAbs(
-		new(big.Int).SetUint64(configs.MinimumBalance),
-	) == -1 {
-		log.Printf("[err] Account balance is less than %v pico\n", configs.MinimumBalance)
-		os.Exit(1)
-	}
-
-	// whether to register
-	schelist, err := Cli.GetAllSchedulerInfo()
-	if err != nil {
-		if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
-			log.Printf("%v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		for _, v := range schelist {
-			if v.ControllerUser == types.NewAccountID(Cli.GetPublicKey()) {
-				isReg = true
-				break
-			}
-		}
-	}
-
-	// register
-	if !isReg {
-		if err := register(); err != nil {
-			os.Exit(1)
-		}
-	}
-
-	// create data dir
-	logDir, dbDir, fillerDir, fileDir, err := creatDataDir()
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-
-	// cache
-	Db, err = db.NewLevelDB(dbDir, 0, 0, configs.NameSpace)
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-
-	// logs
-	var logs_info = make(map[string]string)
-	for _, v := range configs.LogName {
-		logs_info[v] = filepath.Join(logDir, v+".log")
-	}
-	Logs, err = logger.NewLogs(logs_info)
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+	if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
+		return nil, fmt.Errorf("Account balance is less than %v pico\n", configs.MinimumBalance)
 	}
 
 	// sync block
 	for {
-		ok, err := Cli.GetSyncStatus()
+		ok, err := client.GetSyncStatus()
 		if err != nil {
-			log.Println(err)
-			os.Exit(1)
+			return nil, err
 		}
 		if !ok {
 			break
@@ -151,77 +136,106 @@ func runCmd(cmd *cobra.Command, args []string) {
 	}
 	log.Println("Sync complete")
 
-	// run task
-	go task.Run(Cli, Db, Logs, fillerDir)
-	com.Start(Cfg, Cli, Db, Logs, fillerDir, fileDir)
+	// whether to register
+	schelist, err := client.GetAllSchedulerInfo()
+	if err != nil && err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
+		return nil, err
+	}
+
+	for _, v := range schelist {
+		if v.ControllerUser == client.NewAccountId(client.GetPublicKey()) {
+			isReg = true
+			break
+		}
+	}
+
+	// register
+	if !isReg {
+		if err := register(cfg, client); err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
-func register() error {
-	txhash, err := Cli.Register(
-		Cfg.GetStashAcc(),
-		base58.Encode(
-			[]byte(Cfg.GetServiceAddr()+":"+Cfg.GetServicePort()),
-		),
+func register(cfg configfile.Configfiler, client chain.Chainer) error {
+	txhash, err := client.Register(
+		cfg.GetStashAcc(), base58.Encode([]byte(cfg.GetServiceAddr()+":"+cfg.GetServicePort())),
 	)
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
-			log.Println("[err] Please check your wallet balance.")
+			return fmt.Errorf("[err] Please check your wallet balance")
 		} else {
 			if txhash != "" {
 				msg := configs.HELP_common + fmt.Sprintf(" %v\n", txhash)
 				msg += configs.HELP_register
-				log.Printf("[pending] %v\n", msg)
-			} else {
-				log.Printf("[err] %v.\n", err)
+				return fmt.Errorf("[pending] %v\n", msg)
 			}
+			return err
 		}
-		return err
 	}
-	log.Println("[ok] Registration success")
 	return nil
 }
 
-func creatDataDir() (string, string, string, string, error) {
-	ctlAccount, err := Cli.GetCessAccount()
+func buildDir(cfg configfile.Configfiler, client chain.Chainer) (string, string, string, string, string, error) {
+	ctlAccount, err := client.GetCessAccount()
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
-	baseDir := filepath.Join(Cfg.GetDataDir(), ctlAccount, configs.BaseDir)
+	baseDir := filepath.Join(cfg.GetDataDir(), ctlAccount, configs.BaseDir)
 	log.Println(baseDir)
 	_, err = os.Stat(baseDir)
 	if err != nil {
 		err = os.MkdirAll(baseDir, os.ModeDir)
 		if err != nil {
-			return "", "", "", "", err
+			return "", "", "", "", "", err
 		}
 	}
 
-	logDir := filepath.Join(baseDir, "log")
+	logDir := filepath.Join(baseDir, configs.LogDir)
 	_, err = os.Stat(logDir)
 	if err == nil {
 		bkp := logDir + fmt.Sprintf("_%v", time.Now().Unix())
 		os.Rename(logDir, bkp)
 	}
 	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 
-	dbDir := filepath.Join(baseDir, "db")
-	os.RemoveAll(dbDir)
-	if err := os.MkdirAll(dbDir, os.ModeDir); err != nil {
-		return "", "", "", "", err
+	cacheDir := filepath.Join(baseDir, configs.CacheDir)
+	os.RemoveAll(cacheDir)
+	if err := os.MkdirAll(cacheDir, os.ModeDir); err != nil {
+		return "", "", "", "", "", err
 	}
 
-	fillerDir := filepath.Join(baseDir, "filler")
+	fillerDir := filepath.Join(baseDir, configs.FillerDir)
 	os.RemoveAll(fillerDir)
 	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 
-	fileDir := filepath.Join(baseDir, "file")
+	fileDir := filepath.Join(baseDir, configs.FileDir)
 	os.RemoveAll(fileDir)
 	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
-	return logDir, dbDir, fillerDir, fileDir, nil
+
+	tagDir := filepath.Join(baseDir, configs.TagDir)
+	os.RemoveAll(tagDir)
+	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
+		return "", "", "", "", "", err
+	}
+	return logDir, cacheDir, fillerDir, fileDir, tagDir, nil
+}
+
+func buildCache(cacheDir string) (db.Cacher, error) {
+	return db.NewCache(cacheDir, 0, 0, configs.NameSpace)
+}
+
+func buildLogs(logDir string) (logger.Logger, error) {
+	var logs_info = make(map[string]string)
+	for _, v := range configs.LogName {
+		logs_info[v] = filepath.Join(logDir, v+".log")
+	}
+	return logger.NewLogs(logs_info)
 }

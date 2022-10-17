@@ -58,7 +58,6 @@ type RewardInfo struct {
 type Cache_MinerInfo struct {
 	Peerid uint64 `json:"peerid"`
 	Ip     string `json:"ip"`
-	Pubkey []byte `json:"pubkey"`
 }
 
 // file meta info

@@ -16,16 +16,9 @@
 
 package console
 
-import (
-	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/configfile"
-	"github.com/CESSProject/cess-scheduler/pkg/db"
-	"github.com/CESSProject/cess-scheduler/pkg/logger"
-)
-
-var (
-	Cfg  configfile.Configfiler
-	Cli  chain.Chainer
-	Logs logger.Logger
-	Db   db.Cache
-)
+// var (
+// 	Cfg  configfile.Configfiler
+// 	Cli  chain.Chainer
+// 	Logs logger.Logger
+// 	Db   db.Cache
+// )

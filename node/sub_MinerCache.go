@@ -14,37 +14,29 @@
    limitations under the License.
 */
 
-package task
+package node
 
 import (
 	"encoding/json"
 	"time"
 
-	"github.com/CESSProject/cess-scheduler/internal/pattern"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/db"
-	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/pkg/errors"
 )
 
-func task_SyncMinersInfo(
-	ch chan bool,
-	logs logger.Logger,
-	cli chain.Chainer,
-	db db.Cache,
-) {
+func (node *Node) task_SyncMinersInfo(ch chan bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Log("panic", "error", utils.RecoverError(err))
 		}
 		ch <- true
 	}()
-	logs.Log("smi", "info", errors.New("-----> Start task_SyncMinersInfo"))
+	node.Logs.Log("smi", "info", errors.New("-----> Start task_SyncMinersInfo"))
 
 	for {
-		allMinerAcc, _ := cli.GetAllStorageMiner()
+		allMinerAcc, _ := node.Chain.GetAllStorageMiner()
 		if len(allMinerAcc) == 0 {
 			time.Sleep(time.Second * 6)
 			continue
@@ -53,45 +45,44 @@ func task_SyncMinersInfo(
 		for i := 0; i < len(allMinerAcc); i++ {
 			addr, err := utils.EncodePublicKeyAsCessAccount(allMinerAcc[i][:])
 			if err != nil {
-				logs.Log("smi", "error", errors.Errorf("%v, %v", allMinerAcc[i], err))
+				node.Logs.Log("smi", "error", errors.Errorf("%v, %v", allMinerAcc[i], err))
 				continue
 			}
 
-			ok, err := db.Has(allMinerAcc[i][:])
+			ok, err := node.Cache.Has(allMinerAcc[i][:])
 			if err != nil {
-				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
 			var cm chain.Cache_MinerInfo
-			mdata, err := cli.GetStorageMinerInfo(allMinerAcc[i][:])
+			mdata, err := node.Chain.GetStorageMinerInfo(allMinerAcc[i][:])
 			if err != nil {
-				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
 			if ok {
 				if string(mdata.State) == "exit" {
-					db.Delete(allMinerAcc[i][:])
+					node.Cache.Delete(allMinerAcc[i][:])
 					continue
 				}
 
 				err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
 				if err != nil {
-					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
-					db.Delete(allMinerAcc[i][:])
+					node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+					node.Cache.Delete(allMinerAcc[i][:])
 				}
 				cm.Peerid = uint64(mdata.PeerId)
 				cm.Ip = string(mdata.Ip)
-				cm.Pubkey = allMinerAcc[i][:]
 				value, err := json.Marshal(&cm)
 				if err != nil {
-					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+					node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 					continue
 				}
-				err = db.Put(allMinerAcc[i][:], value)
+				err = node.Cache.Put(allMinerAcc[i][:], value)
 				if err != nil {
-					logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+					node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				}
 				continue
 			}
@@ -102,28 +93,27 @@ func task_SyncMinersInfo(
 
 			err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
 			if err != nil {
-				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
 			cm.Peerid = uint64(mdata.PeerId)
 			cm.Ip = string(mdata.Ip)
-			cm.Pubkey = allMinerAcc[i][:]
 
 			value, err := json.Marshal(&cm)
 			if err != nil {
-				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
-			err = db.Put(allMinerAcc[i][:], value)
+			err = node.Cache.Put(allMinerAcc[i][:], value)
 			if err != nil {
-				logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
 			}
 
-			logs.Log("smi", "info", errors.Errorf("[%v] Cache is stored", addr))
-			pattern.DeleteBliacklist(string(allMinerAcc[i][:]))
+			node.Logs.Log("smi", "info", errors.Errorf("[%v] Cache is stored", addr))
+			//pattern.DeleteBliacklist(string(allMinerAcc[i][:]))
 		}
-		time.Sleep(time.Second * time.Duration(utils.RandomInRange(60, 180)))
+		time.Sleep(time.Second)
 	}
 }

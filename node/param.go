@@ -14,12 +14,11 @@
    limitations under the License.
 */
 
-package com
+package node
 
-type NetConn interface {
-	HandlerLoop()
-	GetMsg() (*Message, bool)
-	SendMsg(m *Message)
-	Close() error
-	IsClose() bool
+import "github.com/CESSProject/cess-scheduler/pkg/pbc"
+
+type TagInfo struct {
+	T      pbc.FileTagT
+	Sigmas [][]byte `json:"sigmas"`
 }

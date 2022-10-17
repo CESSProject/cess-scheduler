@@ -14,20 +14,11 @@
    limitations under the License.
 */
 
-package task
+package node
 
-import (
-	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/db"
-	"github.com/CESSProject/cess-scheduler/pkg/logger"
-)
-
-func Run(
-	cli chain.Chainer,
-	db db.Cache,
-	logs logger.Logger,
-	fillerDir string,
-) {
+// CoroutineMgr is the management program of the cooperation program,
+// which can start the cooperation program that unexpectedly exits.
+func (node *Node) CoroutineMgr() {
 	var (
 		channel_1 = make(chan bool, 1)
 		channel_2 = make(chan bool, 1)
@@ -36,24 +27,24 @@ func Run(
 		channel_5 = make(chan bool, 1)
 	)
 
-	go task_SyncMinersInfo(channel_1, logs, cli, db)
-	go task_ValidateProof(channel_2, logs, cli, db)
-	go task_SubmitFillerMeta(channel_3, logs, cli, fillerDir)
-	go task_GenerateFiller(channel_4, logs, fillerDir)
-	go task_ClearAuthMap(channel_5, logs, cli)
+	go node.task_SyncMinersInfo(channel_1)
+	go node.task_ValidateProof(channel_2)
+	go node.task_SubmitFillerMeta(channel_3)
+	go node.task_GenerateFiller(channel_4)
+	go node.task_ClearAuthMap(channel_5)
 
 	for {
 		select {
 		case <-channel_1:
-			go task_SyncMinersInfo(channel_1, logs, cli, db)
+			go node.task_SyncMinersInfo(channel_1)
 		case <-channel_2:
-			go task_ValidateProof(channel_2, logs, cli, db)
+			go node.task_ValidateProof(channel_2)
 		case <-channel_3:
-			go task_SubmitFillerMeta(channel_3, logs, cli, fillerDir)
+			go node.task_SubmitFillerMeta(channel_3)
 		case <-channel_4:
-			go task_GenerateFiller(channel_4, logs, fillerDir)
+			go node.task_GenerateFiller(channel_4)
 		case <-channel_5:
-			go task_ClearAuthMap(channel_5, logs, cli)
+			go node.task_ClearAuthMap(channel_5)
 		}
 	}
 }

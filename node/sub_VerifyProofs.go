@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package task
+package node
 
 import (
 	"encoding/json"
@@ -24,20 +24,13 @@ import (
 	"github.com/CESSProject/cess-scheduler/api/protobuf"
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/db"
-	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
 
-func task_ValidateProof(
-	ch chan bool,
-	logs logger.Logger,
-	cli chain.Chainer,
-	db db.Cache,
-) {
+func (node *Node) task_ValidateProof(ch chan bool) {
 	var (
 		err         error
 		goeson      bool
@@ -49,18 +42,18 @@ func task_ValidateProof(
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
-	logs.Log("vp", "info", errors.New("--> Start task_ValidateProof"))
+	node.Logs.Log("vp", "info", errors.New("--> Start task_ValidateProof"))
 
-	reqtag.Acc = cli.GetPublicKey()
+	reqtag.Acc = node.Chain.GetPublicKey()
 
 	for {
-		proofs, err = cli.GetProofs()
+		proofs, err = node.Chain.GetProofs()
 		if err != nil {
 			if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
-				logs.Log("vp", "error", err)
+				node.Logs.Log("vp", "error", err)
 			}
 			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 6)))
 			continue
@@ -70,7 +63,7 @@ func task_ValidateProof(
 			continue
 		}
 
-		logs.Log("vp", "info", errors.Errorf("--> Ready to verify %v proofs", len(proofs)))
+		node.Logs.Log("vp", "info", errors.Errorf("--> Ready to verify %v proofs", len(proofs)))
 
 		var respData []byte
 		var tag pbc.TagInfo
@@ -79,9 +72,9 @@ func task_ValidateProof(
 			if len(verifyResults) >= 40 {
 				txhash = ""
 				for txhash == "" {
-					txhash, _ = cli.SubmitProofResults(verifyResults)
+					txhash, _ = node.Chain.SubmitProofResults(verifyResults)
 					if txhash != "" {
-						logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
+						node.Logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
 						break
 					}
 					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
@@ -91,10 +84,10 @@ func task_ValidateProof(
 			goeson = false
 			addr, err := utils.EncodePublicKeyAsCessAccount(proofs[i].Miner_pubkey[:])
 			if err != nil {
-				logs.Log("vp", "error", errors.Errorf("%v,%v", proofs[i].Miner_pubkey, err))
+				node.Logs.Log("vp", "error", errors.Errorf("%v,%v", proofs[i].Miner_pubkey, err))
 			}
 
-			cacheData, err := db.Get(proofs[i].Miner_pubkey[:])
+			cacheData, err := node.Cache.Get(proofs[i].Miner_pubkey[:])
 			if err != nil {
 				resultTemp := chain.ProofResult{}
 				resultTemp.PublicKey = proofs[i].Miner_pubkey
@@ -111,7 +104,7 @@ func task_ValidateProof(
 			var minerinfo chain.Cache_MinerInfo
 			err = json.Unmarshal(cacheData, &minerinfo)
 			if err != nil {
-				logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+				node.Logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
 				resultTemp := chain.ProofResult{}
 				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
@@ -154,14 +147,14 @@ func task_ValidateProof(
 
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+				node.Logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
 			}
 			qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(
 				proofs[i].Challenge_info.Block_list,
 				proofs[i].Challenge_info.Random,
 			)
 			if err != nil {
-				logs.Log("vp", "error",
+				node.Logs.Log("vp", "error",
 					errors.Errorf("[%v] [%v] [%v] qslice: %v",
 						addr,
 						len(proofs[i].Challenge_info.Block_list),
@@ -189,9 +182,9 @@ func task_ValidateProof(
 		if len(verifyResults) > 0 {
 			txhash = ""
 			for txhash == "" {
-				txhash, _ = cli.SubmitProofResults(verifyResults)
+				txhash, _ = node.Chain.SubmitProofResults(verifyResults)
 				if txhash != "" {
-					logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
+					node.Logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
 					break
 				}
 				time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))

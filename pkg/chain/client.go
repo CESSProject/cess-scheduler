@@ -28,6 +28,10 @@ import (
 type Chainer interface {
 	// Getpublickey returns its own public key
 	GetPublicKey() []byte
+	// Getpublickey returns its own public key
+	GetMnemonicSeed() string
+	// NewAccountId returns the account id
+	NewAccountId(pubkey []byte) types.AccountID
 	// GetSyncStatus returns whether the block is being synchronized
 	GetSyncStatus() (bool, error)
 	// Getstorageminerinfo is used to get the details of the miner
@@ -124,6 +128,10 @@ func (c *chainClient) IsChainClientOk() bool {
 		return true
 	}
 	return true
+}
+
+func (c *chainClient) NewAccountId(pubkey []byte) types.AccountID {
+	return types.NewAccountID(pubkey)
 }
 
 func reconnectChainClient(rpcAddr string) (*gsrpc.SubstrateAPI, error) {

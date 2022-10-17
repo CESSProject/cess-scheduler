@@ -20,13 +20,50 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/rand"
+	"reflect"
 	"runtime/debug"
+	"time"
 )
 
+// RecoverError is used to record the stack information of panic
 func RecoverError(err interface{}) error {
 	buf := new(bytes.Buffer)
-	fmt.Fprintf(buf, "%v\n", "--------------------panic--------------------")
+	fmt.Fprintf(buf, "%v\n", "[panic]")
 	fmt.Fprintf(buf, "%v\n", err)
 	fmt.Fprintf(buf, "%v\n", string(debug.Stack()))
 	return errors.New(buf.String())
+}
+
+// RandSlice is used to disrupt the order of elements in the slice
+func RandSlice(slice interface{}) {
+	rv := reflect.ValueOf(slice)
+	if rv.Type().Kind() != reflect.Slice {
+		return
+	}
+
+	length := rv.Len()
+	if length < 2 {
+		return
+	}
+
+	swap := reflect.Swapper(slice)
+	rand.Seed(time.Now().Unix())
+	for i := length - 1; i >= 0; i-- {
+		j := rand.Intn(length)
+		swap(i, j)
+	}
+	return
+}
+
+// InterfaceIsNIL returns the comparison between i and nil
+func InterfaceIsNIL(i interface{}) bool {
+	ret := i == nil
+	if !ret {
+		defer func() {
+			recover()
+		}()
+		ret = reflect.ValueOf(i).IsNil()
+	}
+	return ret
 }

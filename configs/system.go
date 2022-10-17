@@ -26,8 +26,17 @@ const (
 	Description = "Implementation of Scheduling Service for Consensus Nodes"
 	// NameSpace is the cached namespace
 	NameSpace = "scheduler"
+)
+
+const (
 	// BaseDir is the base directory where data is stored
 	BaseDir = NameSpace
+	//
+	LogDir    = "log"
+	CacheDir  = "cache"
+	FileDir   = "file"
+	TagDir    = "tag"
+	FillerDir = "filler"
 )
 
 const (

@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package task
+package node
 
 import (
 	"log"
@@ -23,30 +23,27 @@ import (
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/internal/pattern"
-	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/pkg/errors"
 )
 
-func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
+func (node *Node) task_ClearAuthMap(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Log("panic", "error", utils.RecoverError(err))
 		}
 	}()
-	logs.Log("common", "info", errors.New("-----> Start task_ClearAuthMap"))
+	node.Logs.Log("common", "info", errors.New("-----> Start task_ClearAuthMap"))
 
 	var count uint8
 	for {
 		count++
 		if count >= 5 {
-			accountinfo, err := c.GetAccountInfo(c.GetPublicKey())
+			accountinfo, err := node.Chain.GetAccountInfo(node.Chain.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
-					logs.Log("common", "info", errors.New("Insufficient balance, program exited"))
+					node.Logs.Log("common", "info", errors.New("Insufficient balance, program exited"))
 					log.Printf("Insufficient balance, program exited.\n")
 					os.Exit(1)
 				}
@@ -57,7 +54,7 @@ func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
 			//logs.Log("common", "info", errors.New("Black miners:"))
 			//logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
 		}
-		pattern.DeleteExpiredAuth()
+		//pattern.DeleteExpiredAuth()
 		//pattern.DeleteExpiredSpacem()
 		time.Sleep(time.Second * 30)
 	}

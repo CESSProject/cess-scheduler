@@ -14,28 +14,12 @@
    limitations under the License.
 */
 
-package db
+package com
 
-import "io"
-
-type Reader interface {
-	// Has returns true if the given key exists in the key-value data store.
-	Has(key []byte) (bool, error)
-
-	// Get fetch the given key if it's present in the key-value data store.
-	Get(key []byte) ([]byte, error)
-}
-
-type Writer interface {
-	// Put store the given key-value in the key-value data store
-	Put(key []byte, value []byte) error
-
-	// Delete removes the key from the key-value data store.
-	Delete(key []byte) error
-}
-
-type Cacher interface {
-	Reader
-	Writer
-	io.Closer
-}
+// type NetConn interface {
+// 	HandlerLoop()
+// 	GetMsg() (*Message, bool)
+// 	SendMsg(m *Message)
+// 	Close() error
+// 	IsClose() bool
+// }

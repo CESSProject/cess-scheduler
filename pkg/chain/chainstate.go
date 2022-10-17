@@ -27,6 +27,10 @@ func (c *chainClient) GetPublicKey() []byte {
 	return c.keyring.PublicKey
 }
 
+func (c *chainClient) GetMnemonicSeed() string {
+	return c.keyring.URI
+}
+
 func (c *chainClient) GetSyncStatus() (bool, error) {
 	if !c.IsChainClientOk() {
 		return false, ERR_RPC_CONNECTION

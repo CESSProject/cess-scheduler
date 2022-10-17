@@ -16,6 +16,8 @@
 
 package configs
 
+import "time"
+
 // account
 const (
 	// CESS token precision
@@ -45,9 +47,13 @@ const (
 )
 
 const (
-	Max_Miner_Connected = 3
-	Num_Filler_Reserved = 5
-	Max_Filler_Meta     = 100
+	MAX_TCP_CONNECTION  uint32 = 3
+	Num_Filler_Reserved        = 5
+	Max_Filler_Meta            = 100
+)
+
+const (
+	TimeOut_WaitBlock = time.Duration(time.Second * 15)
 )
 
 // explanation
@@ -65,5 +71,5 @@ const (
 
 // log
 var (
-	LogName = [9]string{"common", "upfile", "downfile", "filler", "panic", "vp", "smi", "sfm", "gf"}
+	LogName = [9]string{"common", "upfile", "downfile", "authSpace", "panic", "verified", "syncMiner", "fillerMeta", "genFiller"}
 )
