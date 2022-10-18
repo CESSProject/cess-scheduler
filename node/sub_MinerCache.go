@@ -18,102 +18,82 @@ package node
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/rpc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/pkg/errors"
 )
 
-func (node *Node) task_SyncMinersInfo(ch chan bool) {
+// task_MinerCache obtains the miners' information on the chain
+// and records it to the cache
+func (node *Node) task_MinerCache(ch chan bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			node.Logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 		ch <- true
 	}()
-	node.Logs.Log("smi", "info", errors.New("-----> Start task_SyncMinersInfo"))
+
+	var (
+		minerCache chain.Cache_MinerInfo
+		minerInfo  chain.MinerInfo
+	)
+
+	node.Logs.MinerCache("info", errors.New(">>> Start task_MinerCache <<<"))
 
 	for {
+		// Get the account public key of all miners
 		allMinerAcc, _ := node.Chain.GetAllStorageMiner()
 		if len(allMinerAcc) == 0 {
-			time.Sleep(time.Second * 6)
+			time.Sleep(configs.BlockInterval)
 			continue
 		}
 
 		for i := 0; i < len(allMinerAcc); i++ {
+			// CESS addr
 			addr, err := utils.EncodePublicKeyAsCessAccount(allMinerAcc[i][:])
 			if err != nil {
-				node.Logs.Log("smi", "error", errors.Errorf("%v, %v", allMinerAcc[i], err))
+				node.Logs.MinerCache("error", fmt.Errorf("%v, %v", allMinerAcc[i], err))
 				continue
 			}
 
-			ok, err := node.Cache.Has(allMinerAcc[i][:])
+			// Get the details of miners
+			minerInfo, err = node.Chain.GetStorageMinerInfo(allMinerAcc[i][:])
 			if err != nil {
-				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
-			var cm chain.Cache_MinerInfo
-			mdata, err := node.Chain.GetStorageMinerInfo(allMinerAcc[i][:])
-			if err != nil {
-				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
-				continue
-			}
-
-			if ok {
-				if string(mdata.State) == "exit" {
-					node.Cache.Delete(allMinerAcc[i][:])
-					continue
-				}
-
-				err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
-				if err != nil {
-					node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+			// if exit
+			if string(minerInfo.State) == chain.MINER_STATE_EXIT {
+				exist, _ := node.Cache.Has(allMinerAcc[i][:])
+				if exist {
 					node.Cache.Delete(allMinerAcc[i][:])
 				}
-				cm.Peerid = uint64(mdata.PeerId)
-				cm.Ip = string(mdata.Ip)
-				value, err := json.Marshal(&cm)
-				if err != nil {
-					node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
-					continue
-				}
-				err = node.Cache.Put(allMinerAcc[i][:], value)
-				if err != nil {
-					node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
-				}
 				continue
 			}
 
-			if string(mdata.State) == "exit" {
-				continue
-			}
+			// save data
+			minerCache.Peerid = uint64(minerInfo.PeerId)
+			minerCache.Ip = string(minerInfo.Ip)
 
-			err = rpc.Dial(string(mdata.Ip), time.Duration(time.Second*5))
+			value, err := json.Marshal(&minerCache)
 			if err != nil {
-				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
 				continue
 			}
 
-			cm.Peerid = uint64(mdata.PeerId)
-			cm.Ip = string(mdata.Ip)
-
-			value, err := json.Marshal(&cm)
-			if err != nil {
-				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
-				continue
-			}
-
+			// save or update cache
 			err = node.Cache.Put(allMinerAcc[i][:], value)
 			if err != nil {
-				node.Logs.Log("smi", "error", errors.Errorf("[%v] %v", addr, err))
+				node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
+				continue
 			}
 
-			node.Logs.Log("smi", "info", errors.Errorf("[%v] Cache is stored", addr))
-			//pattern.DeleteBliacklist(string(allMinerAcc[i][:]))
+			node.Logs.MinerCache("info", fmt.Errorf("[%v] Cached", addr))
 		}
-		time.Sleep(time.Second)
 	}
 }

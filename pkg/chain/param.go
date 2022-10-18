@@ -67,3 +67,9 @@ const (
 	FILE_STATE_ACTIVE  = "active"
 	FILE_STATE_PENDING = "pending"
 )
+
+const (
+	MINER_STATE_POSITIVE = "positive"
+	MINER_STATE_FROZEN   = "frozen"
+	MINER_STATE_EXIT     = "exit"
+)

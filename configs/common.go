@@ -44,6 +44,8 @@ const (
 	BlockSize = SIZE_1MiB
 	// ScanBlockSize is the size of the scan and cannot be larger than BlockSize
 	ScanBlockSize = BlockSize / 2
+	// The maximum number of fillermeta submitted in a transaction
+	Max_SubFillerMeta = 8
 )
 
 const (
@@ -53,7 +55,12 @@ const (
 )
 
 const (
+	// Time out waiting for transaction completion
 	TimeOut_WaitBlock = time.Duration(time.Second * 15)
+	// Submit fillermeta interval
+	SubmitFillermetaInterval = 60
+	// The maximum number of proof results submitted in a transaction
+	Max_SubProofResults = 40
 )
 
 // explanation
@@ -69,7 +76,15 @@ const (
         If system.ExtrinsicSuccess is prompted, it means success;`
 )
 
-// log
+// log file
 var (
-	LogName = [9]string{"common", "upfile", "downfile", "authSpace", "panic", "verified", "syncMiner", "fillerMeta", "genFiller"}
+	LogFiles = []string{
+		"common",     //General log
+		"upfile",     //Upload file log
+		"panic",      //Panic log
+		"verify",     //Verify proof log
+		"minerCache", //Miner cache log
+		"fillerMeta", //Submit filler meta log
+		"genFiller",  //Generate filler log
+	}
 )

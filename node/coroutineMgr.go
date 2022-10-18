@@ -27,7 +27,7 @@ func (node *Node) CoroutineMgr() {
 		channel_5 = make(chan bool, 1)
 	)
 
-	go node.task_SyncMinersInfo(channel_1)
+	go node.task_MinerCache(channel_1)
 	go node.task_ValidateProof(channel_2)
 	go node.task_SubmitFillerMeta(channel_3)
 	go node.task_GenerateFiller(channel_4)
@@ -36,7 +36,7 @@ func (node *Node) CoroutineMgr() {
 	for {
 		select {
 		case <-channel_1:
-			go node.task_SyncMinersInfo(channel_1)
+			go node.task_MinerCache(channel_1)
 		case <-channel_2:
 			go node.task_ValidateProof(channel_2)
 		case <-channel_3:

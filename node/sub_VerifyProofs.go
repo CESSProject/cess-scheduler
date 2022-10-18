@@ -18,6 +18,7 @@ package node
 
 import (
 	"encoding/json"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// task_ValidateProof is used to verify the proof data
 func (node *Node) task_ValidateProof(ch chan bool) {
 	var (
 		err         error
@@ -42,10 +44,10 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			node.Logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
-	node.Logs.Log("vp", "info", errors.New("--> Start task_ValidateProof"))
+	node.Logs.Verify("info", errors.New(">>> Start task_ValidateProof <<<"))
 
 	reqtag.Acc = node.Chain.GetPublicKey()
 
@@ -53,38 +55,36 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 		proofs, err = node.Chain.GetProofs()
 		if err != nil {
 			if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
-				node.Logs.Log("vp", "error", err)
+				node.Logs.Verify("error", err)
 			}
-			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 6)))
-			continue
 		}
 		if len(proofs) == 0 {
-			time.Sleep(time.Minute * time.Duration(utils.RandomInRange(3, 6)))
+			time.Sleep(time.Minute)
 			continue
 		}
 
-		node.Logs.Log("vp", "info", errors.Errorf("--> Ready to verify %v proofs", len(proofs)))
+		node.Logs.Verify("info", fmt.Errorf("There are %d proofs", len(proofs)))
 
 		var respData []byte
 		var tag pbc.TagInfo
 		var verifyResults = make([]chain.ProofResult, 0)
 		for i := 0; i < len(proofs); i++ {
-			if len(verifyResults) >= 40 {
+			if len(verifyResults) >= configs.Max_SubProofResults {
 				txhash = ""
 				for txhash == "" {
 					txhash, _ = node.Chain.SubmitProofResults(verifyResults)
 					if txhash != "" {
-						node.Logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
+						node.Logs.Verify("info", fmt.Errorf("Proof result submitted: %v", txhash))
 						break
 					}
-					time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))
+					time.Sleep(configs.BlockInterval)
 				}
 				verifyResults = make([]chain.ProofResult, 0)
 			}
 			goeson = false
 			addr, err := utils.EncodePublicKeyAsCessAccount(proofs[i].Miner_pubkey[:])
 			if err != nil {
-				node.Logs.Log("vp", "error", errors.Errorf("%v,%v", proofs[i].Miner_pubkey, err))
+				node.Logs.Log("verified", "error", errors.Errorf("%v,%v", proofs[i].Miner_pubkey, err))
 			}
 
 			cacheData, err := node.Cache.Get(proofs[i].Miner_pubkey[:])
@@ -104,7 +104,7 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 			var minerinfo chain.Cache_MinerInfo
 			err = json.Unmarshal(cacheData, &minerinfo)
 			if err != nil {
-				node.Logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+				node.Logs.Log("verified", "error", errors.Errorf("%v,%v", addr, err))
 				resultTemp := chain.ProofResult{}
 				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
@@ -147,14 +147,14 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 
 			err = json.Unmarshal(respData, &tag)
 			if err != nil {
-				node.Logs.Log("vp", "error", errors.Errorf("%v,%v", addr, err))
+				node.Logs.Log("verified", "error", errors.Errorf("%v,%v", addr, err))
 			}
 			qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(
 				proofs[i].Challenge_info.Block_list,
 				proofs[i].Challenge_info.Random,
 			)
 			if err != nil {
-				node.Logs.Log("vp", "error",
+				node.Logs.Log("verified", "error",
 					errors.Errorf("[%v] [%v] [%v] qslice: %v",
 						addr,
 						len(proofs[i].Challenge_info.Block_list),
@@ -184,7 +184,7 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 			for txhash == "" {
 				txhash, _ = node.Chain.SubmitProofResults(verifyResults)
 				if txhash != "" {
-					node.Logs.Log("vp", "info", errors.Errorf("Proof result submitted: %v", txhash))
+					node.Logs.Log("verified", "info", errors.Errorf("Proof result submitted: %v", txhash))
 					break
 				}
 				time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 15)))

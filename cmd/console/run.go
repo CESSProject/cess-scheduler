@@ -234,7 +234,7 @@ func buildCache(cacheDir string) (db.Cacher, error) {
 
 func buildLogs(logDir string) (logger.Logger, error) {
 	var logs_info = make(map[string]string)
-	for _, v := range configs.LogName {
+	for _, v := range configs.LogFiles {
 		logs_info[v] = filepath.Join(logDir, v+".log")
 	}
 	return logger.NewLogs(logs_info)

@@ -17,20 +17,10 @@
 package main
 
 import (
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
-
 	"github.com/CESSProject/cess-scheduler/cmd/console"
 )
 
 // program entry
 func main() {
 	console.Execute()
-	osc := make(chan os.Signal, 1)
-	signal.Notify(osc, syscall.SIGTERM, syscall.SIGINT)
-	sig := <-osc
-	log.Printf("[exit] %v\n", sig)
-	// TODO: clear
 }

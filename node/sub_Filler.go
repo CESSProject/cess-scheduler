@@ -30,26 +30,26 @@ import (
 	"github.com/pkg/errors"
 )
 
+// task_GenerateFiller is used to generate filler
+// and store it in the channel for standby
 func (node *Node) task_GenerateFiller(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			node.Logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
-
-	node.Logs.Log("gf", "info", errors.New("-----> Start task_GenerateFiller"))
-
 	var (
 		err        error
 		uid        string
 		fillerpath string
 	)
+	node.Logs.GenFiller("info", errors.New(">>> Start task_GenerateFiller <<<"))
 	for {
 		for len(pattern.C_Filler) < configs.Num_Filler_Reserved {
 			for {
 				time.Sleep(time.Second)
-				uid, _ = utils.GetGuid(int64(utils.RandomInRange(0, 1024)))
+				uid, _ = utils.GetGuid()
 				if uid == "" {
 					continue
 				}
@@ -61,35 +61,31 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 			}
 			err = generateFiller(fillerpath, configs.FillerSize)
 			if err != nil {
-				node.Logs.Log("gf", "error", err)
+				node.Logs.GenFiller("error", err)
 				os.Remove(fillerpath)
-				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
 			fstat, _ := os.Stat(fillerpath)
 			if fstat.Size() != configs.FillerSize {
-				node.Logs.Log("gf", "error", errors.Errorf("filler size err: %v", err))
+				node.Logs.GenFiller("error", fmt.Errorf("filler size err: %v", err))
 				os.Remove(fillerpath)
-				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
-			// call the sgx service interface to get the tag
 			// calculate file tag info
 			var PoDR2commit pbc.PoDR2Commit
 			var commitResponse pbc.PoDR2CommitResponse
 			PoDR2commit.FilePath = fillerpath
 			PoDR2commit.BlockSize = configs.BlockSize
-
 			commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(
 				pbc.Key_Ssk,
 				string(pbc.Key_SharedParams),
 				int64(configs.ScanBlockSize),
 			)
 			if err != nil {
-				node.Logs.Log("gf", "error", err)
-				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
+				node.Logs.GenFiller("error", err)
+				os.Remove(fillerpath)
 				continue
 			}
 
@@ -98,8 +94,6 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 			}
 			if commitResponse.StatueMsg.StatusCode != pbc.Success {
 				os.Remove(fillerpath)
-				node.Logs.Log("gf", "error", errors.New("PoDR2ProofCommit false"))
-				time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
 				continue
 			}
 
@@ -109,27 +103,29 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 			fillerEle.T = commitResponse.T
 			fillerEle.Sigmas = commitResponse.Sigmas
 			pattern.C_Filler <- fillerEle
-			node.Logs.Log("gf", "info", errors.Errorf("Produced a filler: %v", uid))
+			node.Logs.GenFiller("info", fmt.Errorf("Produced a filler: %v", uid))
 			time.Sleep(time.Second)
 		}
 		time.Sleep(time.Second)
 	}
 }
 
+// task_SubmitFillerMeta records the fillermeta on the chain
 func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			node.Logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
 
-	node.Logs.Log("sfm", "info", errors.New("-----> Start task_SubmitFillerMeta"))
+	node.Logs.FillerMeta("info", errors.New(">>> Start task_SubmitFillerMeta <<<"))
 
 	var (
 		err    error
 		txhash string
 	)
+
 	t_active := time.Now()
 	for {
 		time.Sleep(time.Second)
@@ -137,15 +133,15 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 			var tmp = <-pattern.C_FillerMeta
 			pattern.FillerMap.Add(string(tmp.Acc[:]), tmp)
 		}
-		if time.Since(t_active).Seconds() > 60 {
+		if time.Since(t_active).Seconds() > configs.SubmitFillermetaInterval {
 			t_active = time.Now()
 			for k, v := range pattern.FillerMap.Fillermetas {
 				addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
-				if len(v) >= 8 {
-					txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:8])
+				if len(v) >= configs.Max_SubFillerMeta {
+					txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:configs.Max_SubFillerMeta])
 					if txhash == "" {
 						pattern.ChainStatus.Store(false)
-						node.Logs.Log("sfm", "error", err)
+						node.Logs.FillerMeta("error", err)
 						continue
 					}
 					pattern.ChainStatus.Store(true)
@@ -153,13 +149,13 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 					for i := 0; i < 8; i++ {
 						os.Remove(filepath.Join(node.FillerDir, string(v[i].Id)))
 					}
-					node.Logs.Log("sfm", "info", errors.Errorf("[%v] %v", addr, txhash))
+					node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
 				} else {
 					if len(v) > 0 {
 						txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:])
 						if txhash == "" {
 							pattern.ChainStatus.Store(false)
-							node.Logs.Log("sfm", "error", err)
+							node.Logs.FillerMeta("error", err)
 							continue
 						}
 						pattern.ChainStatus.Store(true)
@@ -167,7 +163,7 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 						for _, vv := range v {
 							os.Remove(filepath.Join(node.FillerDir, string(vv.Id)))
 						}
-						node.Logs.Log("sfm", "info", errors.Errorf("[%v] %v", addr, txhash))
+						node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
 					}
 				}
 			}

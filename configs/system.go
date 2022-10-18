@@ -16,6 +16,8 @@
 
 package configs
 
+import "time"
+
 // type and version
 const Version = "cess-scheduler v0.5.3.221013.1110"
 
@@ -41,5 +43,5 @@ const (
 
 const (
 	// BlockInterval is the time interval for generating blocks, in seconds
-	BlockInterval = 6
+	BlockInterval = time.Second * time.Duration(6)
 )

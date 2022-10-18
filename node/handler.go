@@ -302,7 +302,7 @@ func PathExists(path string) bool {
 func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 	defer func() {
 		if err := recover(); err != nil {
-			n.Logs.Log("panic", "error", utils.RecoverError(err))
+			n.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
 	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Start the file backup management", fid))

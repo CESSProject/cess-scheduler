@@ -31,7 +31,7 @@ func (node *Node) task_ClearAuthMap(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			node.Logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
 	node.Logs.Log("common", "info", errors.New("-----> Start task_ClearAuthMap"))

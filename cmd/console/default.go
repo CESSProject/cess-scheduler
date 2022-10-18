@@ -28,7 +28,8 @@ import (
 // defaultCmd generates a configuration file template in the current path
 //
 // Usage:
-//   scheduler default
+//
+//	scheduler default
 func defaultCmd(cmd *cobra.Command, args []string) {
 	pwd, err := os.Getwd()
 	if err != nil {
