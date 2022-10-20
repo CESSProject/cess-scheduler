@@ -17,7 +17,9 @@
 package node
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -33,7 +35,6 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
@@ -156,21 +157,26 @@ func (n *Node) handler() error {
 			_ = fs.Close()
 			fs = nil
 
+			fmt.Println("Lastmark: ", m.LastMark)
+
 			if m.LastMark {
+				fmt.Println("The last file transfered")
+				fmt.Println("m.hash:", m.FileHash)
+				hash := m.FileHash
+				fmt.Println("m.hash:", m.FileHash)
+				fmt.Println("hash:", hash)
 				allChunksPath, _ := filepath.Glob(n.Conn.dir + "/" + m.FileHash + "*")
-				var filesize int64
-				if len(allChunksPath) == 1 {
-					filesize = info.Size()
-				} else {
-					filesize = info.Size() * int64(len(allChunksPath)) * 10 / 15
-				}
+				var filesize uint64
+				filesize = binary.BigEndian.Uint64(m.SignMsg)
+				fmt.Println(filesize)
+				fmt.Println(allChunksPath)
 				// backup file to miner
-				go n.FileBackupManagement(m.FileHash, filesize, allChunksPath)
+				go n.FileBackupManagement(hash, int64(filesize), allChunksPath)
 			}
 		case MsgNotify:
 			n.Conn.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 		case MsgClose:
-			fmt.Printf("revc close msg ....\n")
+			fmt.Printf("recv close msg ....\n")
 			if m.Bytes[0] != byte(Status_Ok) {
 				return fmt.Errorf("server an error occurred")
 			}
@@ -222,9 +228,12 @@ func (c *ConMgr) sendFile(fid string, pkey, signmsg, sign []byte) error {
 			}
 		}
 	}
-
 	c.conn.SendMsg(NewCloseMsg(c.fileName, Status_Ok))
-	return err
+	timer := time.NewTimer(5 * time.Second)
+	select {
+	case <-timer.C:
+		return err
+	}
 }
 
 func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey, signmsg, sign []byte) error {
@@ -305,61 +314,51 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 			n.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
+	var (
+		err    error
+		txhash string
+	)
+	fmt.Println("Start the file backup management...")
+	fmt.Println("fid: ", fid)
+	fmt.Println("fsize: ", fsize)
+	fmt.Println("chunks: ", chunks)
 	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Start the file backup management", fid))
 
 	var chunksInfo = make([]chain.BlockInfo, len(chunks))
-	var channel_chunks = make(map[int]chan chain.BlockInfo, len(chunks))
 
-	for i := 0; i < len(chunks); i++ {
-		channel_chunks[i] = make(chan chain.BlockInfo, 1)
-		go n.backupFile(channel_chunks[i], fid, chunks[i], i)
+	for i := 0; i < len(chunks); {
+		chunksInfo[i], err = n.backupFile(fid, chunks[i])
+		time.Sleep(time.Second)
+		if err != nil {
+			fmt.Println("backup failed: ", chunks[i])
+			continue
+		}
+		fmt.Println("backup suc: ", chunks[i])
+		i++
 	}
 
-	for {
-		for k, v := range channel_chunks {
-			if len(v) > 0 {
-				result := <-v
-				if !result.IsEmpty() {
-					n.Logs.Log("upfile", "info", fmt.Errorf("[%v.%v] Storage succeeded", fid, k))
-					chunksInfo[k] = result
-					delete(channel_chunks, k)
-				} else {
-					n.Logs.Log("upfile", "warn", fmt.Errorf("[%v.%v] Try storage again", fid, k))
-					go n.backupFile(channel_chunks[k], fid, chunks[k], k)
-				}
-			}
-			time.Sleep(time.Millisecond)
-		}
-		if len(channel_chunks) == 0 {
-			break
-		}
-	}
-
-	var txhash string
 	// Submit the file meta information to the chain
 	for {
-		txhash, err := n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
+		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
 		if txhash == "" {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] Submit file meta fail: %v", fid, err))
-			time.Sleep(time.Second * time.Duration(utils.RandomInRange(5, 30)))
+			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+			time.Sleep(configs.BlockInterval)
 			continue
 		}
 		break
 	}
-	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Submit file meta [%v]", fid, txhash))
+	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
 	return
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex int) {
+func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	var (
 		err            error
+		rtnValue       chain.BlockInfo
 		allMinerPubkey []types.AccountID
 	)
 	defer func() {
-		if len(ch) == 0 {
-			ch <- chain.BlockInfo{}
-		}
 		if err := recover(); err != nil {
 			n.Logs.Log("panic", "error", utils.RecoverError(err))
 		}
@@ -370,15 +369,12 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 	fstat, err := os.Stat(fpath)
 	if err != nil {
 		n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
-		return
+		return rtnValue, err
 	}
 	blocksize, scansize := CalcFileBlockSizeAndScanSize(fstat.Size())
 	blocknum := fstat.Size() / blocksize
 
-	//-----------------------------------------------------------------
-	//n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Calculate tag", fname))
-	fileTagPath := filepath.Join(n.TagDir, fid+".tag")
-
+	fileTagPath := filepath.Join(n.TagDir, fname+".tag")
 	_, err = os.Stat(fileTagPath)
 	if err != nil {
 		// calculate file tag info
@@ -389,14 +385,14 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(pbc.Key_Ssk, string(pbc.Key_SharedParams), scansize)
 		if err != nil {
 			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] PoDR2ProofCommit: %v", fname, err))
-			return
+			return rtnValue, err
 		}
 		select {
 		case commitResponse = <-commitResponseCh:
 		}
 		if commitResponse.StatueMsg.StatusCode != pbc.Success {
 			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
-			return
+			return rtnValue, errors.New("failed")
 		}
 		var tag TagInfo
 		tag.T.Name = commitResponse.T.Name
@@ -407,14 +403,14 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 		tag_bytes, err := json.Marshal(&tag)
 		if err != nil {
 			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
-			return
+			return rtnValue, err
 		}
 
 		//Save tag information to file
 		ftag, err := os.OpenFile(fileTagPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 		if err != nil {
 			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
-			return
+			return rtnValue, err
 		}
 		ftag.Write(tag_bytes)
 
@@ -424,11 +420,10 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
 			ftag.Close()
 			os.Remove(fileTagPath)
-			return
+			return rtnValue, err
 		}
 		ftag.Close()
 	}
-	//-----------------------------------------------------------------
 
 	// Get the publickey of all miners in the chain
 	for len(allMinerPubkey) == 0 {
@@ -450,11 +445,13 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 	sign, err := kr.Sign(kr.SigningContext([]byte(msg)))
 	if err != nil {
 		n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
-		return
+		return rtnValue, err
 	}
 	for i := 0; i < len(allMinerPubkey); i++ {
 
-		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
+		pkey, err := utils.DecodePublicKeyOfCessAccount("cXfyomKDABfehLkvARFE854wgDJFMbsxwAJEHezRb6mfcAi2y")
+		//minercache, err := n.Cache.Get(allMinerPubkey[i][:])
+		minercache, err := n.Cache.Get(pkey)
 		if err != nil {
 			continue
 		}
@@ -465,8 +462,8 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 			continue
 		}
 
-		dstURL := string(base58.Decode(minerinfo.Ip))
-
+		//dstURL := string(base58.Decode(minerinfo.Ip))
+		dstURL := "43.128.134.24:15001"
 		tcpAddr, err := net.ResolveTCPAddr("tcp", dstURL)
 		if err != nil {
 			continue
@@ -484,16 +481,15 @@ func (n *Node) backupFile(ch chan chain.BlockInfo, fid, fpath string, chunkindex
 			continue
 		}
 
-		var chunk chain.BlockInfo
-		chunk.BlockId = types.NewBytes([]byte(fname))
-		chunk.BlockSize = types.U64(fstat.Size())
-		chunk.MinerAcc = allMinerPubkey[i]
-		chunk.MinerIp = types.NewBytes([]byte(minerinfo.Ip))
-		chunk.MinerId = types.U64(minerinfo.Peerid)
-		chunk.BlockNum = types.U32(blocknum)
-		ch <- chunk
+		rtnValue.BlockId = types.NewBytes([]byte(fname))
+		rtnValue.BlockSize = types.U64(fstat.Size())
+		rtnValue.MinerAcc = types.NewAccountID(pkey) //allMinerPubkey[i]
+		rtnValue.MinerIp = types.NewBytes([]byte(minerinfo.Ip))
+		rtnValue.MinerId = types.U64(minerinfo.Peerid)
+		rtnValue.BlockNum = types.U32(blocknum)
 		break
 	}
+	return rtnValue, err
 }
 
 func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {

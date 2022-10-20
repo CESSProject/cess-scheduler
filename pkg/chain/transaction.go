@@ -17,6 +17,7 @@
 package chain
 
 import (
+	"encoding/hex"
 	"strings"
 	"time"
 
@@ -241,7 +242,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 		case status := <-sub.Chan():
 			if status.IsInBlock {
 				events := CessEventRecords{}
-				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				txhash = hex.EncodeToString(status.AsInBlock[:])
 				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "GetStorageRaw")

@@ -66,8 +66,6 @@ func (t *TcpCon) sendMsg() {
 	}()
 
 	buf := make([]byte, 64*1024)
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
 
 	for !t.IsClose() {
 		select {
@@ -85,8 +83,6 @@ func (t *TcpCon) sendMsg() {
 			if err != nil {
 				return
 			}
-		case <-ticker.C:
-
 		}
 	}
 }
@@ -111,7 +107,7 @@ func (t *TcpCon) readMsg() {
 				err = fmt.Errorf("initial read error: %v \n", err)
 				return
 			}
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(time.Millisecond)
 			continue
 		}
 

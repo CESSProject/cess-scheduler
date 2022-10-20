@@ -139,7 +139,9 @@ func reconnectChainClient(rpcAddr string) (*gsrpc.SubstrateAPI, error) {
 }
 
 func healthchek(a *gsrpc.SubstrateAPI) error {
-	defer recover()
+	defer func() {
+		recover()
+	}()
 	_, err := a.RPC.System.Health()
 	return err
 }
