@@ -28,7 +28,7 @@ import (
 )
 
 // task_MinerCache obtains the miners' information on the chain
-// and records it to the cache
+// and records it to the cache.
 func (node *Node) task_MinerCache(ch chan bool) {
 	defer func() {
 		if err := recover(); err != nil {

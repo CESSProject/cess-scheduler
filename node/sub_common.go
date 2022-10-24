@@ -37,7 +37,7 @@ func (node *Node) task_Common(ch chan bool) {
 		}
 	}()
 	var count uint8
-	node.Logs.Log("common", "info", errors.New(">>> Start task_Common <<<"))
+	node.Logs.Common("info", errors.New(">>> Start task_Common <<<"))
 
 	for {
 		time.Sleep(time.Minute)
@@ -47,7 +47,7 @@ func (node *Node) task_Common(ch chan bool) {
 			accountinfo, err := node.Chain.GetAccountInfo(node.Chain.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
-					node.Logs.Log("common", "info", errors.New("Insufficient balance, program exited"))
+					node.Logs.Common("info", errors.New("Insufficient balance, program exited"))
 					log.Printf("Insufficient balance, program exited.\n")
 					os.Exit(1)
 				}

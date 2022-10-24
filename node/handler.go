@@ -27,7 +27,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -38,12 +37,6 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
-var TCP_ConnLength atomic.Uint32
-
-func init() {
-	TCP_ConnLength.Store(0)
-}
-
 func (n *Node) NewServer(conn NetConn, dir string) Server {
 	n.Conn = &ConMgr{
 		conn: conn,
@@ -51,206 +44,6 @@ func (n *Node) NewServer(conn NetConn, dir string) Server {
 		stop: make(chan struct{}),
 	}
 	return n
-}
-
-func (n *Node) Start() {
-	n.Conn.conn.HandlerLoop()
-
-	err := n.handler()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-}
-
-func (n *Node) handler() error {
-	var fs *os.File
-	var fillerFs *os.File
-	var err error
-	var filler Filler
-	var minerAcc []byte
-	num := TCP_ConnLength.Load()
-	num += 1
-	TCP_ConnLength.Store(num)
-	defer func() {
-		if fs != nil {
-			_ = fs.Close()
-		}
-		num := TCP_ConnLength.Load()
-		if num > 0 {
-			num -= 1
-		}
-		TCP_ConnLength.Store(num)
-	}()
-
-	for !n.Conn.conn.IsClose() {
-		m, ok := n.Conn.conn.GetMsg()
-		if !ok {
-			return fmt.Errorf("close by connect")
-		}
-		if m == nil {
-			continue
-		}
-
-		switch m.MsgType {
-		case MsgHead:
-			// Verify signature
-			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
-			if err != nil {
-				fmt.Println("VerifySign err: ", err)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-			if !ok {
-				fmt.Println("Verify Sign failed: ", err)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-
-			//Judge whether the file has been uploaded
-			fileState, err := GetFileState(n.Chain, m.FileHash)
-			if err != nil {
-				fmt.Println("GetFileState err: ", err)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-
-			if fileState == chain.FILE_STATE_ACTIVE {
-				fmt.Println("Repeated upload: ", m.FileHash)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-
-			//TODO: Judge whether the space is enough
-
-			n.Conn.fileName = m.FileName
-			fmt.Println("recv head fileName is", n.Conn.fileName)
-
-			fs, err = os.OpenFile(filepath.Join(n.Conn.dir, n.Conn.fileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
-			if err != nil {
-				fmt.Println("os.Create err =", err)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-			fmt.Println("send head is ok")
-
-			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
-
-		case MsgFillerHead:
-			fmt.Println("Recv a filler head req")
-			// Verify signature
-			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
-			if err != nil {
-				fmt.Println("VerifySign err: ", err)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-			if !ok {
-				fmt.Println("Verify Sign failed: ", err)
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-			minerAcc = m.Pubkey
-			// select a filler
-			timer := time.NewTimer(time.Second * 3)
-			select {
-			case filler = <-C_Filler:
-			case <-timer.C:
-			}
-
-			n.Conn.conn.SendMsg(NewNotifyFillerMsg(filler.Hash, Status_Ok))
-			fmt.Println("Return a filler: ", filler.Hash)
-		case MsgFiller:
-			fmt.Println("Recv a filler req: ", m.FileName)
-			// send filler tag
-			fillerFs, err = os.OpenFile(filepath.Join(n.FillerDir, m.FileName), os.O_RDONLY, os.ModePerm)
-			if err != nil {
-				fmt.Println("OpenFile err: ", filler.TagPath, err)
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
-			}
-			fillerInfo, _ := fillerFs.Stat()
-			for !n.Conn.conn.IsClose() {
-				readBuf := BytesPool.Get().([]byte)
-				num, err := fillerFs.Read(readBuf)
-				if err != nil && err != io.EOF {
-					return err
-				}
-				if num == 0 {
-					break
-				}
-				n.Conn.conn.SendMsg(NewFillerMsg(m.FileName, readBuf[:num]))
-			}
-			time.Sleep(time.Millisecond * 20)
-			n.Conn.conn.SendMsg(NewFillerEndMsg(m.FileName, uint64(fillerInfo.Size())))
-			time.Sleep(time.Millisecond * 20)
-			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
-			fmt.Println("Return a filler: ", m.FileName)
-			if m.FileName == filler.Hash {
-				fmt.Println("Finish a filler: ", filler.Hash)
-				fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
-				C_FillerMeta <- fillerMetaEle
-				os.Remove(filler.FillerPath)
-				os.Remove(filler.TagPath)
-			}
-		case MsgFile:
-			if fs == nil {
-				fmt.Println(n.Conn.fileName, "file is not open!")
-				n.Conn.conn.SendMsg(NewCloseMsg(n.Conn.fileName, Status_Err))
-				return errors.New("file is not open")
-			}
-			_, err = fs.Write(m.Bytes)
-			if err != nil {
-				fmt.Println("file.Write err =", err)
-				n.Conn.conn.SendMsg(NewCloseMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-		case MsgEnd:
-			info, _ := fs.Stat()
-			if info.Size() != int64(m.FileSize) {
-				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
-				n.Conn.conn.SendMsg(NewCloseMsg(n.Conn.fileName, Status_Err))
-				return err
-			}
-
-			fmt.Printf("save file %v is success \n", info.Name())
-			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
-
-			fmt.Printf("close file %v is success \n", n.Conn.fileName)
-			_ = fs.Close()
-			fs = nil
-
-			fmt.Println("Lastmark: ", m.LastMark)
-
-			if m.LastMark {
-				fmt.Println("The last file transfered")
-				fmt.Println("m.hash:", m.FileHash)
-				hash := m.FileHash
-				fmt.Println("m.hash:", m.FileHash)
-				fmt.Println("hash:", hash)
-				allChunksPath, _ := filepath.Glob(n.Conn.dir + "/" + m.FileHash + "*")
-				var filesize uint64
-				filesize = binary.BigEndian.Uint64(m.SignMsg)
-				fmt.Println(filesize)
-				fmt.Println(allChunksPath)
-				// backup file to miner
-				go n.FileBackupManagement(hash, int64(filesize), allChunksPath)
-			}
-		case MsgNotify:
-			n.Conn.waitNotify <- m.Bytes[0] == byte(Status_Ok)
-			if !(m.Bytes[0] == byte(Status_Ok)) {
-				return errors.New("failed")
-			}
-		case MsgClose:
-			fmt.Printf("recv close msg ....\n")
-			if m.Bytes[0] != byte(Status_Ok) {
-				return fmt.Errorf("server an error occurred")
-			}
-			return nil
-		}
-	}
-	return err
 }
 
 func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
@@ -262,6 +55,192 @@ func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
 		stop:       make(chan struct{}),
 	}
 	return n
+}
+
+func (n *Node) Start() {
+	n.Conn.conn.HandlerLoop()
+	err := n.handler()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+}
+
+func (n *Node) handler() error {
+	var (
+		err      error
+		fs       *os.File
+		fillerFs *os.File
+		filler   Filler
+		minerAcc []byte
+	)
+	n.AddConnection()
+	defer func() {
+		if fs != nil {
+			_ = fs.Close()
+		}
+		n.ClearConnection()
+	}()
+
+	for !n.Conn.conn.IsClose() {
+		m, ok := n.Conn.conn.GetMsg()
+		if !ok {
+			return errors.New("close by connect")
+		}
+		if m == nil {
+			continue
+		}
+
+		switch m.MsgType {
+		case MsgHead:
+			// Verify signature
+			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
+			if err != nil || !ok {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+
+			//Judge whether the file has been uploaded
+			fileState, err := GetFileState(n.Chain, m.FileHash)
+			if err != nil {
+				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
+				return err
+			}
+
+			// file state
+			if fileState == chain.FILE_STATE_ACTIVE {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+
+			//TODO: Judge whether the space is enough
+
+			n.Conn.fileName = m.FileName
+
+			// create file
+			fs, err = os.OpenFile(filepath.Join(n.Conn.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+			if err != nil {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+			// Notify the other party
+			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
+		case MsgFillerHead:
+			// Determine the upper limit of connections
+			if n.Connections.Load() > configs.MAX_TCP_CONNECTION {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+
+			// Verify signature
+			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
+			if err != nil || !ok {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+
+			minerAcc = m.Pubkey
+
+			// select a filler
+			timer := time.NewTimer(time.Second * 3)
+			select {
+			case filler = <-C_Filler:
+			case <-timer.C:
+			}
+
+			// Notify the other party
+			n.Conn.conn.SendMsg(NewNotifyFillerMsg(filler.Hash, Status_Ok))
+		case MsgFiller:
+			// Determine the upper limit of connections
+			if n.Connections.Load() > configs.MAX_TCP_CONNECTION {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+
+			// open filler
+			fillerFs, err = os.OpenFile(filepath.Join(n.FillerDir, m.FileName), os.O_RDONLY, os.ModePerm)
+			if err != nil {
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				return err
+			}
+
+			fillerInfo, _ := fillerFs.Stat()
+
+			// send filler
+			for !n.Conn.conn.IsClose() {
+				readBuf := BytesPool.Get().([]byte)
+				num, err := fillerFs.Read(readBuf)
+				if err != nil && err != io.EOF {
+					return err
+				}
+				if num == 0 {
+					break
+				}
+				n.Conn.conn.SendMsg(NewFillerMsg(m.FileName, readBuf[:num]))
+			}
+			time.Sleep(configs.TCP_Message_Interval)
+			// send end msg
+			n.Conn.conn.SendMsg(NewFillerEndMsg(m.FileName, uint64(fillerInfo.Size())))
+			time.Sleep(configs.TCP_Message_Interval)
+
+			// notify the other party
+			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
+
+			// If the transmission is completed, the information will be recorded
+			// Uplink and delete local cache later
+			if m.FileName == filler.Hash {
+				fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
+				C_FillerMeta <- fillerMetaEle
+				os.Remove(filler.FillerPath)
+				os.Remove(filler.TagPath)
+			}
+		case MsgFile:
+			// If fs=nil, it means that the file has not been created.
+			// You need to request MsgHead message first
+			if fs == nil {
+				n.Conn.conn.SendMsg(NewCloseMsg("", Status_Err))
+				return errors.New("file is not open")
+			}
+			_, err = fs.Write(m.Bytes)
+			if err != nil {
+				n.Conn.conn.SendMsg(NewCloseMsg("", Status_Err))
+				return err
+			}
+		case MsgEnd:
+			info, _ := fs.Stat()
+			if info.Size() != int64(m.FileSize) {
+				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
+				n.Conn.conn.SendMsg(NewCloseMsg(n.Conn.fileName, Status_Err))
+				return err
+			}
+
+			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
+
+			// close fs
+			_ = fs.Close()
+			fs = nil
+
+			// Last file Mark
+			if m.LastMark {
+				allChunksPath, _ := filepath.Glob(n.Conn.dir + "/" + m.FileHash + "*")
+				filesize := binary.BigEndian.Uint64(m.SignMsg)
+				// backup file to miner
+				go n.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
+			}
+		case MsgNotify:
+			n.Conn.waitNotify <- m.Bytes[0] == byte(Status_Ok)
+			if !(m.Bytes[0] == byte(Status_Ok)) {
+				return errors.New("failed")
+			}
+		case MsgClose:
+			if m.Bytes[0] != byte(Status_Ok) {
+				return fmt.Errorf("server an error occurred")
+			}
+			return nil
+		}
+	}
+	return err
 }
 
 func (n *Node) SendFile(fid string, pkey, signmsg, sign []byte) error {
@@ -296,7 +275,7 @@ func (c *ConMgr) sendFile(fid string, pkey, signmsg, sign []byte) error {
 		}
 	}
 	c.conn.SendMsg(NewCloseMsg(c.fileName, Status_Ok))
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(configs.TCP_ShortMessage_WaitingTime)
 	select {
 	case <-timer.C:
 		return err
@@ -306,7 +285,6 @@ func (c *ConMgr) sendFile(fid string, pkey, signmsg, sign []byte) error {
 func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey, signmsg, sign []byte) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		fmt.Printf("open file err %v \n", err)
 		return err
 	}
 
@@ -315,13 +293,13 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey
 			_ = file.Close()
 		}
 	}()
+
 	fileInfo, _ := file.Stat()
 
-	log.Println("Ready to write file: ", filePath)
 	m := NewHeadMsg(fileInfo.Name(), fid, lastmark, pkey, signmsg, sign)
 	c.conn.SendMsg(m)
 
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(configs.TCP_ShortMessage_WaitingTime)
 	select {
 	case ok := <-c.waitNotify:
 		if !ok {
@@ -347,12 +325,14 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey
 	}
 
 	c.conn.SendMsg(NewEndMsg(c.fileName, uint64(fileInfo.Size()), lastmark))
-	waitTime := fileInfo.Size() / 1024 / 10
-	if waitTime < 5 {
-		waitTime = 5
+
+	waitTime := fileInfo.Size() / configs.TCP_Transmission_Slowest
+	if time.Second*time.Duration(waitTime) < configs.TCP_ShortMessage_WaitingTime {
+		timer = time.NewTimer(configs.TCP_ShortMessage_WaitingTime)
+	} else {
+		timer = time.NewTimer(time.Second * time.Duration(waitTime))
 	}
 
-	timer = time.NewTimer(time.Second * time.Duration(waitTime))
 	select {
 	case ok := <-c.waitNotify:
 		if !ok {
@@ -362,7 +342,6 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey
 		return fmt.Errorf("wait server msg timeout")
 	}
 
-	log.Println("Send " + filePath + " file success...")
 	return nil
 }
 
@@ -385,10 +364,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		err    error
 		txhash string
 	)
-	fmt.Println("Start the file backup management...")
-	fmt.Println("fid: ", fid)
-	fmt.Println("fsize: ", fsize)
-	fmt.Println("chunks: ", chunks)
+
 	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Start the file backup management", fid))
 
 	var chunksInfo = make([]chain.BlockInfo, len(chunks))

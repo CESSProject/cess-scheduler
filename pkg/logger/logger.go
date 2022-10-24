@@ -32,6 +32,7 @@ import (
 type Logger interface {
 	Log(string, string, error)
 	Pnc(string, error)
+	Common(string, error)
 	MinerCache(string, error)
 	GenFiller(string, error)
 	FillerMeta(string, error)
@@ -93,6 +94,21 @@ func (l *logs) Pnc(level string, err error) {
 		switch level {
 		case "error", "err":
 			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) Common(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["common"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
 		}
 	}
 }

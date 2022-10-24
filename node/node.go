@@ -43,6 +43,7 @@ type Node struct {
 	Logs        logger.Logger
 	Cache       db.Cacher
 	ChainStatus *atomic.Bool
+	Connections *atomic.Uint32
 	FileDir     string
 	TagDir      string
 	FillerDir   string
@@ -54,7 +55,9 @@ func New() *Node {
 }
 
 func (n *Node) Run() {
+	// Start the subtask manager
 	go n.CoroutineMgr()
+
 	// Get an address of TCP end point
 	tcpAddr, err := net.ResolveTCPAddr("tcp", ":"+n.Confile.GetServicePort())
 	if err != nil {
@@ -77,22 +80,39 @@ func (n *Node) Run() {
 				log.Println("[err] The port is closed and the service exits.")
 				os.Exit(1)
 			}
-			n.Logs.Log("common", "error", fmt.Errorf("accept tcp: %v\n", err))
+			n.Logs.Common("error", fmt.Errorf("accept tcp: %v\n", err))
 			continue
 		}
 
+		// Record client address
 		remote := acceptTCP.RemoteAddr().String()
-		n.Logs.Log("common", "info", fmt.Errorf("received a conn: %v\n", remote))
+		n.Logs.Common("info", fmt.Errorf("received a conn: %v\n", remote))
 
 		// Set server maximum connection control
-		if TCP_ConnLength.Load() > configs.MAX_TCP_CONNECTION {
+		if !n.ChainStatus.Load() {
 			acceptTCP.Close()
-			n.Logs.Log("common", "info", fmt.Errorf("close conn: %v\n", remote))
+			n.Logs.Common("info", fmt.Errorf("close conn: %v\n", remote))
 			continue
 		}
 
 		// Start the processing service of the new connection
 		go n.NewServer(NewTcp(acceptTCP), n.FileDir).Start()
-		time.Sleep(time.Millisecond)
+
+		// Connection interval
+		time.Sleep(configs.TCP_Connection_Interval)
 	}
+}
+
+// AddConnection is used to add a connection number record
+func (n *Node) AddConnection() {
+	n.Connections.Add(1)
+}
+
+// ClearConnection is used to clear a connection number record
+func (n *Node) ClearConnection() {
+	count := n.Connections.Load()
+	if count > 0 {
+		count -= 1
+	}
+	n.Connections.Store(count)
 }

@@ -46,12 +46,20 @@ const (
 	ScanBlockSize = BlockSize / 2
 	// The maximum number of fillermeta submitted in a transaction
 	Max_SubFillerMeta = 8
+
+	Num_Filler_Reserved = 5
+	Max_Filler_Meta     = 100
 )
 
 const (
-	MAX_TCP_CONNECTION  uint32 = 3
-	Num_Filler_Reserved        = 5
-	Max_Filler_Meta            = 100
+	MAX_TCP_CONNECTION           uint32 = 3
+	TCP_Connection_Interval             = time.Duration(time.Millisecond * 100)
+	TCP_Message_Interval                = time.Duration(time.Millisecond * 20)
+	TCP_ShortMessage_WaitingTime        = time.Duration(time.Second * 5)
+	TCP_Transmission_Slowest            = 1021 * 10
+	TCP_Read_Buf                        = 64 * 1024
+	TCP_Write_Buf                       = 64 * 1024
+	TCP_Message_Buffers                 = 1024
 )
 
 const (

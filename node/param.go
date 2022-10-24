@@ -40,9 +40,11 @@ type Fillermetamap struct {
 	Fillermetas map[string][]chain.FillerMetaInfo
 }
 
-var C_Filler chan Filler
-var C_FillerMeta chan chain.FillerMetaInfo
-var FillerMap *Fillermetamap
+var (
+	C_Filler     chan Filler
+	C_FillerMeta chan chain.FillerMetaInfo
+	FillerMap    *Fillermetamap
+)
 
 func init() {
 	C_Filler = make(chan Filler, configs.Num_Filler_Reserved)
@@ -73,12 +75,4 @@ func (this *Fillermetamap) Delete(pubkey string) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 	delete(this.Fillermetas, pubkey)
-}
-
-func (this *Fillermetamap) Lock() {
-	this.lock.Lock()
-}
-
-func (this *Fillermetamap) UnLock() {
-	this.lock.Unlock()
 }

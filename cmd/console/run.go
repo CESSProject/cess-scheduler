@@ -62,6 +62,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 
 	node.ChainStatus = &atomic.Bool{}
 	node.ChainStatus.Store(true)
+	node.Connections = &atomic.Uint32{}
+	node.Connections.Store(0)
 
 	// create data dir
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)

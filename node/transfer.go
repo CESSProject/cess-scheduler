@@ -24,6 +24,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/CESSProject/cess-scheduler/configs"
 )
 
 type TcpCon struct {
@@ -44,8 +46,8 @@ var (
 func NewTcp(conn *net.TCPConn) *TcpCon {
 	return &TcpCon{
 		conn:     conn,
-		recv:     make(chan *Message, 1024),
-		send:     make(chan *Message, 1024),
+		recv:     make(chan *Message, configs.TCP_Message_Buffers),
+		send:     make(chan *Message, configs.TCP_Message_Buffers),
 		onceStop: &sync.Once{},
 		stop:     make(chan struct{}),
 	}
@@ -57,15 +59,13 @@ func (t *TcpCon) HandlerLoop() {
 }
 
 func (t *TcpCon) sendMsg() {
-	var err error
+	var (
+		err error
+		buf = make([]byte, configs.TCP_Write_Buf)
+	)
 	defer func() {
-		if err != nil {
-			fmt.Printf("found mistake: %s \n", err)
-		}
 		_ = t.Close()
 	}()
-
-	buf := make([]byte, 64*1024)
 
 	for !t.IsClose() {
 		select {
@@ -88,16 +88,14 @@ func (t *TcpCon) sendMsg() {
 }
 
 func (t *TcpCon) readMsg() {
-	var err error
+	var (
+		err    error
+		header = make([]byte, 4)
+		buf    = make([]byte, configs.TCP_Read_Buf)
+	)
 	defer func() {
-		if err != nil {
-			fmt.Printf("found mistake: %s \n", err)
-		}
 		_ = t.Close()
 	}()
-
-	header := make([]byte, 4)
-	buf := make([]byte, 64*1024)
 
 	for {
 		// read until we get 4 bytes for the magic
