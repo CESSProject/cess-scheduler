@@ -30,10 +30,11 @@ const (
 	MsgEnd
 	MsgNotify
 	MsgClose
+	MsgRecvHead
+	MsgRecvFile
 	MsgFillerHead
-	MsgFillerHeadNotify
 	MsgFiller
-	MsgFillerNotify
+	MsgFillerEnd
 )
 
 type Status byte
@@ -117,6 +118,18 @@ func NewNotifyMsg(fileName string, status Status) *Message {
 	return m
 }
 
+func NewNotifyFillerMsg(fileName string, status Status) *Message {
+	m := msgPool.Get().(*Message)
+	m.MsgType = MsgNotify
+	m.Bytes = []byte{byte(status)}
+	m.Bytes = append(m.Bytes, []byte(fileName)...)
+	m.FileHash = ""
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	return m
+}
+
 func NewHeadMsg(fileName string, fid string, lastmark bool, pkey, signmsg, sign []byte) *Message {
 	m := msgPool.Get().(*Message)
 	m.MsgType = MsgHead
@@ -137,12 +150,30 @@ func NewFileMsg(fileName string, buf []byte) *Message {
 	return m
 }
 
+func NewFillerMsg(fileName string, buf []byte) *Message {
+	m := msgPool.Get().(*Message)
+	m.MsgType = MsgFiller
+	m.FileName = fileName
+	m.FileHash = fileName
+	m.Bytes = buf
+	return m
+}
+
 func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
 	m := msgPool.Get().(*Message)
 	m.MsgType = MsgEnd
 	m.FileName = fileName
 	m.FileSize = size
 	m.LastMark = lastmark
+	return m
+}
+
+func NewFillerEndMsg(fileName string, size uint64) *Message {
+	m := msgPool.Get().(*Message)
+	m.MsgType = MsgFillerEnd
+	m.FileName = fileName
+	m.FileHash = fileName
+	m.FileSize = size
 	return m
 }
 

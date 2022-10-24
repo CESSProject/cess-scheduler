@@ -16,9 +16,28 @@
 
 package node
 
-import "github.com/CESSProject/cess-scheduler/pkg/pbc"
+import (
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
+	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+)
 
 type TagInfo struct {
 	T      pbc.FileTagT
 	Sigmas [][]byte `json:"sigmas"`
+}
+
+type Filler struct {
+	Hash       string
+	FillerPath string
+	TagPath    string
+}
+
+var C_Filler chan Filler
+
+var C_FillerMeta chan chain.FillerMetaInfo
+
+func init() {
+	C_Filler = make(chan Filler, configs.Num_Filler_Reserved)
+	C_FillerMeta = make(chan chain.FillerMetaInfo, configs.Max_Filler_Meta)
 }

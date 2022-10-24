@@ -17,6 +17,7 @@
 package node
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,25 +41,26 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 		}
 	}()
 	var (
-		err        error
-		uid        string
-		fillerpath string
+		err           error
+		fillerpath    string
+		newFillerPath string
+		fillerHash    string
+		tagPath       string
+		fillerEle     Filler
 	)
 	node.Logs.GenFiller("info", errors.New(">>> Start task_GenerateFiller <<<"))
 	for {
-		for len(pattern.C_Filler) < configs.Num_Filler_Reserved {
-			for {
+		for len(C_Filler) < configs.Num_Filler_Reserved {
+			// calc filler path
+			fillerpath = filepath.Join(node.FillerDir, fmt.Sprintf("%v", time.Now().UnixNano()))
+			node.Logs.GenFiller("info", fmt.Errorf("%v", fillerpath))
+			_, err = os.Stat(fillerpath)
+			if err == nil {
 				time.Sleep(time.Second)
-				uid, _ = utils.GetGuid()
-				if uid == "" {
-					continue
-				}
-				fillerpath = filepath.Join(node.FillerDir, fmt.Sprintf("%s", uid))
-				_, err = os.Stat(fillerpath)
-				if err != nil {
-					break
-				}
+				continue
 			}
+
+			// generate filler
 			err = generateFiller(fillerpath, configs.FillerSize)
 			if err != nil {
 				node.Logs.GenFiller("error", err)
@@ -66,6 +68,7 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 				continue
 			}
 
+			// judge filler size
 			fstat, _ := os.Stat(fillerpath)
 			if fstat.Size() != configs.FillerSize {
 				node.Logs.GenFiller("error", fmt.Errorf("filler size err: %v", err))
@@ -73,7 +76,7 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 				continue
 			}
 
-			// calculate file tag info
+			// calculate filler tag
 			var PoDR2commit pbc.PoDR2Commit
 			var commitResponse pbc.PoDR2CommitResponse
 			PoDR2commit.FilePath = fillerpath
@@ -97,14 +100,36 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 				continue
 			}
 
-			var fillerEle pattern.Filler
-			fillerEle.FillerId = uid
-			fillerEle.Path = fillerpath
-			fillerEle.T = commitResponse.T
-			fillerEle.Sigmas = commitResponse.Sigmas
-			pattern.C_Filler <- fillerEle
-			node.Logs.GenFiller("info", fmt.Errorf("Produced a filler: %v", uid))
-			time.Sleep(time.Second)
+			// calc filler hash
+			fillerHash, err = utils.CalcPathSHA256(fillerpath)
+			if err != nil {
+				os.Remove(fillerpath)
+				continue
+			}
+
+			// rename filler
+			newFillerPath = filepath.Join(node.FillerDir, fillerHash)
+			err = os.Rename(fillerpath, newFillerPath)
+			if err != nil {
+				os.Remove(fillerpath)
+				continue
+			}
+
+			// filler tag
+			tagPath = newFillerPath + ".tag"
+			err = generateFillerTag(tagPath, commitResponse.T, commitResponse.Sigmas)
+			if err != nil {
+				os.Remove(newFillerPath)
+				os.Remove(tagPath)
+				continue
+			}
+
+			// save filler metainfo to channel
+			fillerEle.Hash = fillerHash
+			fillerEle.FillerPath = newFillerPath
+			fillerEle.TagPath = tagPath
+			C_Filler <- fillerEle
+			node.Logs.GenFiller("info", fmt.Errorf("Produced a filler: %v", fillerHash))
 		}
 		time.Sleep(time.Second)
 	}
@@ -129,8 +154,8 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 	t_active := time.Now()
 	for {
 		time.Sleep(time.Second)
-		for len(pattern.C_FillerMeta) > 0 {
-			var tmp = <-pattern.C_FillerMeta
+		for len(C_FillerMeta) > 0 {
+			var tmp = <-C_FillerMeta
 			pattern.FillerMap.Add(string(tmp.Acc[:]), tmp)
 		}
 		if time.Since(t_active).Seconds() > configs.SubmitFillermetaInterval {
@@ -147,7 +172,7 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 					pattern.ChainStatus.Store(true)
 					pattern.FillerMap.Delete(k)
 					for i := 0; i < 8; i++ {
-						os.Remove(filepath.Join(node.FillerDir, string(v[i].Id)))
+						os.Remove(filepath.Join(node.FillerDir, string(v[i].Hash[:])))
 					}
 					node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
 				} else {
@@ -161,7 +186,7 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 						pattern.ChainStatus.Store(true)
 						pattern.FillerMap.Delete(k)
 						for _, vv := range v {
-							os.Remove(filepath.Join(node.FillerDir, string(vv.Id)))
+							os.Remove(filepath.Join(node.FillerDir, string(vv.Hash[:])))
 						}
 						node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
 					}
@@ -184,6 +209,28 @@ func generateFiller(fpath string, fsize uint64) error {
 	err = f.Sync()
 	if err != nil {
 		os.Remove(fpath)
+		return err
+	}
+	return nil
+}
+
+func generateFillerTag(fpath string, fileTagT pbc.FileTagT, sigmas [][]byte) error {
+	tagFs, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer tagFs.Close()
+	tag_data := TagInfo{
+		T:      fileTagT,
+		Sigmas: sigmas,
+	}
+	tag_data_b, err := json.Marshal(&tag_data)
+	if err != nil {
+		return err
+	}
+	tagFs.Write(tag_data_b)
+	err = tagFs.Sync()
+	if err != nil {
 		return err
 	}
 	return nil
