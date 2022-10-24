@@ -22,10 +22,10 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/internal/pattern"
 	"github.com/CESSProject/cess-scheduler/node"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
@@ -60,7 +60,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	pattern.ChainStatus.Store(true)
+	node.ChainStatus = &atomic.Bool{}
+	node.ChainStatus.Store(true)
 
 	// create data dir
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)

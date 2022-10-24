@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/internal/pattern"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -143,53 +142,43 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
-
-	node.Logs.FillerMeta("info", errors.New(">>> Start task_SubmitFillerMeta <<<"))
-
 	var (
 		err    error
+		count  int
 		txhash string
 	)
+	node.Logs.FillerMeta("info", errors.New(">>> Start task_SubmitFillerMeta <<<"))
 
 	t_active := time.Now()
 	for {
 		time.Sleep(time.Second)
 		for len(C_FillerMeta) > 0 {
 			var tmp = <-C_FillerMeta
-			pattern.FillerMap.Add(string(tmp.Acc[:]), tmp)
+			FillerMap.Add(string(tmp.Acc[:]), tmp)
 		}
 		if time.Since(t_active).Seconds() > configs.SubmitFillermetaInterval {
 			t_active = time.Now()
-			for k, v := range pattern.FillerMap.Fillermetas {
+			for k, v := range FillerMap.Fillermetas {
 				addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
-				if len(v) >= configs.Max_SubFillerMeta {
-					txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:configs.Max_SubFillerMeta])
+				if len(v) > 0 {
+					count = 0
+					if len(v) >= configs.Max_SubFillerMeta {
+						count = configs.Max_SubFillerMeta
+					} else {
+						count = len(v)
+					}
+					txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:count])
 					if txhash == "" {
-						pattern.ChainStatus.Store(false)
+						node.ChainStatus.Store(false)
 						node.Logs.FillerMeta("error", err)
 						continue
 					}
-					pattern.ChainStatus.Store(true)
-					pattern.FillerMap.Delete(k)
-					for i := 0; i < 8; i++ {
+					node.ChainStatus.Store(true)
+					FillerMap.Delete(k)
+					for i := 0; i < count; i++ {
 						os.Remove(filepath.Join(node.FillerDir, string(v[i].Hash[:])))
 					}
 					node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
-				} else {
-					if len(v) > 0 {
-						txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:])
-						if txhash == "" {
-							pattern.ChainStatus.Store(false)
-							node.Logs.FillerMeta("error", err)
-							continue
-						}
-						pattern.ChainStatus.Store(true)
-						pattern.FillerMap.Delete(k)
-						for _, vv := range v {
-							os.Remove(filepath.Join(node.FillerDir, string(vv.Hash[:])))
-						}
-						node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
-					}
 				}
 			}
 		}

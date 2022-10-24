@@ -27,19 +27,23 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (node *Node) task_ClearAuthMap(ch chan bool) {
+// task_ Common is used to judge whether the balance of
+// your wallet meets the operation requirements.
+func (node *Node) task_Common(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
 			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
-	node.Logs.Log("common", "info", errors.New("-----> Start task_ClearAuthMap"))
-
 	var count uint8
+	node.Logs.Log("common", "info", errors.New(">>> Start task_Common <<<"))
+
 	for {
+		time.Sleep(time.Minute)
 		count++
 		if count >= 5 {
+			count = 0
 			accountinfo, err := node.Chain.GetAccountInfo(node.Chain.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
@@ -48,14 +52,6 @@ func (node *Node) task_ClearAuthMap(ch chan bool) {
 					os.Exit(1)
 				}
 			}
-			count = 0
-			//logs.Log("common", "info", errors.New("Connected miners:"))
-			//logs.Log("common", "info", errors.Errorf("%v", pattern.GetConnectedSpacem()))
-			//logs.Log("common", "info", errors.New("Black miners:"))
-			//logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
 		}
-		//pattern.DeleteExpiredAuth()
-		//pattern.DeleteExpiredSpacem()
-		time.Sleep(time.Second * 30)
 	}
 }

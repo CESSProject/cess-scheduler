@@ -22,6 +22,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -36,14 +37,15 @@ type Scheduler interface {
 }
 
 type Node struct {
-	Conn      *ConMgr
-	Confile   configfile.Configfiler
-	Chain     chain.Chainer
-	Logs      logger.Logger
-	Cache     db.Cacher
-	FileDir   string
-	TagDir    string
-	FillerDir string
+	Conn        *ConMgr
+	Confile     configfile.Configfiler
+	Chain       chain.Chainer
+	Logs        logger.Logger
+	Cache       db.Cacher
+	ChainStatus *atomic.Bool
+	FileDir     string
+	TagDir      string
+	FillerDir   string
 }
 
 // New is used to build a node instance

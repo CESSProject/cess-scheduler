@@ -31,7 +31,7 @@ func (node *Node) CoroutineMgr() {
 	go node.task_ValidateProof(channel_2)
 	go node.task_SubmitFillerMeta(channel_3)
 	go node.task_GenerateFiller(channel_4)
-	go node.task_ClearAuthMap(channel_5)
+	go node.task_Common(channel_5)
 
 	for {
 		select {
@@ -44,7 +44,7 @@ func (node *Node) CoroutineMgr() {
 		case <-channel_4:
 			go node.task_GenerateFiller(channel_4)
 		case <-channel_5:
-			go node.task_ClearAuthMap(channel_5)
+			go node.task_Common(channel_5)
 		}
 	}
 }

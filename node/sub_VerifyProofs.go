@@ -33,6 +33,12 @@ import (
 
 // task_ValidateProof is used to verify the proof data
 func (node *Node) task_ValidateProof(ch chan bool) {
+	defer func() {
+		ch <- true
+		if err := recover(); err != nil {
+			node.Logs.Pnc("error", utils.RecoverError(err))
+		}
+	}()
 	var (
 		err         error
 		goeson      bool
@@ -41,12 +47,6 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 		reqtag      protobuf.ReadTagReq
 		proofs      = make([]chain.Proof, 0)
 	)
-	defer func() {
-		ch <- true
-		if err := recover(); err != nil {
-			node.Logs.Pnc("error", utils.RecoverError(err))
-		}
-	}()
 	node.Logs.Verify("info", errors.New(">>> Start task_ValidateProof <<<"))
 
 	reqtag.Acc = node.Chain.GetPublicKey()
