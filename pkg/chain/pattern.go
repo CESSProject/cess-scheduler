@@ -122,6 +122,8 @@ type Proof struct {
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
 	Sigma          types.Bytes
+	Name           types.Bytes
+	U              []types.Bytes
 }
 
 type ChallengeInfo struct {
