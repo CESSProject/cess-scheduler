@@ -34,6 +34,7 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
@@ -72,6 +73,7 @@ func (n *Node) handler() error {
 		err      error
 		fs       *os.File
 		fillerFs *os.File
+		tStart   time.Time
 		filler   Filler
 		minerAcc []byte
 	)
@@ -158,6 +160,9 @@ func (n *Node) handler() error {
 				return err
 			}
 
+			tStart = time.Now()
+			n.Logs.Time(fmt.Errorf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
+
 			// open filler
 			fillerFs, err = os.OpenFile(filepath.Join(n.FillerDir, m.FileName), os.O_RDONLY, os.ModePerm)
 			if err != nil {
@@ -190,6 +195,10 @@ func (n *Node) handler() error {
 			// If the transmission is completed, the information will be recorded
 			// Uplink and delete local cache later
 			if m.FileName == filler.Hash {
+				n.Logs.Time(fmt.Errorf("Transfer completed filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
+				sharingtime := time.Since(tStart).Seconds()
+				averagespeed := float64(configs.FillerSize) / sharingtime
+				n.Logs.Time(fmt.Errorf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed))
 				fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
 				C_FillerMeta <- fillerMetaEle
 				os.Remove(filler.FillerPath)
@@ -345,14 +354,6 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey
 	return nil
 }
 
-func PathExists(path string) bool {
-	_, err := os.Stat(path)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
 // file backup management
 func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 	defer func() {
@@ -365,7 +366,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		txhash string
 	)
 
-	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Start the file backup management", fid))
+	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
 
 	var chunksInfo = make([]chain.BlockInfo, len(chunks))
 
@@ -373,10 +374,9 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
 		time.Sleep(time.Second)
 		if err != nil {
-			fmt.Println("backup failed: ", chunks[i])
 			continue
 		}
-		fmt.Println("backup suc: ", chunks[i])
+		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 		i++
 	}
 
@@ -384,13 +384,13 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 	for {
 		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
 		if txhash == "" {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+			n.Logs.Upfile("error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
 			time.Sleep(configs.BlockInterval)
 			continue
 		}
 		break
 	}
-	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
+	n.Logs.Upfile("info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
 	return
 }
 
@@ -398,7 +398,9 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	var (
 		err            error
+		msg            string
 		rtnValue       chain.BlockInfo
+		minerinfo      chain.Cache_MinerInfo
 		allMinerPubkey []types.AccountID
 	)
 	defer func() {
@@ -407,11 +409,11 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		}
 	}()
 	fname := filepath.Base(fpath)
-	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] Prepare to store to miner", fname))
+	n.Logs.Upfile("info", fmt.Errorf("[%v] Prepare to store to miner", fname))
 
 	fstat, err := os.Stat(fpath)
 	if err != nil {
-		n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
+		n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 		return rtnValue, err
 	}
 	blocksize, scansize := CalcFileBlockSizeAndScanSize(fstat.Size())
@@ -427,14 +429,14 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		PoDR2commit.BlockSize = blocksize
 		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(pbc.Key_Ssk, string(pbc.Key_SharedParams), scansize)
 		if err != nil {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] PoDR2ProofCommit: %v", fname, err))
+			n.Logs.Upfile("error", fmt.Errorf("[%v] PoDR2ProofCommit: %v", fname, err))
 			return rtnValue, err
 		}
 		select {
 		case commitResponse = <-commitResponseCh:
 		}
 		if commitResponse.StatueMsg.StatusCode != pbc.Success {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
+			n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
 			return rtnValue, errors.New("failed")
 		}
 		var tag TagInfo
@@ -445,14 +447,14 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		tag.Sigmas = commitResponse.Sigmas
 		tag_bytes, err := json.Marshal(&tag)
 		if err != nil {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			return rtnValue, err
 		}
 
 		//Save tag information to file
 		ftag, err := os.OpenFile(fileTagPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 		if err != nil {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			return rtnValue, err
 		}
 		ftag.Write(tag_bytes)
@@ -460,7 +462,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		//flush to disk
 		err = ftag.Sync()
 		if err != nil {
-			n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			ftag.Close()
 			os.Remove(fileTagPath)
 			return rtnValue, err
@@ -469,32 +471,28 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	}
 
 	// Get the publickey of all miners in the chain
-	for len(allMinerPubkey) == 0 {
+	for {
 		allMinerPubkey, err = n.Chain.GetAllStorageMiner()
 		if err != nil {
-			time.Sleep(time.Second * time.Duration(utils.RandomInRange(3, 10)))
+			time.Sleep(configs.BlockInterval)
+			continue
 		}
+		break
 	}
 
 	// Disrupt the order of miners
 	utils.RandSlice(allMinerPubkey)
 
-	n.Logs.Log("upfile", "info", fmt.Errorf("[%v] %v miners found", fname, len(allMinerPubkey)))
-
-	var minerinfo chain.Cache_MinerInfo
-	msg := utils.GetRandomcode(16)
+	msg = utils.GetRandomcode(16)
 	kr, _ := cesskeyring.FromURI(n.Chain.GetMnemonicSeed(), cesskeyring.NetSubstrate{})
 	// sign message
 	sign, err := kr.Sign(kr.SigningContext([]byte(msg)))
 	if err != nil {
-		n.Logs.Log("upfile", "error", fmt.Errorf("[%v] %v", fname, err))
+		n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 		return rtnValue, err
 	}
 	for i := 0; i < len(allMinerPubkey); i++ {
-
-		pkey, err := utils.DecodePublicKeyOfCessAccount("cXfyomKDABfehLkvARFE854wgDJFMbsxwAJEHezRb6mfcAi2y")
-		//minercache, err := n.Cache.Get(allMinerPubkey[i][:])
-		minercache, err := n.Cache.Get(pkey)
+		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
 		if err != nil {
 			continue
 		}
@@ -505,8 +503,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			continue
 		}
 
-		//dstURL := string(base58.Decode(minerinfo.Ip))
-		dstURL := "43.128.134.24:15001"
+		dstURL := string(base58.Decode(minerinfo.Ip))
 		tcpAddr, err := net.ResolveTCPAddr("tcp", dstURL)
 		if err != nil {
 			continue
@@ -529,7 +526,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		}
 		rtnValue.BlockId = hash
 		rtnValue.BlockSize = types.U64(fstat.Size())
-		rtnValue.MinerAcc = types.NewAccountID(pkey) //allMinerPubkey[i]
+		rtnValue.MinerAcc = allMinerPubkey[i]
 		rtnValue.MinerIp = types.NewBytes([]byte(minerinfo.Ip))
 		rtnValue.MinerId = types.U64(minerinfo.Peerid)
 		rtnValue.BlockNum = types.U32(blocknum)

@@ -158,6 +158,10 @@ func (t *TcpCon) SendMsg(m *Message) {
 	t.send <- m
 }
 
+func (t *TcpCon) GetRemoteAddr() string {
+	return t.conn.RemoteAddr().String()
+}
+
 func (t *TcpCon) Close() error {
 	t.onceStop.Do(func() {
 		fmt.Println("close a connect, addr: ", t.conn.RemoteAddr())

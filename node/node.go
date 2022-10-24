@@ -37,11 +37,11 @@ type Scheduler interface {
 }
 
 type Node struct {
-	Conn        *ConMgr
 	Confile     configfile.Configfiler
 	Chain       chain.Chainer
 	Logs        logger.Logger
 	Cache       db.Cacher
+	Conn        *ConMgr
 	ChainStatus *atomic.Bool
 	Connections *atomic.Uint32
 	FileDir     string

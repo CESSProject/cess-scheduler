@@ -28,6 +28,7 @@ type NetConn interface {
 	HandlerLoop()
 	GetMsg() (*Message, bool)
 	SendMsg(m *Message)
+	GetRemoteAddr() string
 	Close() error
 	IsClose() bool
 }
