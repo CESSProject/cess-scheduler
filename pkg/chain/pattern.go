@@ -74,7 +74,7 @@ type BlockInfo struct {
 	MinerId   types.U64
 	BlockSize types.U64
 	BlockNum  types.U32
-	BlockId   types.Bytes
+	BlockId   [68]types.U8
 	MinerIp   types.Bytes
 	MinerAcc  types.AccountID
 }
@@ -92,9 +92,22 @@ type FillerMetaInfo struct {
 
 // scheduler info
 type SchedulerInfo struct {
-	Ip             types.Bytes
+	Ip             IpAddress
 	StashUser      types.AccountID
 	ControllerUser types.AccountID
+}
+
+type IpAddress struct {
+	IPv4 Ipv4Type
+	IPv6 Ipv6Type
+}
+type Ipv4Type struct {
+	Index types.U8
+	Value [4]types.U8
+}
+type Ipv6Type struct {
+	Index types.U8
+	Value [8]types.U16
 }
 
 type Chain_SchedulerPuk struct {

@@ -547,8 +547,11 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			time.Sleep(time.Second)
 			continue
 		}
-
-		rtnValue.BlockId = types.NewBytes([]byte(fname))
+		var hash [68]types.U8
+		for i := 0; i < 68; i++ {
+			hash[i] = types.U8(fname[i])
+		}
+		rtnValue.BlockId = hash
 		rtnValue.BlockSize = types.U64(fstat.Size())
 		rtnValue.MinerAcc = types.NewAccountID(pkey) //allMinerPubkey[i]
 		rtnValue.MinerIp = types.NewBytes([]byte(minerinfo.Ip))

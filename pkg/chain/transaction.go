@@ -44,11 +44,20 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 		return txhash, errors.Wrap(err, "DecodePublicKeyOfCessAccount")
 	}
 
+	var ip IpAddress
+	var hash [4]types.U8
+	for i := 0; i < 4; i++ {
+		hash[i] = types.U8(i + 1)
+	}
+
+	ip.IPv4.Index = types.U8(0)
+	ip.IPv4.Value = hash
+
 	call, err := types.NewCall(
 		c.metadata,
 		tx_FileMap_Add_schedule,
 		types.NewAccountID(stashPuk),
-		types.Bytes([]byte(contact)),
+		ip.IPv4,
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")

@@ -105,9 +105,14 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 		return data, ERR_RPC_CONNECTION
 	}
 
-	b, err := types.Encode(fid)
+	var hash [68]types.U8
+	for i := 0; i < 68; i++ {
+		hash[i] = types.U8(fid[i])
+	}
+
+	b, err := types.Encode(hash)
 	if err != nil {
-		return data, errors.Wrap(err, "[EncodeToBytes]")
+		return data, errors.Wrap(err, "[Encode]")
 	}
 
 	key, err := types.CreateStorageKey(
