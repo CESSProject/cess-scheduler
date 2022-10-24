@@ -69,6 +69,7 @@ func (n *Node) handler() error {
 	var fillerFs *os.File
 	var err error
 	var filler Filler
+	var minerAcc []byte
 	num := TCP_ConnLength.Load()
 	num += 1
 	TCP_ConnLength.Store(num)
@@ -150,7 +151,7 @@ func (n *Node) handler() error {
 				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
 				return err
 			}
-
+			minerAcc = m.Pubkey
 			// select a filler
 			timer := time.NewTimer(time.Second * 3)
 			select {
@@ -186,6 +187,13 @@ func (n *Node) handler() error {
 			time.Sleep(time.Millisecond * 20)
 			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
 			fmt.Println("Return a filler: ", m.FileName)
+			if m.FileName == filler.Hash {
+				fmt.Println("Finish a filler: ", filler.Hash)
+				fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
+				C_FillerMeta <- fillerMetaEle
+				os.Remove(filler.FillerPath)
+				os.Remove(filler.TagPath)
+			}
 		case MsgFile:
 			if fs == nil {
 				fmt.Println(n.Conn.fileName, "file is not open!")
@@ -567,4 +575,23 @@ func CalcFileBlockSizeAndScanSize(fsize int64) (int64, int64) {
 	blockSize = fsize / 16
 	scanBlockSize = blockSize / 8
 	return blockSize, scanBlockSize
+}
+
+func combineFillerMeta(fileHash string, pubkey []byte) chain.FillerMetaInfo {
+	var metainfo chain.FillerMetaInfo
+	var hash [64]types.U8
+	for i := 0; i < 64; i++ {
+		hash[i] = types.U8(fileHash[i])
+	}
+	metainfo.Hash = hash
+	metainfo.Size = configs.FillerSize
+	metainfo.Acc = types.NewAccountID(pubkey)
+
+	blocknum := uint64(math.Ceil(float64(configs.FillerSize / configs.BlockSize)))
+	if blocknum == 0 {
+		blocknum = 1
+	}
+	metainfo.BlockNum = types.U32(blocknum)
+	metainfo.BlockSize = types.U32(uint32(configs.BlockSize))
+	return metainfo
 }

@@ -87,7 +87,7 @@ type FillerMetaInfo struct {
 	BlockSize types.U32
 	ScanSize  types.U32
 	Acc       types.AccountID
-	Hash      [68]types.U8
+	Hash      [64]types.U8
 }
 
 // scheduler info
