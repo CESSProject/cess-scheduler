@@ -306,7 +306,7 @@ type Event_RegistrationScheduler struct {
 type Event_UpdateScheduler struct {
 	Phase    types.Phase
 	Acc      types.AccountID
-	Endpoint IpAddress
+	Endpoint Ipv4Type_Query
 	Topics   []types.Hash
 }
 

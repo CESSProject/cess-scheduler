@@ -500,7 +500,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	}
 }
 
-func (c *chainClient) Update(contact string) (string, error) {
+func (c *chainClient) Update(ip, port string) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -513,10 +513,25 @@ func (c *chainClient) Update(contact string) (string, error) {
 		return txhash, ERR_RPC_CONNECTION
 	}
 
+	var ipType IpAddress
+
+	if utils.IsIPv4(ip) {
+		ipType.IPv4.Index = 0
+		ips := strings.Split(ip, ".")
+		for i := 0; i < 4; i++ {
+			temp, _ := strconv.Atoi(ips[i])
+			ipType.IPv4.Value[i] = types.U8(temp)
+		}
+		temp, _ := strconv.Atoi(port)
+		ipType.IPv4.Port = types.U16(temp)
+	} else {
+		return txhash, errors.New("unsupported ip format")
+	}
+
 	call, err := types.NewCall(
 		c.metadata,
 		tx_FileMap_UpdateScheduler,
-		types.Bytes([]byte(contact)),
+		ipType.IPv4,
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")

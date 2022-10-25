@@ -19,16 +19,14 @@ package console
 import (
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
-	"github.com/btcsuite/btcutil/base58"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -36,34 +34,21 @@ import (
 //
 // Usage:
 //
-//	scheduler update <ipv4:port>
+//	scheduler update <ipv4> <port>
 func updateCmd(cmd *cobra.Command, args []string) {
-	if len(os.Args) >= 3 {
-		addr := strings.Split(os.Args[2], ":")
-		if len(addr) == 2 {
-			if !isIPv4(addr[0]) {
-				if !strings.Contains(addr[0], "http") &&
-					!strings.Contains(addr[0], "https") &&
-					!strings.Contains(addr[0], "www") {
-					log.Println("Please enter <ipv4:port> or <domain name>")
-					os.Exit(1)
-				}
-			}
-			port, err := strconv.Atoi(addr[1])
-			if err != nil {
-				log.Println("Invalid port number")
-				os.Exit(1)
-			}
-			if port < 1025 || port > 65535 {
-				log.Println("The port number range is 1024~65535")
-				os.Exit(1)
-			}
+	if len(os.Args) >= 4 {
+		if !utils.IsIPv4(os.Args[2]) {
+			log.Println("Please enter 'scheduler update <ipv4> <port>'")
+			os.Exit(1)
 		}
 
-		if !strings.Contains(os.Args[2], "http") &&
-			!strings.Contains(os.Args[2], "https") &&
-			!strings.Contains(os.Args[2], "www") {
-			log.Println("Please enter <ipv4:port> or <domain name>")
+		port, err := strconv.Atoi(os.Args[3])
+		if err != nil {
+			log.Println("Invalid port number")
+			os.Exit(1)
+		}
+		if port < 1025 || port > 65535 {
+			log.Println("The port number range is 1024~65535")
 			os.Exit(1)
 		}
 
@@ -94,7 +79,7 @@ func updateCmd(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		txhash, err := c.Update(base58.Encode([]byte(os.Args[2])))
+		txhash, err := c.Update(os.Args[2], os.Args[3])
 		if err != nil {
 			if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 				log.Println("[err] Please check your wallet balance.")
@@ -109,14 +94,9 @@ func updateCmd(cmd *cobra.Command, args []string) {
 			}
 			os.Exit(1)
 		}
-		log.Println("[ok] success")
+		log.Println("success")
 		os.Exit(0)
 	}
-	log.Println("[err] Please enter <ipv4:port>")
+	log.Println("[err] Please enter 'scheduler update <ipv4> <port>'")
 	os.Exit(1)
-}
-
-func isIPv4(ipAddr string) bool {
-	ip := net.ParseIP(ipAddr)
-	return ip != nil && strings.Contains(ipAddr, ".")
 }

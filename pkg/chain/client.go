@@ -59,7 +59,7 @@ type Chainer interface {
 	// SubmitFileMeta is used to submit the meta information of the file
 	SubmitFileMeta(fid string, fsize uint64, block []BlockInfo) (string, error)
 	// Update is used to update the communication address of the scheduling service
-	Update(contact string) (string, error)
+	Update(ip, port string) (string, error)
 }
 
 type chainClient struct {
