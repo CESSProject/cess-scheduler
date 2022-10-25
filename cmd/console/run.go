@@ -31,7 +31,6 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/configfile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/spf13/cobra"
 )
 
@@ -162,9 +161,7 @@ func buildChain(cfg configfile.Configfiler, timeout time.Duration) (chain.Chaine
 }
 
 func register(cfg configfile.Configfiler, client chain.Chainer) error {
-	txhash, err := client.Register(
-		cfg.GetStashAcc(), base58.Encode([]byte(cfg.GetServiceAddr()+":"+cfg.GetServicePort())),
-	)
+	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort())
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 			return fmt.Errorf("[err] Please check your wallet balance")

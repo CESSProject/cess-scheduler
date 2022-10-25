@@ -92,9 +92,16 @@ type FillerMetaInfo struct {
 
 // scheduler info
 type SchedulerInfo struct {
-	Ip             IpAddress
+	Ip             Ipv4Type
 	StashUser      types.AccountID
 	ControllerUser types.AccountID
+}
+
+type Ipv4Type_Query struct {
+	Placeholder types.U8 //
+	Index       types.U8
+	Value       [4]types.U8
+	Port        types.U16
 }
 
 type IpAddress struct {
@@ -104,10 +111,12 @@ type IpAddress struct {
 type Ipv4Type struct {
 	Index types.U8
 	Value [4]types.U8
+	Port  types.U16
 }
 type Ipv6Type struct {
 	Index types.U8
 	Value [8]types.U16
+	Port  types.U16
 }
 
 type Chain_SchedulerPuk struct {

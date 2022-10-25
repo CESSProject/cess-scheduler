@@ -299,7 +299,7 @@ type Event_PackageRenewal struct {
 type Event_RegistrationScheduler struct {
 	Phase  types.Phase
 	Acc    types.AccountID
-	Ip     IpAddress
+	Ip     Ipv4Type_Query
 	Topics []types.Hash
 }
 

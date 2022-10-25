@@ -121,12 +121,7 @@ func (c *configfile) Parse(fpath string) error {
 	if !fstat.IsDir() {
 		return errors.Errorf("The '%v' is not a directory", c.DataDir)
 	}
-	//
-	// configs.PublicKey, err = chain.GetPublicKeyByPrk(c.confile.CtrlPrk)
-	// if err != nil {
-	// 	log.Printf("[err] %v\n", err)
-	// 	os.Exit(1)
-	// }
+
 	return nil
 }
 

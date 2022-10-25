@@ -51,7 +51,7 @@ type Chainer interface {
 	// GetSpacePackageInfo is used to get the space package information of the account
 	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
 	// Register is used by the scheduling service to register
-	Register(stash, contact string) (string, error)
+	Register(stash, ip, port string) (string, error)
 	// SubmitProofResults is used to submit proof verification results
 	SubmitProofResults(data []ProofResult) (string, error)
 	// SubmitFillerMeta is used to submit the meta information of the filler

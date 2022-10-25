@@ -18,6 +18,7 @@ package chain
 
 import (
 	"encoding/hex"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (c *chainClient) Register(stash, contact string) (string, error) {
+func (c *chainClient) Register(stash, ip, port string) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -44,20 +45,26 @@ func (c *chainClient) Register(stash, contact string) (string, error) {
 		return txhash, errors.Wrap(err, "DecodePublicKeyOfCessAccount")
 	}
 
-	var ip IpAddress
-	var hash [4]types.U8
-	for i := 0; i < 4; i++ {
-		hash[i] = types.U8(i + 1)
-	}
+	var ipType IpAddress
 
-	ip.IPv4.Index = types.U8(0)
-	ip.IPv4.Value = hash
+	if utils.IsIPv4(ip) {
+		ipType.IPv4.Index = 0
+		ips := strings.Split(ip, ".")
+		for i := 0; i < 4; i++ {
+			temp, _ := strconv.Atoi(ips[i])
+			ipType.IPv4.Value[i] = types.U8(temp)
+		}
+		temp, _ := strconv.Atoi(port)
+		ipType.IPv4.Port = types.U16(temp)
+	} else {
+		return txhash, errors.New("unsupported ip format")
+	}
 
 	call, err := types.NewCall(
 		c.metadata,
 		tx_FileMap_Add_schedule,
 		types.NewAccountID(stashPuk),
-		ip.IPv4,
+		ipType.IPv4,
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")
