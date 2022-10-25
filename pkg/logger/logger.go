@@ -38,7 +38,7 @@ type Logger interface {
 	GenFiller(string, error)
 	FillerMeta(string, error)
 	Verify(string, error)
-	Time(error)
+	Speed(error)
 }
 
 type logs struct {
@@ -190,9 +190,9 @@ func (l *logs) Verify(level string, err error) {
 	}
 }
 
-func (l *logs) Time(err error) {
+func (l *logs) Speed(err error) {
 	_, file, line, _ := runtime.Caller(1)
-	v, ok := l.log["time"]
+	v, ok := l.log["speed"]
 	if ok {
 		v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
 	}

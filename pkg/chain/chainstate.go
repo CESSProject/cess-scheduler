@@ -35,7 +35,7 @@ func (c *chainClient) GetSyncStatus() (bool, error) {
 	if !c.IsChainClientOk() {
 		return false, ERR_RPC_CONNECTION
 	}
-	h, err := c.c.RPC.System.Health()
+	h, err := c.api.RPC.System.Health()
 	if err != nil {
 		return false, err
 	}
@@ -60,7 +60,7 @@ func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -87,7 +87,7 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -125,7 +125,7 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -152,7 +152,7 @@ func (c *chainClient) GetAllSchedulerInfo() ([]SchedulerInfo, error) {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -179,7 +179,7 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return nil, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -215,7 +215,7 @@ func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -247,7 +247,7 @@ func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 		return data, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &data)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
 	if err != nil {
 		return data, errors.Wrap(err, "[GetStorageLatest]")
 	}

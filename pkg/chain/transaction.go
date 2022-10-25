@@ -33,8 +33,8 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 		accountInfo types.AccountInfo
 	)
 
-	c.l.Lock()
-	defer c.l.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
 		return txhash, ERR_RPC_CONNECTION
@@ -85,7 +85,7 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 		return txhash, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
 		return txhash, errors.Wrap(err, "GetStorageLatest")
 	}
@@ -111,7 +111,7 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 	}
 
 	// Do the transfer and track the actual status
-	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	sub, err := c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
 		var tryCount = 0
 		if !strings.Contains(err.Error(), "Priority is too low") {
@@ -124,7 +124,7 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 			if err != nil {
 				return txhash, errors.Wrap(err, "[Sign]")
 			}
-			sub, err = c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+			sub, err = c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 			if err == nil {
 				break
 			}
@@ -142,7 +142,7 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 			if status.IsInBlock {
 				events := CessEventRecords{}
 				txhash, _ = types.EncodeToHex(status.AsInBlock)
-				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "GetStorageRaw")
 				}
@@ -169,8 +169,8 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 		accountInfo types.AccountInfo
 	)
 
-	c.l.Lock()
-	defer c.l.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
 		return txhash, ERR_RPC_CONNECTION
@@ -202,7 +202,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 		return txhash, errors.Wrap(err, "CreateStorageKey")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
 		return txhash, errors.Wrap(err, "GetStorageLatest err")
 	}
@@ -228,7 +228,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 	}
 
 	// Do the transfer and track the actual status
-	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	sub, err := c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
 		var tryCount = 0
 		if !strings.Contains(err.Error(), "Priority is too low") {
@@ -241,7 +241,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 			if err != nil {
 				return txhash, errors.Wrap(err, "[Sign]")
 			}
-			sub, err = c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+			sub, err = c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 			if err == nil {
 				break
 			}
@@ -259,7 +259,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 			if status.IsInBlock {
 				events := CessEventRecords{}
 				txhash = hex.EncodeToString(status.AsInBlock[:])
-				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "GetStorageRaw")
 				}
@@ -286,8 +286,8 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 		accountInfo types.AccountInfo
 	)
 
-	c.l.Lock()
-	defer c.l.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
 		return txhash, ERR_RPC_CONNECTION
@@ -313,7 +313,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 		return txhash, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -339,7 +339,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 	}
 
 	// Do the transfer and track the actual status
-	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	sub, err := c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
 		var tryCount = 0
 		if !strings.Contains(err.Error(), "Priority is too low") {
@@ -352,7 +352,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 			if err != nil {
 				return txhash, errors.Wrap(err, "[Sign]")
 			}
-			sub, err = c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+			sub, err = c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 			if err == nil {
 				break
 			}
@@ -370,7 +370,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 			if status.IsInBlock {
 				events := CessEventRecords{}
 				txhash, _ = types.EncodeToHex(status.AsInBlock)
-				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "GetStorageRaw")
 				}
@@ -396,8 +396,8 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 		accountInfo types.AccountInfo
 	)
 
-	c.l.Lock()
-	defer c.l.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
 		return txhash, ERR_RPC_CONNECTION
@@ -423,7 +423,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 		return txhash, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -448,7 +448,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	}
 
 	// Do the transfer and track the actual status
-	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	sub, err := c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
 		var tryCount = 0
 		if !strings.Contains(err.Error(), "Priority is too low") {
@@ -461,7 +461,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 			if err != nil {
 				return txhash, errors.Wrap(err, "[Sign]")
 			}
-			sub, err = c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+			sub, err = c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 			if err == nil {
 				break
 			}
@@ -480,7 +480,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 			if status.IsInBlock {
 				events := CessEventRecords{}
 				txhash, _ = types.EncodeToHex(status.AsInBlock)
-				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "[GetStorageRaw]")
 				}
@@ -506,8 +506,8 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 		accountInfo types.AccountInfo
 	)
 
-	c.l.Lock()
-	defer c.l.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
 		return txhash, ERR_RPC_CONNECTION
@@ -552,7 +552,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 		return txhash, errors.Wrap(err, "[CreateStorageKey]")
 	}
 
-	ok, err := c.c.RPC.State.GetStorageLatest(key, &accountInfo)
+	ok, err := c.api.RPC.State.GetStorageLatest(key, &accountInfo)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[GetStorageLatest]")
 	}
@@ -577,7 +577,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 	}
 
 	// Do the transfer and track the actual status
-	sub, err := c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+	sub, err := c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 	if err != nil {
 		var tryCount = 0
 		if !strings.Contains(err.Error(), "Priority is too low") {
@@ -590,7 +590,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 			if err != nil {
 				return txhash, errors.Wrap(err, "[Sign]")
 			}
-			sub, err = c.c.RPC.Author.SubmitAndWatchExtrinsic(ext)
+			sub, err = c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
 			if err == nil {
 				break
 			}
@@ -608,7 +608,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 			if status.IsInBlock {
 				events := CessEventRecords{}
 				txhash, _ = types.EncodeToHex(status.AsInBlock)
-				h, err := c.c.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
+				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "[GetStorageRaw]")
 				}

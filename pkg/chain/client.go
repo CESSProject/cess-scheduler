@@ -28,7 +28,7 @@ import (
 type Chainer interface {
 	// Getpublickey returns its own public key
 	GetPublicKey() []byte
-	// Getpublickey returns its own public key
+	// Getpublickey returns its own private key
 	GetMnemonicSeed() string
 	// NewAccountId returns the account id
 	NewAccountId(pubkey []byte) types.AccountID
@@ -63,8 +63,8 @@ type Chainer interface {
 }
 
 type chainClient struct {
-	l               *sync.Mutex
-	c               *gsrpc.SubstrateAPI
+	lock            *sync.Mutex
+	api             *gsrpc.SubstrateAPI
 	metadata        *types.Metadata
 	keyEvents       types.StorageKey
 	runtimeVersion  *types.RuntimeVersion
@@ -79,19 +79,19 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 		err error
 		cli = &chainClient{}
 	)
-	cli.c, err = gsrpc.NewSubstrateAPI(rpcAddr)
+	cli.api, err = gsrpc.NewSubstrateAPI(rpcAddr)
 	if err != nil {
 		return nil, err
 	}
-	cli.metadata, err = cli.c.RPC.State.GetMetadataLatest()
+	cli.metadata, err = cli.api.RPC.State.GetMetadataLatest()
 	if err != nil {
 		return nil, err
 	}
-	cli.genesisHash, err = cli.c.RPC.Chain.GetBlockHash(0)
+	cli.genesisHash, err = cli.api.RPC.Chain.GetBlockHash(0)
 	if err != nil {
 		return nil, err
 	}
-	cli.runtimeVersion, err = cli.c.RPC.State.GetRuntimeVersionLatest()
+	cli.runtimeVersion, err = cli.api.RPC.State.GetRuntimeVersionLatest()
 	if err != nil {
 		return nil, err
 	}
@@ -110,21 +110,21 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 			return nil, err
 		}
 	}
-	cli.l = new(sync.Mutex)
+	cli.lock = new(sync.Mutex)
 	cli.timeForBlockOut = t
 	cli.rpcAddr = rpcAddr
 	return cli, nil
 }
 
 func (c *chainClient) IsChainClientOk() bool {
-	err := healthchek(c.c)
+	err := healthchek(c.api)
 	if err != nil {
-		c.c = nil
+		c.api = nil
 		cli, err := reconnectChainClient(c.rpcAddr)
 		if err != nil {
 			return false
 		}
-		c.c = cli
+		c.api = cli
 		return true
 	}
 	return true

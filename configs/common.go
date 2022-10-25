@@ -94,6 +94,6 @@ var (
 		"minerCache", //Miner cache log
 		"fillerMeta", //Submit filler meta log
 		"genFiller",  //Generate filler log
-		"time",       //Record transmission time and speed
+		"speed",      //Record transmission time and speed
 	}
 )

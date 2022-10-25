@@ -40,9 +40,10 @@ import (
 
 func (n *Node) NewServer(conn NetConn, dir string) Server {
 	n.Conn = &ConMgr{
-		conn: conn,
-		dir:  dir,
-		stop: make(chan struct{}),
+		conn:       conn,
+		dir:        dir,
+		waitNotify: make(chan bool, 1),
+		stop:       make(chan struct{}),
 	}
 	return n
 }
@@ -70,17 +71,23 @@ func (n *Node) Start() {
 
 func (n *Node) handler() error {
 	var (
-		err      error
-		fs       *os.File
-		fillerFs *os.File
-		tStart   time.Time
-		filler   Filler
-		minerAcc []byte
+		err        error
+		fs         *os.File
+		fillerFs   *os.File
+		tStart     time.Time
+		filler     Filler
+		minerAcc   []byte
+		remoteAddr string
 	)
 	n.AddConnection()
+
 	defer func() {
+		n.Conn.conn.Close()
 		if fs != nil {
 			_ = fs.Close()
+		}
+		if fillerFs != nil {
+			_ = fillerFs.Close()
 		}
 		n.ClearConnection()
 	}()
@@ -132,7 +139,7 @@ func (n *Node) handler() error {
 			// Determine the upper limit of connections
 			if n.Connections.Load() > configs.MAX_TCP_CONNECTION {
 				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				return errors.New("Max Connections")
 			}
 
 			// Verify signature
@@ -148,9 +155,10 @@ func (n *Node) handler() error {
 			timer := time.NewTimer(time.Second * 3)
 			select {
 			case filler = <-C_Filler:
+				n.Logs.GenFiller("info", fmt.Errorf("Consumed a filler: %v", filler.Hash))
 			case <-timer.C:
+				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
 			}
-
 			// Notify the other party
 			n.Conn.conn.SendMsg(NewNotifyFillerMsg(filler.Hash, Status_Ok))
 		case MsgFiller:
@@ -159,9 +167,10 @@ func (n *Node) handler() error {
 				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
 				return err
 			}
-
+			remoteAddr = n.Conn.conn.GetRemoteAddr()
+			log.Printf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr())
 			tStart = time.Now()
-			n.Logs.Time(fmt.Errorf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
+			n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
 
 			// open filler
 			fillerFs, err = os.OpenFile(filepath.Join(n.FillerDir, m.FileName), os.O_RDONLY, os.ModePerm)
@@ -177,6 +186,8 @@ func (n *Node) handler() error {
 				readBuf := BytesPool.Get().([]byte)
 				num, err := fillerFs.Read(readBuf)
 				if err != nil && err != io.EOF {
+					// notify the other party
+					n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
 					return err
 				}
 				if num == 0 {
@@ -184,6 +195,7 @@ func (n *Node) handler() error {
 				}
 				n.Conn.conn.SendMsg(NewFillerMsg(m.FileName, readBuf[:num]))
 			}
+
 			time.Sleep(configs.TCP_Message_Interval)
 			// send end msg
 			n.Conn.conn.SendMsg(NewFillerEndMsg(m.FileName, uint64(fillerInfo.Size())))
@@ -192,18 +204,6 @@ func (n *Node) handler() error {
 			// notify the other party
 			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
 
-			// If the transmission is completed, the information will be recorded
-			// Uplink and delete local cache later
-			if m.FileName == filler.Hash {
-				n.Logs.Time(fmt.Errorf("Transfer completed filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
-				sharingtime := time.Since(tStart).Seconds()
-				averagespeed := float64(configs.FillerSize) / sharingtime
-				n.Logs.Time(fmt.Errorf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed))
-				fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
-				C_FillerMeta <- fillerMetaEle
-				os.Remove(filler.FillerPath)
-				os.Remove(filler.TagPath)
-			}
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
@@ -241,6 +241,24 @@ func (n *Node) handler() error {
 			n.Conn.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 			if !(m.Bytes[0] == byte(Status_Ok)) {
 				return errors.New("failed")
+			}
+
+			if len(m.Bytes) > 1 {
+				// If the transmission is completed, the information will be recorded
+				// Uplink and delete local cache later
+				if filler.Hash == string(m.Bytes[1:]) {
+					log.Printf("Transfer completed filler [%v] to [%v]", filler.Hash, remoteAddr)
+					n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [%v]", filler.Hash, remoteAddr))
+					sharingtime := time.Since(tStart).Seconds()
+					averagespeed := float64(configs.FillerSize) / sharingtime
+					log.Printf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed)
+					n.Logs.Speed(fmt.Errorf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed))
+					fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
+					C_FillerMeta <- fillerMetaEle
+					os.Remove(filler.FillerPath)
+					os.Remove(filler.TagPath)
+				}
+				return nil
 			}
 		case MsgClose:
 			if m.Bytes[0] != byte(Status_Ok) {
