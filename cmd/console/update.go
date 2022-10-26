@@ -25,7 +25,7 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -62,7 +62,7 @@ func updateCmd(cmd *cobra.Command, args []string) {
 			configFilePath = configpath2
 		}
 
-		confile := configfile.NewConfigfile()
+		confile := confile.NewConfigfile()
 		if err := confile.Parse(configFilePath); err != nil {
 			log.Println(err)
 			os.Exit(1)

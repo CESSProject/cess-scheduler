@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/spf13/cobra"
 )
 
@@ -36,14 +36,14 @@ func defaultCmd(cmd *cobra.Command, args []string) {
 		log.Printf("[err] %v\n", err)
 		os.Exit(1)
 	}
-	path := filepath.Join(pwd, configfile.ConfigurationFileTemplateName)
+	path := filepath.Join(pwd, confile.ConfigurationFileTemplateName)
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Printf("[err] %v\n", err)
 		os.Exit(1)
 	}
 	defer f.Close()
-	_, err = f.WriteString(configfile.ConfigurationFileTemplete)
+	_, err = f.WriteString(confile.ConfigurationFileTemplete)
 	if err != nil {
 		log.Printf("[err] %v\n", err)
 		os.Exit(1)

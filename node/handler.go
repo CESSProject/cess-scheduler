@@ -38,14 +38,24 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
-func (n *Node) NewServer(conn NetConn, dir string) Server {
-	n.Conn = &ConMgr{
+func (n *Node) NewServer(conn NetConn) Server {
+	node := New()
+	node.Conn = &ConMgr{
 		conn:       conn,
-		dir:        dir,
+		dir:        n.FileDir,
 		waitNotify: make(chan bool, 1),
 		stop:       make(chan struct{}),
 	}
-	return n
+	node.Cache = n.Cache
+	node.Chain = n.Chain
+	node.Confile = n.Confile
+	node.Logs = n.Logs
+	node.ChainStatus = n.ChainStatus
+	node.Connections = n.Connections
+	node.FileDir = n.FileDir
+	node.FillerDir = n.FillerDir
+	node.TagDir = n.TagDir
+	return node
 }
 
 func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {

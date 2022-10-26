@@ -28,7 +28,7 @@ import (
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/node"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/spf13/cobra"
@@ -89,24 +89,24 @@ func runCmd(cmd *cobra.Command, args []string) {
 	node.Run()
 }
 
-func buildConfigFile(cmd *cobra.Command) (configfile.Configfiler, error) {
-	var configFilePath string
+func buildConfigFile(cmd *cobra.Command) (confile.Confiler, error) {
+	var conFilePath string
 	configpath1, _ := cmd.Flags().GetString("config")
 	configpath2, _ := cmd.Flags().GetString("c")
 	if configpath1 != "" {
-		configFilePath = configpath1
+		conFilePath = configpath1
 	} else {
-		configFilePath = configpath2
+		conFilePath = configpath2
 	}
 
-	cfg := configfile.NewConfigfile()
-	if err := cfg.Parse(configFilePath); err != nil {
+	cfg := confile.NewConfigfile()
+	if err := cfg.Parse(conFilePath); err != nil {
 		return nil, err
 	}
 	return cfg, nil
 }
 
-func buildChain(cfg configfile.Configfiler, timeout time.Duration) (chain.Chainer, error) {
+func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, error) {
 	var isReg bool
 	// connecting chain
 	client, err := chain.NewChainClient(cfg.GetRpcAddr(), cfg.GetCtrlPrk(), timeout)
@@ -160,7 +160,7 @@ func buildChain(cfg configfile.Configfiler, timeout time.Duration) (chain.Chaine
 	return client, nil
 }
 
-func register(cfg configfile.Configfiler, client chain.Chainer) error {
+func register(cfg confile.Confiler, client chain.Chainer) error {
 	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort())
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
@@ -177,7 +177,7 @@ func register(cfg configfile.Configfiler, client chain.Chainer) error {
 	return nil
 }
 
-func buildDir(cfg configfile.Configfiler, client chain.Chainer) (string, string, string, string, string, error) {
+func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, string, string, string, error) {
 	ctlAccount, err := client.GetCessAccount()
 	if err != nil {
 		return "", "", "", "", "", err

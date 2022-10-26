@@ -27,7 +27,7 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/configfile"
+	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
 )
@@ -37,7 +37,7 @@ type Scheduler interface {
 }
 
 type Node struct {
-	Confile     configfile.Configfiler
+	Confile     confile.Confiler
 	Chain       chain.Chainer
 	Logs        logger.Logger
 	Cache       db.Cacher
@@ -96,7 +96,7 @@ func (n *Node) Run() {
 		}
 
 		// Start the processing service of the new connection
-		go n.NewServer(NewTcp(acceptTCP), n.FileDir).Start()
+		go n.NewServer(NewTcp(acceptTCP)).Start()
 
 		// Connection interval
 		time.Sleep(configs.TCP_Connection_Interval)
