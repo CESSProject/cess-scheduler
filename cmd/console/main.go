@@ -86,7 +86,7 @@ func runCommand() *cobra.Command {
 
 func updateCommand() *cobra.Command {
 	cc := &cobra.Command{
-		Use:                   "update <ip> <port>",
+		Use:                   "update <ipv4> <port>",
 		Short:                 "Update scheduling service ip and port",
 		Run:                   updateCmd,
 		DisableFlagsInUseLine: true,

@@ -18,19 +18,27 @@ package logger
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/natefinch/lumberjack"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 type Logger interface {
 	Log(string, string, error)
+	Pnc(string, error)
+	Common(string, error)
+	Upfile(string, error)
+	MinerCache(string, error)
+	GenFiller(string, error)
+	FillerMeta(string, error)
+	Verify(string, error)
+	Speed(error)
 }
 
 type logs struct {
@@ -49,7 +57,7 @@ func NewLogs(logfiles map[string]string) (Logger, error) {
 		if err != nil {
 			err = os.MkdirAll(dir, os.ModeDir)
 			if err != nil {
-				return nil, err
+				return nil, errors.Errorf("%v,%v", dir, err)
 			}
 		}
 		Encoder := getEncoder()
@@ -81,9 +89,117 @@ func (l *logs) Log(name, level string, err error) {
 	}
 }
 
+func (l *logs) Pnc(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["panic"]
+	if ok {
+		switch level {
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) Common(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["common"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) Upfile(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["upfile"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) MinerCache(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["minerCache"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) GenFiller(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["genFiller"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) FillerMeta(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["fillerMeta"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) Verify(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["verify"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
+	}
+}
+
+func (l *logs) Speed(err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["speed"]
+	if ok {
+		v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+	}
+}
+
 func getFilePath(fpath string) string {
-	file, _ := exec.LookPath(fpath)
-	path, _ := filepath.Abs(file)
+	path, _ := filepath.Abs(fpath)
 	index := strings.LastIndex(path, string(os.PathSeparator))
 	ret := path[:index]
 	return ret

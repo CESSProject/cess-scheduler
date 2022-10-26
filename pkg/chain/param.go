@@ -62,3 +62,14 @@ const (
 	tx_FileMap_UpdateScheduler = "FileMap.update_scheduler"
 	tx_FileMap_Add_schedule    = "FileMap.registration_scheduler"
 )
+
+const (
+	FILE_STATE_ACTIVE  = "active"
+	FILE_STATE_PENDING = "pending"
+)
+
+const (
+	MINER_STATE_POSITIVE = "positive"
+	MINER_STATE_FROZEN   = "frozen"
+	MINER_STATE_EXIT     = "exit"
+)

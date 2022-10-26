@@ -50,7 +50,6 @@ func GetRandomcode(length uint8) string {
 	return string(bytes)
 }
 
-//
 func RandStr(n int) string {
 	src := rand.NewSource(time.Now().UnixNano())
 	sb := strings.Builder{}
@@ -70,9 +69,9 @@ func RandStr(n int) string {
 	return sb.String()
 }
 
-//Get a unique snowflake ID
-func GetGuid(num int64) (string, error) {
-	node, err := snowflake.NewNode(num)
+// Get a unique snowflake ID
+func GetGuid() (string, error) {
+	node, err := snowflake.NewNode(int64(RandomInRange(0, 1024)))
 	if err != nil {
 		return "", err
 	}

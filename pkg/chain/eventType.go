@@ -22,7 +22,7 @@ import "github.com/centrifuge/go-substrate-rpc-client/v4/types"
 // cess event type
 // **************************************************************
 
-//------------------------SegmentBook----------------------------
+// ------------------------SegmentBook----------------------------
 type Event_PPBNoOnTimeSubmit struct {
 	Phase     types.Phase
 	Acc       types.AccountID
@@ -58,7 +58,7 @@ type Event_OutstandingChallenges struct {
 	Topics []types.Hash
 }
 
-//------------------------Sminer---------------------------------
+// ------------------------Sminer---------------------------------
 type Event_Registered struct {
 	Phase      types.Phase
 	Acc        types.AccountID
@@ -165,11 +165,11 @@ type Event_EndOfBufferPeriod struct {
 	Topics []types.Hash
 }
 
-//------------------------FileBank-------------------------------
+// ------------------------FileBank-------------------------------
 type Event_DeleteFile struct {
 	Phase  types.Phase
 	Acc    types.AccountID
-	Fileid types.Bytes
+	Fileid [64]types.U8
 	Topics []types.Hash
 }
 
@@ -244,17 +244,17 @@ type Event_FillerUpload struct {
 }
 
 type Event_ClearInvalidFile struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Fileid types.Bytes
-	Topics []types.Hash
+	Phase     types.Phase
+	Acc       types.AccountID
+	File_hash [64]types.U8
+	Topics    []types.Hash
 }
 
 type Event_RecoverFile struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Fileid types.Bytes
-	Topics []types.Hash
+	Phase     types.Phase
+	Acc       types.AccountID
+	File_hash [68]types.U8
+	Topics    []types.Hash
 }
 
 type Event_ReceiveSpace struct {
@@ -266,7 +266,7 @@ type Event_ReceiveSpace struct {
 type Event_UploadDeclaration struct {
 	Phase     types.Phase
 	Acc       types.AccountID
-	File_hash types.Bytes
+	File_hash [64]types.U8
 	File_name types.Bytes
 	Topics    []types.Hash
 }
@@ -283,6 +283,7 @@ type Event_PackageUpgrade struct {
 	Acc      types.AccountID
 	Old_type types.U8
 	New_type types.U8
+	Fee      types.U128
 	Topics   []types.Hash
 }
 
@@ -290,25 +291,26 @@ type Event_PackageRenewal struct {
 	Phase        types.Phase
 	Acc          types.AccountID
 	Package_type types.U8
+	Fee          types.U128
 	Topics       []types.Hash
 }
 
-//------------------------FileMap--------------------------------
+// ------------------------FileMap--------------------------------
 type Event_RegistrationScheduler struct {
 	Phase  types.Phase
 	Acc    types.AccountID
-	Ip     types.Bytes
+	Ip     Ipv4Type_Query
 	Topics []types.Hash
 }
 
 type Event_UpdateScheduler struct {
 	Phase    types.Phase
 	Acc      types.AccountID
-	Endpoint types.Bytes
+	Endpoint Ipv4Type_Query
 	Topics   []types.Hash
 }
 
-//------------------------other system---------------------------
+// ------------------------other system---------------------------
 type Event_UnsignedPhaseStarted struct {
 	Phase  types.Phase
 	Round  types.U32

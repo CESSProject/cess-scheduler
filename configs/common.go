@@ -16,6 +16,8 @@
 
 package configs
 
+import "time"
+
 // account
 const (
 	// CESS token precision
@@ -42,6 +44,40 @@ const (
 	BlockSize = SIZE_1MiB
 	// ScanBlockSize is the size of the scan and cannot be larger than BlockSize
 	ScanBlockSize = BlockSize / 2
+	// The maximum number of fillermeta submitted in a transaction
+	Max_SubFillerMeta = 8
+	// Number of local filler caches
+	Num_Filler_Reserved = 5
+
+	Max_Filler_Meta = 100
+)
+
+const (
+	// Maximum number of connections in the miner's certification space
+	MAX_TCP_CONNECTION uint32 = 3
+	// Tcp client connection interval
+	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
+	// Tcp message interval
+	TCP_Message_Interval = time.Duration(time.Millisecond * 20)
+	// Tcp short message waiting time
+	TCP_ShortMessage_WaitingTime = time.Duration(time.Second * 5)
+	// The slowest tcp transfers bytes per second
+	TCP_Transmission_Slowest = 1021 * 10
+	// Tcp read buffer
+	TCP_Read_Buf = 64 * 1024
+	// Tcp write buffer
+	TCP_Write_Buf = 64 * 1024
+	// Number of tcp message caches
+	TCP_Message_Buffers = 1024
+)
+
+const (
+	// Time out waiting for transaction completion
+	TimeOut_WaitBlock = time.Duration(time.Second * 15)
+	// Submit fillermeta interval
+	SubmitFillermetaInterval = 180
+	// The maximum number of proof results submitted in a transaction
+	Max_SubProofResults = 40
 )
 
 // explanation
@@ -57,7 +93,16 @@ const (
         If system.ExtrinsicSuccess is prompted, it means success;`
 )
 
-// log
+// log file
 var (
-	LogName = [9]string{"common", "upfile", "downfile", "filler", "panic", "vp", "smi", "sfm", "gf"}
+	LogFiles = []string{
+		"common",     //General log
+		"upfile",     //Upload file log
+		"panic",      //Panic log
+		"verify",     //Verify proof log
+		"minerCache", //Miner cache log
+		"fillerMeta", //Submit filler meta log
+		"genFiller",  //Generate filler log
+		"speed",      //Record transmission time and speed
+	}
 )

@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package task
+package node
 
 import (
 	"log"
@@ -23,42 +23,35 @@ import (
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/internal/pattern"
-	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/logger"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/pkg/errors"
 )
 
-func task_ClearAuthMap(ch chan bool, logs logger.Logger, c chain.Chainer) {
+// task_ Common is used to judge whether the balance of
+// your wallet meets the operation requirements.
+func (node *Node) task_Common(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			logs.Log("panic", "error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
-	logs.Log("common", "info", errors.New("-----> Start task_ClearAuthMap"))
-
 	var count uint8
+	node.Logs.Common("info", errors.New(">>> Start task_Common <<<"))
+
 	for {
+		time.Sleep(time.Minute)
 		count++
 		if count >= 5 {
-			accountinfo, err := c.GetAccountInfo(c.GetPublicKey())
+			count = 0
+			accountinfo, err := node.Chain.GetAccountInfo(node.Chain.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
-					logs.Log("common", "info", errors.New("Insufficient balance, program exited"))
+					node.Logs.Common("info", errors.New("Insufficient balance, program exited"))
 					log.Printf("Insufficient balance, program exited.\n")
 					os.Exit(1)
 				}
 			}
-			count = 0
-			logs.Log("common", "info", errors.New("Connected miners:"))
-			logs.Log("common", "info", errors.Errorf("%v", pattern.GetConnectedSpacem()))
-			logs.Log("common", "info", errors.New("Black miners:"))
-			logs.Log("common", "info", errors.Errorf("%v", pattern.GetBlacklist()))
 		}
-		time.Sleep(time.Minute)
-		pattern.DeleteExpiredAuth()
-		pattern.DeleteExpiredSpacem()
 	}
 }

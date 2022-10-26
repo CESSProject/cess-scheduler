@@ -14,13 +14,30 @@
    limitations under the License.
 */
 
-package main
+package node
 
-import (
-	"github.com/CESSProject/cess-scheduler/cmd/console"
-)
+type Server interface {
+	Start()
+}
 
-// program entry
-func main() {
-	console.Execute()
+type Client interface {
+	SendFile(fid string, pkey, signmsg, sign []byte) error
+}
+
+type NetConn interface {
+	HandlerLoop()
+	GetMsg() (*Message, bool)
+	SendMsg(m *Message)
+	GetRemoteAddr() string
+	Close() error
+	IsClose() bool
+}
+
+type ConMgr struct {
+	conn       NetConn
+	dir        string
+	fileName   string
+	sendFiles  []string
+	waitNotify chan bool
+	stop       chan struct{}
 }

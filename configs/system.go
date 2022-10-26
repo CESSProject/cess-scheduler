@@ -16,8 +16,10 @@
 
 package configs
 
+import "time"
+
 // type and version
-const Version = "cess-scheduler v0.5.2"
+const Version = "cess-scheduler v0.5.3.221026.1024"
 
 const (
 	// Name is the name of the program
@@ -26,11 +28,20 @@ const (
 	Description = "Implementation of Scheduling Service for Consensus Nodes"
 	// NameSpace is the cached namespace
 	NameSpace = "scheduler"
+)
+
+const (
 	// BaseDir is the base directory where data is stored
 	BaseDir = NameSpace
+	// Data directory
+	LogDir    = "log"
+	CacheDir  = "cache"
+	FileDir   = "file"
+	TagDir    = "tag"
+	FillerDir = "filler"
 )
 
 const (
 	// BlockInterval is the time interval for generating blocks, in seconds
-	BlockInterval = 6
+	BlockInterval = time.Second * time.Duration(6)
 )

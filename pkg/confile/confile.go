@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package configfile
+package confile
 
 import (
 	"os"
@@ -42,7 +42,7 @@ CtrlPrk     = ""
 StashAcc    = ""`
 )
 
-type Configfiler interface {
+type Confiler interface {
 	Parse(path string) error
 	GetRpcAddr() string
 	GetServiceAddr() string
@@ -52,7 +52,7 @@ type Configfiler interface {
 	GetStashAcc() string
 }
 
-type configfile struct {
+type confile struct {
 	RpcAddr     string `name:"RpcAddr" toml:"RpcAddr" yaml:"RpcAddr"`
 	ServiceAddr string `name:"ServiceAddr" toml:"ServiceAddr" yaml:"ServiceAddr"`
 	ServicePort string `name:"ServicePort" toml:"ServicePort" yaml:"ServicePort"`
@@ -61,25 +61,25 @@ type configfile struct {
 	StashAcc    string `name:"StashAcc" toml:"StashAcc" yaml:"StashAcc"`
 }
 
-func NewConfigfile() Configfiler {
-	return &configfile{}
+func NewConfigfile() Confiler {
+	return &confile{}
 }
 
-func (c *configfile) Parse(fpath string) error {
-	var configFilePath = fpath
-	if configFilePath == "" {
-		configFilePath = DefaultConfigurationFile
+func (c *confile) Parse(fpath string) error {
+	var confilePath = fpath
+	if confilePath == "" {
+		confilePath = DefaultConfigurationFile
 	}
-	fstat, err := os.Stat(configFilePath)
+	fstat, err := os.Stat(confilePath)
 	if err != nil {
 		return errors.Errorf("Parse: %v", err)
 	}
 	if fstat.IsDir() {
-		return errors.Errorf("The '%v' is not a file", configFilePath)
+		return errors.Errorf("The '%v' is not a file", confilePath)
 	}
 
-	viper.SetConfigFile(configFilePath)
-	viper.SetConfigType(path.Ext(configFilePath)[1:])
+	viper.SetConfigFile(confilePath)
+	viper.SetConfigType(path.Ext(confilePath)[1:])
 
 	err = viper.ReadInConfig()
 	if err != nil {
@@ -121,35 +121,30 @@ func (c *configfile) Parse(fpath string) error {
 	if !fstat.IsDir() {
 		return errors.Errorf("The '%v' is not a directory", c.DataDir)
 	}
-	//
-	// configs.PublicKey, err = chain.GetPublicKeyByPrk(c.confile.CtrlPrk)
-	// if err != nil {
-	// 	log.Printf("[err] %v\n", err)
-	// 	os.Exit(1)
-	// }
+
 	return nil
 }
 
-func (c *configfile) GetRpcAddr() string {
+func (c *confile) GetRpcAddr() string {
 	return c.RpcAddr
 }
 
-func (c *configfile) GetServiceAddr() string {
+func (c *confile) GetServiceAddr() string {
 	return c.ServiceAddr
 }
 
-func (c *configfile) GetServicePort() string {
+func (c *confile) GetServicePort() string {
 	return c.ServicePort
 }
 
-func (c *configfile) GetDataDir() string {
+func (c *confile) GetDataDir() string {
 	return c.DataDir
 }
 
-func (c *configfile) GetCtrlPrk() string {
+func (c *confile) GetCtrlPrk() string {
 	return c.CtrlPrk
 }
 
-func (c *configfile) GetStashAcc() string {
+func (c *confile) GetStashAcc() string {
 	return c.StashAcc
 }

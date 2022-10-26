@@ -34,7 +34,7 @@ type Writer interface {
 	Delete(key []byte) error
 }
 
-type Cache interface {
+type Cacher interface {
 	Reader
 	Writer
 	io.Closer

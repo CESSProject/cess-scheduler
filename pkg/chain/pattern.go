@@ -17,22 +17,28 @@
 package chain
 
 import (
-	"reflect"
-
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/pkg/errors"
 )
 
 const (
-	ERR_Failed  = "Failed"
-	ERR_Timeout = "Timeout"
-	ERR_Empty   = "Empty"
+	ERR_Failed = "Failed"
+	//ERR_Timeout = "Timeout"
+	//ERR_Empty = "Empty"
+)
+
+// error type
+var (
+	ERR_RPC_CONNECTION  = errors.New("rpc connection failed")
+	ERR_RPC_TIMEOUT     = errors.New("timeout")
+	ERR_RPC_EMPTY_VALUE = errors.New("empty")
 )
 
 // storage miner info
 type MinerInfo struct {
 	PeerId      types.U64
 	IncomeAcc   types.AccountID
-	Ip          types.Bytes
+	Ip          Ipv4Type
 	Collaterals types.U128
 	State       types.Bytes
 	Power       types.U128
@@ -50,7 +56,6 @@ type RewardInfo struct {
 type Cache_MinerInfo struct {
 	Peerid uint64 `json:"peerid"`
 	Ip     string `json:"ip"`
-	Pubkey []byte `json:"pubkey"`
 }
 
 // file meta info
@@ -63,11 +68,12 @@ type FileMetaInfo struct {
 	BlockInfo []BlockInfo
 }
 
+// file block info
 type BlockInfo struct {
 	MinerId   types.U64
 	BlockSize types.U64
 	BlockNum  types.U32
-	BlockId   types.Bytes
+	BlockId   [68]types.U8
 	MinerIp   types.Bytes
 	MinerAcc  types.AccountID
 }
@@ -80,32 +86,50 @@ type FillerMetaInfo struct {
 	BlockSize types.U32
 	ScanSize  types.U32
 	Acc       types.AccountID
-	Id        types.Bytes
-	Hash      types.Bytes
+	Hash      [64]types.U8
 }
 
 // scheduler info
 type SchedulerInfo struct {
-	Ip             types.Bytes
+	Ip             Ipv4Type
 	StashUser      types.AccountID
 	ControllerUser types.AccountID
 }
 
-type Chain_SchedulerPuk struct {
-	Spk           types.Bytes
-	Shared_params types.Bytes
-	Shared_g      types.Bytes
+type Ipv4Type_Query struct {
+	Placeholder types.U8 //
+	Index       types.U8
+	Value       [4]types.U8
+	Port        types.U16
 }
 
-//
+type IpAddress struct {
+	IPv4 Ipv4Type
+	IPv6 Ipv6Type
+}
+type Ipv4Type struct {
+	Index types.U8
+	Value [4]types.U8
+	Port  types.U16
+}
+type Ipv6Type struct {
+	Index types.U8
+	Value [8]types.U16
+	Port  types.U16
+}
+
+// proof type
 type Proof struct {
 	FileId         types.Bytes
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
 	Sigma          types.Bytes
+	Name           types.Bytes
+	U              []types.Bytes
 }
 
+// challenge info
 type ChallengeInfo struct {
 	File_size  types.U64
 	File_type  types.U8
@@ -114,7 +138,7 @@ type ChallengeInfo struct {
 	Random     []types.Bytes
 }
 
-// user space Info
+// user space package Info
 type SpacePackage struct {
 	Space           types.U128
 	Used_space      types.U128
@@ -131,8 +155,4 @@ type ProofResult struct {
 	PublicKey types.AccountID
 	FileId    types.Bytes
 	Result    types.Bool
-}
-
-func (this BlockInfo) IsEmpty() bool {
-	return reflect.DeepEqual(this, BlockInfo{})
 }
