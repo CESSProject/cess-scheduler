@@ -47,24 +47,67 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 	node.Logs.Verify("info", errors.New(">>> Start task_ValidateProof <<<"))
 
 	for {
-		// Get proofs from chain
-		proofs, err = node.Chain.GetProofs()
-		if err != nil {
-			if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
-				node.Logs.Verify("error", err)
+		for node.Chain.GetChainStatus() {
+			// Get proofs from chain
+			proofs, err = node.Chain.GetProofs()
+			if err != nil {
+				if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
+					node.Logs.Verify("error", err)
+				}
 			}
-		}
-		if len(proofs) == 0 {
-			time.Sleep(time.Minute)
-			continue
-		}
+			if len(proofs) == 0 {
+				time.Sleep(time.Minute)
+				continue
+			}
 
-		node.Logs.Verify("info", fmt.Errorf("There are %d proofs", len(proofs)))
+			node.Logs.Verify("info", fmt.Errorf("There are %d proofs", len(proofs)))
 
-		for i := 0; i < len(proofs); i++ {
-			// Proof results reach the maximum number of submissions
-			if len(verifyResults) >= configs.Max_SubProofResults {
-				// submit proof results
+			for i := 0; i < len(proofs); i++ {
+				// Proof results reach the maximum number of submissions
+				if len(verifyResults) >= configs.Max_SubProofResults {
+					// submit proof results
+					for {
+						txhash, _ = node.Chain.SubmitProofResults(verifyResults)
+						if txhash != "" {
+							node.Logs.Verify("info", fmt.Errorf("Proof result submitted: %v", txhash))
+							break
+						}
+						time.Sleep(configs.BlockInterval)
+					}
+					verifyResults = make([]chain.ProofResult, 0)
+				}
+
+				// Organizational random number structure
+				qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(
+					proofs[i].Challenge_info.Block_list,
+					proofs[i].Challenge_info.Random,
+				)
+				if err != nil {
+					node.Logs.Verify("error", fmt.Errorf("qslice: %v", err))
+				}
+
+				poDR2verify.QSlice = qSlice
+				poDR2verify.MU = make([][]byte, len(proofs[i].Mu))
+				for j := 0; j < len(proofs[i].Mu); j++ {
+					poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
+				}
+				poDR2verify.Sigma = proofs[i].Sigma
+				poDR2verify.T.T0.Name = proofs[i].Name
+				for j := 0; j < len(proofs[i].U); j++ {
+					poDR2verify.T.T0.U[j] = append(poDR2verify.T.T0.U[j], proofs[i].U[j]...)
+				}
+
+				// validate proof
+				result := poDR2verify.PoDR2ProofVerify(pbc.Key_SharedG, pbc.Key_Spk, string(pbc.Key_SharedParams))
+				resultTemp := chain.ProofResult{}
+				resultTemp.PublicKey = proofs[i].Miner_pubkey
+				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Result = types.Bool(result)
+				verifyResults = append(verifyResults, resultTemp)
+			}
+
+			// submit proof results// submit proof results
+			if len(verifyResults) > 0 {
 				for {
 					txhash, _ = node.Chain.SubmitProofResults(verifyResults)
 					if txhash != "" {
@@ -75,49 +118,9 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 				}
 				verifyResults = make([]chain.ProofResult, 0)
 			}
-
-			// Organizational random number structure
-			qSlice, err := pbc.PoDR2ChallengeGenerateFromChain(
-				proofs[i].Challenge_info.Block_list,
-				proofs[i].Challenge_info.Random,
-			)
-			if err != nil {
-				node.Logs.Verify("error", fmt.Errorf("qslice: %v", err))
-			}
-
-			poDR2verify.QSlice = qSlice
-			poDR2verify.MU = make([][]byte, len(proofs[i].Mu))
-			for j := 0; j < len(proofs[i].Mu); j++ {
-				poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
-			}
-			poDR2verify.Sigma = proofs[i].Sigma
-			poDR2verify.T.T0.Name = proofs[i].Name
-			for j := 0; j < len(proofs[i].U); j++ {
-				poDR2verify.T.T0.U[j] = append(poDR2verify.T.T0.U[j], proofs[i].U[j]...)
-			}
-
-			// validate proof
-			result := poDR2verify.PoDR2ProofVerify(pbc.Key_SharedG, pbc.Key_Spk, string(pbc.Key_SharedParams))
-			resultTemp := chain.ProofResult{}
-			resultTemp.PublicKey = proofs[i].Miner_pubkey
-			resultTemp.FileId = proofs[i].Challenge_info.File_id
-			resultTemp.Result = types.Bool(result)
-			verifyResults = append(verifyResults, resultTemp)
+			time.Sleep(time.Second * configs.BlockInterval)
+			runtime.GC()
 		}
-
-		// submit proof results// submit proof results
-		if len(verifyResults) > 0 {
-			for {
-				txhash, _ = node.Chain.SubmitProofResults(verifyResults)
-				if txhash != "" {
-					node.Logs.Verify("info", fmt.Errorf("Proof result submitted: %v", txhash))
-					break
-				}
-				time.Sleep(configs.BlockInterval)
-			}
-			verifyResults = make([]chain.ProofResult, 0)
-		}
-		time.Sleep(time.Second * configs.BlockInterval)
-		runtime.GC()
+		time.Sleep(configs.BlockInterval)
 	}
 }

@@ -42,13 +42,19 @@ func (c *chainClient) GetSyncStatus() (bool, error) {
 	return h.IsSyncing, nil
 }
 
+func (c *chainClient) GetChainStatus() bool {
+	return c.GetChainState()
+}
+
 // Get miner information on the chain
 func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 	var data MinerInfo
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
@@ -75,8 +81,10 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 	var data []types.AccountID
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
@@ -102,8 +110,10 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 	var data FileMetaInfo
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	var hash [68]types.U8
 	for i := 0; i < 68; i++ {
@@ -140,8 +150,10 @@ func (c *chainClient) GetAllSchedulerInfo() ([]SchedulerInfo, error) {
 	var data []SchedulerInfo
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
@@ -166,8 +178,10 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 	var data []Proof
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
@@ -197,8 +211,10 @@ func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
 	var data SpacePackage
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	b, err := types.Encode(pkey)
 	if err != nil {
@@ -229,8 +245,10 @@ func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 	var data types.AccountInfo
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return data, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	b, err := types.Encode(types.NewAccountID(pkey))
 	if err != nil {

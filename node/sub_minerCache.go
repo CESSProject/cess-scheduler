@@ -45,61 +45,64 @@ func (node *Node) task_MinerCache(ch chan bool) {
 	node.Logs.MinerCache("info", errors.New(">>> Start task_MinerCache <<<"))
 
 	for {
-		// Get the account public key of all miners
-		allMinerAcc, _ := node.Chain.GetAllStorageMiner()
-		if len(allMinerAcc) == 0 {
-			time.Sleep(configs.BlockInterval)
-			continue
-		}
-
-		for i := 0; i < len(allMinerAcc); i++ {
-			// CESS addr
-			addr, err := utils.EncodePublicKeyAsCessAccount(allMinerAcc[i][:])
-			if err != nil {
-				node.Logs.MinerCache("error", fmt.Errorf("%v, %v", allMinerAcc[i], err))
+		for node.Chain.GetChainStatus() {
+			// Get the account public key of all miners
+			allMinerAcc, _ := node.Chain.GetAllStorageMiner()
+			if len(allMinerAcc) == 0 {
+				time.Sleep(configs.BlockInterval)
 				continue
 			}
 
-			// Get the details of miners
-			minerInfo, err = node.Chain.GetStorageMinerInfo(allMinerAcc[i][:])
-			if err != nil {
-				node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
-				continue
-			}
-
-			// if exit
-			if string(minerInfo.State) == chain.MINER_STATE_EXIT {
-				exist, _ := node.Cache.Has(allMinerAcc[i][:])
-				if exist {
-					node.Cache.Delete(allMinerAcc[i][:])
+			for i := 0; i < len(allMinerAcc); i++ {
+				// CESS addr
+				addr, err := utils.EncodePublicKeyAsCessAccount(allMinerAcc[i][:])
+				if err != nil {
+					node.Logs.MinerCache("error", fmt.Errorf("%v, %v", allMinerAcc[i], err))
+					continue
 				}
-				continue
+
+				// Get the details of miners
+				minerInfo, err = node.Chain.GetStorageMinerInfo(allMinerAcc[i][:])
+				if err != nil {
+					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
+					continue
+				}
+
+				// if exit
+				if string(minerInfo.State) == chain.MINER_STATE_EXIT {
+					exist, _ := node.Cache.Has(allMinerAcc[i][:])
+					if exist {
+						node.Cache.Delete(allMinerAcc[i][:])
+					}
+					continue
+				}
+
+				// save data
+				minerCache.Peerid = uint64(minerInfo.PeerId)
+				minerCache.Ip = fmt.Sprintf("%d.%d.%d.%d:%d",
+					minerInfo.Ip.Value[0],
+					minerInfo.Ip.Value[1],
+					minerInfo.Ip.Value[2],
+					minerInfo.Ip.Value[3],
+					minerInfo.Ip.Port,
+				)
+
+				value, err := json.Marshal(&minerCache)
+				if err != nil {
+					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
+					continue
+				}
+
+				// save or update cache
+				err = node.Cache.Put(allMinerAcc[i][:], value)
+				if err != nil {
+					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
+					continue
+				}
+
+				node.Logs.MinerCache("info", fmt.Errorf("[%v] Cached", addr))
 			}
-
-			// save data
-			minerCache.Peerid = uint64(minerInfo.PeerId)
-			minerCache.Ip = fmt.Sprintf("%d.%d.%d.%d:%d",
-				minerInfo.Ip.Value[0],
-				minerInfo.Ip.Value[1],
-				minerInfo.Ip.Value[2],
-				minerInfo.Ip.Value[3],
-				minerInfo.Ip.Port,
-			)
-
-			value, err := json.Marshal(&minerCache)
-			if err != nil {
-				node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
-				continue
-			}
-
-			// save or update cache
-			err = node.Cache.Put(allMinerAcc[i][:], value)
-			if err != nil {
-				node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
-				continue
-			}
-
-			node.Logs.MinerCache("info", fmt.Errorf("[%v] Cached", addr))
 		}
+		time.Sleep(configs.BlockInterval)
 	}
 }

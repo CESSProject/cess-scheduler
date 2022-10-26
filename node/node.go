@@ -42,7 +42,6 @@ type Node struct {
 	Logs        logger.Logger
 	Cache       db.Cacher
 	Conn        *ConMgr
-	ChainStatus *atomic.Bool
 	Connections *atomic.Uint32
 	FileDir     string
 	TagDir      string
@@ -89,7 +88,7 @@ func (n *Node) Run() {
 		n.Logs.Common("info", fmt.Errorf("received a conn: %v\n", remote))
 
 		// Set server maximum connection control
-		if !n.ChainStatus.Load() {
+		if !n.Chain.GetChainStatus() {
 			acceptTCP.Close()
 			n.Logs.Common("info", fmt.Errorf("close conn: %v\n", remote))
 			continue

@@ -37,8 +37,10 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return txhash, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	stashPuk, err := utils.DecodePublicKeyOfCessAccount(stash)
 	if err != nil {
@@ -173,8 +175,10 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return txhash, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	call, err := types.NewCall(
 		c.metadata,
@@ -290,8 +294,10 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return txhash, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	call, err := types.NewCall(c.metadata, tx_FileBank_UploadFiller, miner_acc, info)
 	if err != nil {
@@ -400,8 +406,10 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return txhash, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	call, err := types.NewCall(c.metadata, tx_SegmentBook_VerifyProof, data)
 	if err != nil {
@@ -510,8 +518,10 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 	defer c.lock.Unlock()
 
 	if !c.IsChainClientOk() {
+		c.SetChainState(false)
 		return txhash, ERR_RPC_CONNECTION
 	}
+	c.SetChainState(true)
 
 	var ipType IpAddress
 

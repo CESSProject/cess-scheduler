@@ -169,11 +169,10 @@ func (node *Node) task_SubmitFillerMeta(ch chan bool) {
 					}
 					txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:count])
 					if txhash == "" {
-						node.ChainStatus.Store(false)
 						node.Logs.FillerMeta("error", err)
+						time.Sleep(configs.BlockInterval)
 						continue
 					}
-					node.ChainStatus.Store(true)
 					FillerMap.Delete(k)
 					for i := 0; i < count; i++ {
 						os.Remove(filepath.Join(node.FillerDir, string(v[i].Hash[:])))

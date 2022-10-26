@@ -49,7 +49,6 @@ func (n *Node) NewServer(conn NetConn) Server {
 	node.Chain = n.Chain
 	node.Confile = n.Confile
 	node.Logs = n.Logs
-	node.ChainStatus = n.ChainStatus
 	node.Connections = n.Connections
 	node.FileDir = n.FileDir
 	node.FillerDir = n.FillerDir
@@ -70,7 +69,6 @@ func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
 	node.Chain = n.Chain
 	node.Confile = n.Confile
 	node.Logs = n.Logs
-	node.ChainStatus = n.ChainStatus
 	node.Connections = n.Connections
 	node.FileDir = n.FileDir
 	node.FillerDir = n.FillerDir
@@ -411,6 +409,10 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
 
 	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+
+	if len(chunks) == 1 {
+		chunks[0] = chunks[0] + ".000"
+	}
 
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])

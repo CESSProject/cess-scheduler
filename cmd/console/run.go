@@ -61,9 +61,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Initialization chain status and number of connections
-	node.ChainStatus = &atomic.Bool{}
-	node.ChainStatus.Store(true)
+	//Initialization number of connections
 	node.Connections = &atomic.Uint32{}
 	node.Connections.Store(0)
 

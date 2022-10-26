@@ -18,6 +18,7 @@ package chain
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
@@ -34,6 +35,8 @@ type Chainer interface {
 	NewAccountId(pubkey []byte) types.AccountID
 	// GetSyncStatus returns whether the block is being synchronized
 	GetSyncStatus() (bool, error)
+	// GetChainStatus returns chain status
+	GetChainStatus() bool
 	// Getstorageminerinfo is used to get the details of the miner
 	GetStorageMinerInfo(pkey []byte) (MinerInfo, error)
 	// Getallstorageminer is used to obtain the AccountID of all miners
@@ -65,9 +68,10 @@ type Chainer interface {
 type chainClient struct {
 	lock            *sync.Mutex
 	api             *gsrpc.SubstrateAPI
+	chainState      *atomic.Bool
 	metadata        *types.Metadata
-	keyEvents       types.StorageKey
 	runtimeVersion  *types.RuntimeVersion
+	keyEvents       types.StorageKey
 	genesisHash     types.Hash
 	keyring         signature.KeyringPair
 	rpcAddr         string
@@ -128,6 +132,14 @@ func (c *chainClient) IsChainClientOk() bool {
 		return true
 	}
 	return true
+}
+
+func (c *chainClient) SetChainState(state bool) {
+	c.chainState.Store(state)
+}
+
+func (c *chainClient) GetChainState() bool {
+	return c.chainState.Load()
 }
 
 func (c *chainClient) NewAccountId(pubkey []byte) types.AccountID {

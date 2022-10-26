@@ -16,8 +16,6 @@
 
 package chain
 
-import "github.com/centrifuge/go-substrate-rpc-client/v4/types"
-
 // cess chain state
 const (
 	state_FileBank    = "FileBank"
@@ -75,11 +73,3 @@ const (
 	MINER_STATE_FROZEN   = "frozen"
 	MINER_STATE_EXIT     = "exit"
 )
-
-type PackageType struct {
-	Package1 types.U8
-	Package2 types.U8
-	Package3 types.U8
-	Package4 types.U8
-	Package5 types.U8
-}
