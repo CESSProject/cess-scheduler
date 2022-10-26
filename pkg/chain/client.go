@@ -115,6 +115,8 @@ func NewChainClient(rpcAddr, secret string, t time.Duration) (Chainer, error) {
 		}
 	}
 	cli.lock = new(sync.Mutex)
+	cli.chainState = &atomic.Bool{}
+	cli.chainState.Store(true)
 	cli.timeForBlockOut = t
 	cli.rpcAddr = rpcAddr
 	return cli, nil
