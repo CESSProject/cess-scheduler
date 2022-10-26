@@ -13,6 +13,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
+	github.com/stretchr/testify v1.8.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	go.uber.org/zap v1.23.0
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
@@ -21,6 +22,7 @@ require (
 require (
 	github.com/ChainSafe/go-schnorrkel v1.0.0 // indirect
 	github.com/cosmos/go-bip39 v1.0.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/base58 v1.0.4 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
@@ -41,6 +43,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
 	github.com/pierrec/xxHash v0.1.5 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect

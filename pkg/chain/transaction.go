@@ -180,10 +180,18 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 	}
 	c.SetChainState(true)
 
+	var hash FileHash
+	if len(fid) != len(hash) {
+		return txhash, errors.New(ERR_Failed)
+	}
+	for i := 0; i < len(hash); i++ {
+		hash[i] = types.U8(fid[i])
+	}
+
 	call, err := types.NewCall(
 		c.metadata,
 		tx_FileBank_Upload,
-		types.NewBytes([]byte(fid)),
+		hash,
 		types.U64(fsize),
 		block,
 	)

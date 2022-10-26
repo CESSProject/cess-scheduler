@@ -22,7 +22,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -61,9 +60,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Initialization number of connections
-	node.Connections = &atomic.Uint32{}
-	node.Connections.Store(0)
+	//Initialization lock
+	node.InitLock()
 
 	//Build Data Directory
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)

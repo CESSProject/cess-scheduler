@@ -54,7 +54,7 @@ const (
 
 const (
 	// Maximum number of connections in the miner's certification space
-	MAX_TCP_CONNECTION uint32 = 3
+	MAX_TCP_CONNECTION uint8 = 3
 	// Tcp client connection interval
 	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
 	// Tcp message interval

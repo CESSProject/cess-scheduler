@@ -34,6 +34,9 @@ var (
 	ERR_RPC_EMPTY_VALUE = errors.New("empty")
 )
 
+type FileHash [64]types.U8
+type FileBlockId [68]types.U8
+
 // storage miner info
 type MinerInfo struct {
 	PeerId      types.U64
@@ -74,7 +77,7 @@ type BlockInfo struct {
 	BlockSize types.U64
 	BlockNum  types.U32
 	BlockId   [68]types.U8
-	MinerIp   types.Bytes
+	MinerIp   Ipv4Type
 	MinerAcc  types.AccountID
 }
 

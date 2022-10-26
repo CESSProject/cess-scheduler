@@ -22,7 +22,7 @@ import (
 	"log"
 	"net"
 	"os"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -37,15 +37,16 @@ type Scheduler interface {
 }
 
 type Node struct {
-	Confile     confile.Confiler
-	Chain       chain.Chainer
-	Logs        logger.Logger
-	Cache       db.Cacher
-	Conn        *ConMgr
-	Connections *atomic.Uint32
-	FileDir     string
-	TagDir      string
-	FillerDir   string
+	Confile   confile.Confiler
+	Chain     chain.Chainer
+	Logs      logger.Logger
+	Cache     db.Cacher
+	Conn      *ConMgr
+	lock      *sync.Mutex
+	conns     uint8
+	FileDir   string
+	TagDir    string
+	FillerDir string
 }
 
 // New is used to build a node instance
@@ -102,16 +103,32 @@ func (n *Node) Run() {
 	}
 }
 
-// AddConnection is used to add a connection number record
-func (n *Node) AddConnection() {
-	n.Connections.Add(1)
+// InitLock is used to initialize lock
+func (n *Node) InitLock() {
+	n.lock = new(sync.Mutex)
 }
 
-// ClearConnection is used to clear a connection number record
-func (n *Node) ClearConnection() {
-	count := n.Connections.Load()
-	if count > 0 {
-		count -= 1
+// AddConns is used to add a connection number record
+func (n *Node) AddConns() {
+	n.lock.Lock()
+	n.conns += 1
+	n.lock.Unlock()
+}
+
+// ClearConns is used to clear a connection number record
+func (n *Node) ClearConns() {
+	if n.conns > 0 {
+		n.lock.Lock()
+		n.conns -= 1
+		n.lock.Unlock()
 	}
-	n.Connections.Store(count)
+}
+
+// ClearConns is used to clear a connection number record
+func (n *Node) GetConns() uint8 {
+	n.lock.Lock()
+	num := n.conns
+	n.lock.Unlock()
+	return num
+
 }
