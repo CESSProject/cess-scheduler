@@ -34,7 +34,6 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
@@ -59,14 +58,24 @@ func (n *Node) NewServer(conn NetConn) Server {
 }
 
 func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
-	n.Conn = &ConMgr{
+	node := New()
+	node.Conn = &ConMgr{
 		conn:       conn,
 		dir:        dir,
 		sendFiles:  files,
 		waitNotify: make(chan bool, 1),
 		stop:       make(chan struct{}),
 	}
-	return n
+	node.Cache = n.Cache
+	node.Chain = n.Chain
+	node.Confile = n.Confile
+	node.Logs = n.Logs
+	node.ChainStatus = n.ChainStatus
+	node.Connections = n.Connections
+	node.FileDir = n.FileDir
+	node.FillerDir = n.FillerDir
+	node.TagDir = n.TagDir
+	return node
 }
 
 func (n *Node) Start() {
@@ -113,6 +122,7 @@ func (n *Node) handler() error {
 
 		switch m.MsgType {
 		case MsgHead:
+			log.Println("Recv a MsgHead")
 			// Verify signature
 			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
@@ -145,6 +155,7 @@ func (n *Node) handler() error {
 			}
 			// Notify the other party
 			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
+			log.Println("MsgHead suc")
 		case MsgFillerHead:
 			// Determine the upper limit of connections
 			if n.Connections.Load() > configs.MAX_TCP_CONNECTION {
@@ -215,6 +226,7 @@ func (n *Node) handler() error {
 			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
 
 		case MsgFile:
+			log.Println("Recv a MsgFile")
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
 			if fs == nil {
@@ -226,7 +238,9 @@ func (n *Node) handler() error {
 				n.Conn.conn.SendMsg(NewCloseMsg("", Status_Err))
 				return err
 			}
+
 		case MsgEnd:
+			log.Println("Recv a MsgEnd")
 			info, _ := fs.Stat()
 			if info.Size() != int64(m.FileSize) {
 				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
@@ -519,6 +533,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 		return rtnValue, err
 	}
+
 	for i := 0; i < len(allMinerPubkey); i++ {
 		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
 		if err != nil {
@@ -531,17 +546,19 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			continue
 		}
 
-		dstURL := string(base58.Decode(minerinfo.Ip))
-		tcpAddr, err := net.ResolveTCPAddr("tcp", dstURL)
+		tcpAddr, err := net.ResolveTCPAddr("tcp", minerinfo.Ip)
 		if err != nil {
 			continue
 		}
-
-		conTcp, err := net.DialTCP("tcp", nil, tcpAddr)
+		dialer := net.Dialer{Timeout: configs.TCP_ShortMessage_WaitingTime}
+		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
 			continue
 		}
-
+		conTcp, ok := netCon.(*net.TCPConn)
+		if !ok {
+			continue
+		}
 		srv := n.NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
 		err = srv.SendFile(fid, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {

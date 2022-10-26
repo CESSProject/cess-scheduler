@@ -78,7 +78,13 @@ func (node *Node) task_MinerCache(ch chan bool) {
 
 			// save data
 			minerCache.Peerid = uint64(minerInfo.PeerId)
-			minerCache.Ip = string(minerInfo.Ip)
+			minerCache.Ip = fmt.Sprintf("%d.%d.%d.%d:%d",
+				minerInfo.Ip.Value[0],
+				minerInfo.Ip.Value[1],
+				minerInfo.Ip.Value[2],
+				minerInfo.Ip.Value[3],
+				minerInfo.Ip.Port,
+			)
 
 			value, err := json.Marshal(&minerCache)
 			if err != nil {

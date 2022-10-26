@@ -47,38 +47,41 @@ func runCmd(cmd *cobra.Command, args []string) {
 		node     = node.New()
 	)
 
+	//Building Profile Instances
 	node.Confile, err = buildConfigFile(cmd)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
+	//Build chain instance
 	node.Chain, err = buildChain(node.Confile, configs.TimeOut_WaitBlock)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
+	//Initialization chain status and number of connections
 	node.ChainStatus = &atomic.Bool{}
 	node.ChainStatus.Store(true)
 	node.Connections = &atomic.Uint32{}
 	node.Connections.Store(0)
 
-	// create data dir
+	//Build Data Directory
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
-	// cache
+	//Build cache instance
 	node.Cache, err = buildCache(cacheDir)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
-	// logs
+	//Build Log Instance
 	node.Logs, err = buildLogs(logDir)
 	if err != nil {
 		log.Println(err)

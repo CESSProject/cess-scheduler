@@ -17,8 +17,6 @@
 package chain
 
 import (
-	"reflect"
-
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
@@ -40,7 +38,7 @@ var (
 type MinerInfo struct {
 	PeerId      types.U64
 	IncomeAcc   types.AccountID
-	Ip          types.Bytes
+	Ip          Ipv4Type
 	Collaterals types.U128
 	State       types.Bytes
 	Power       types.U128
@@ -70,6 +68,7 @@ type FileMetaInfo struct {
 	BlockInfo []BlockInfo
 }
 
+// file block info
 type BlockInfo struct {
 	MinerId   types.U64
 	BlockSize types.U64
@@ -119,12 +118,7 @@ type Ipv6Type struct {
 	Port  types.U16
 }
 
-type Chain_SchedulerPuk struct {
-	Spk           types.Bytes
-	Shared_params types.Bytes
-	Shared_g      types.Bytes
-}
-
+// proof type
 type Proof struct {
 	FileId         types.Bytes
 	Miner_pubkey   types.AccountID
@@ -135,6 +129,7 @@ type Proof struct {
 	U              []types.Bytes
 }
 
+// challenge info
 type ChallengeInfo struct {
 	File_size  types.U64
 	File_type  types.U8
@@ -143,7 +138,7 @@ type ChallengeInfo struct {
 	Random     []types.Bytes
 }
 
-// user space Info
+// user space package Info
 type SpacePackage struct {
 	Space           types.U128
 	Used_space      types.U128
@@ -160,8 +155,4 @@ type ProofResult struct {
 	PublicKey types.AccountID
 	FileId    types.Bytes
 	Result    types.Bool
-}
-
-func (this BlockInfo) IsEmpty() bool {
-	return reflect.DeepEqual(this, BlockInfo{})
 }

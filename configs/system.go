@@ -19,7 +19,7 @@ package configs
 import "time"
 
 // type and version
-const Version = "cess-scheduler v0.5.3.221018.1527"
+const Version = "cess-scheduler v0.5.3.221026.1024"
 
 const (
 	// Name is the name of the program
@@ -33,7 +33,7 @@ const (
 const (
 	// BaseDir is the base directory where data is stored
 	BaseDir = NameSpace
-	//
+	// Data directory
 	LogDir    = "log"
 	CacheDir  = "cache"
 	FileDir   = "file"

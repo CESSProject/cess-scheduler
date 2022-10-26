@@ -46,27 +46,36 @@ const (
 	ScanBlockSize = BlockSize / 2
 	// The maximum number of fillermeta submitted in a transaction
 	Max_SubFillerMeta = 8
-
+	// Number of local filler caches
 	Num_Filler_Reserved = 5
-	Max_Filler_Meta     = 100
+
+	Max_Filler_Meta = 100
 )
 
 const (
-	MAX_TCP_CONNECTION           uint32 = 3
-	TCP_Connection_Interval             = time.Duration(time.Millisecond * 100)
-	TCP_Message_Interval                = time.Duration(time.Millisecond * 20)
-	TCP_ShortMessage_WaitingTime        = time.Duration(time.Second * 5)
-	TCP_Transmission_Slowest            = 1021 * 10
-	TCP_Read_Buf                        = 64 * 1024
-	TCP_Write_Buf                       = 64 * 1024
-	TCP_Message_Buffers                 = 1024
+	// Maximum number of connections in the miner's certification space
+	MAX_TCP_CONNECTION uint32 = 3
+	// Tcp client connection interval
+	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
+	// Tcp message interval
+	TCP_Message_Interval = time.Duration(time.Millisecond * 20)
+	// Tcp short message waiting time
+	TCP_ShortMessage_WaitingTime = time.Duration(time.Second * 5)
+	// The slowest tcp transfers bytes per second
+	TCP_Transmission_Slowest = 1021 * 10
+	// Tcp read buffer
+	TCP_Read_Buf = 64 * 1024
+	// Tcp write buffer
+	TCP_Write_Buf = 64 * 1024
+	// Number of tcp message caches
+	TCP_Message_Buffers = 1024
 )
 
 const (
 	// Time out waiting for transaction completion
 	TimeOut_WaitBlock = time.Duration(time.Second * 15)
 	// Submit fillermeta interval
-	SubmitFillermetaInterval = 60
+	SubmitFillermetaInterval = 180
 	// The maximum number of proof results submitted in a transaction
 	Max_SubProofResults = 40
 )
