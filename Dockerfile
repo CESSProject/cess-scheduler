@@ -16,4 +16,3 @@ RUN cd /opt/target/ \
 FROM cesslab/cess-pbc-env:latest
 WORKDIR /opt/cess
 COPY --from=builder /opt/target/cess-scheduler ./
-

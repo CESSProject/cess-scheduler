@@ -279,8 +279,9 @@ func (n *Node) handler() error {
 					C_FillerMeta <- fillerMetaEle
 					os.Remove(filler.FillerPath)
 					os.Remove(filler.TagPath)
+					return nil
 				}
-				return nil
+
 			}
 		case MsgClose:
 			if m.Bytes[0] != byte(Status_Ok) {
@@ -412,8 +413,8 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
-		time.Sleep(time.Second)
 		if err != nil {
+			time.Sleep(time.Second)
 			continue
 		}
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
@@ -535,32 +536,37 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	for i := 0; i < len(allMinerPubkey); i++ {
 		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
 		if err != nil {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 
 		err = json.Unmarshal(minercache, &minerinfo)
 		if err != nil {
 			n.Cache.Delete(allMinerPubkey[i][:])
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 
 		tcpAddr, err := net.ResolveTCPAddr("tcp", minerinfo.Ip)
 		if err != nil {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 		dialer := net.Dialer{Timeout: configs.TCP_ShortMessage_WaitingTime}
 		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 		conTcp, ok := netCon.(*net.TCPConn)
 		if !ok {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, tcpAddr.String()))
 			continue
 		}
 		srv := n.NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
 		err = srv.SendFile(fid, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
-			time.Sleep(time.Second)
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 		var blockId chain.FileBlockId
@@ -580,20 +586,22 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		ip_port := strings.Split(minerinfo.Ip, ":")
 		port, _ := strconv.Atoi(ip_port[1])
 		ipType.Port = types.U16(port)
-		ips := strings.Split(ip_port[0], ".")
-		for j := 0; j > len(ips); j++ {
-			var temp types.U8
-			ips_int, _ := strconv.Atoi(ips[j])
-			temp = types.U8(ips_int)
-			ipType.Value[j] = temp
+		if utils.IsIPv4(ip_port[0]) {
+			ips := strings.Split(ip_port[0], ".")
+			for i := 0; i < len(ipType.Value); i++ {
+				temp, _ := strconv.Atoi(ips[i])
+				ipType.Value[i] = types.U8(temp)
+			}
 		}
-		fmt.Println(ipType)
 		rtnValue.BlockSize = types.U64(fstat.Size())
 		rtnValue.MinerAcc = allMinerPubkey[i]
 		rtnValue.MinerIp = ipType
 		rtnValue.MinerId = types.U64(minerinfo.Peerid)
 		rtnValue.BlockNum = types.U32(blocknum)
 		break
+	}
+	if rtnValue.MinerId == 0 {
+		return rtnValue, errors.New("failed")
 	}
 	return rtnValue, err
 }
