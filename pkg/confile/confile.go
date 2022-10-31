@@ -21,6 +21,8 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
+	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 )
@@ -90,11 +92,19 @@ func (c *confile) Parse(fpath string) error {
 		return errors.Errorf("Unmarshal: %v", err)
 	}
 
-	if c.CtrlPrk == "" ||
-		c.DataDir == "" ||
+	_, err = signature.KeyringPairFromSecret(c.CtrlPrk, 0)
+	if err != nil {
+		return errors.Errorf("Secret: %v", err)
+	}
+
+	_, err = utils.DecodePublicKeyOfCessAccount(c.StashAcc)
+	if err != nil {
+		return errors.Errorf("Decode: %v", err)
+	}
+
+	if c.DataDir == "" ||
 		c.RpcAddr == "" ||
 		c.ServiceAddr == "" ||
-		c.StashAcc == "" ||
 		c.ServicePort == "" {
 		return errors.New("The configuration file cannot have empty entries")
 	}

@@ -89,11 +89,14 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 				poDR2verify.QSlice = qSlice
 				poDR2verify.MU = make([][]byte, len(proofs[i].Mu))
 				for j := 0; j < len(proofs[i].Mu); j++ {
+					poDR2verify.MU[j] = make([]byte, 0)
 					poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
 				}
 				poDR2verify.Sigma = proofs[i].Sigma
 				poDR2verify.T.T0.Name = proofs[i].Name
+				poDR2verify.T.T0.U = make([][]byte, len(proofs[i].U))
 				for j := 0; j < len(proofs[i].U); j++ {
+					poDR2verify.T.T0.U[j] = make([]byte, 0)
 					poDR2verify.T.T0.U[j] = append(poDR2verify.T.T0.U[j], proofs[i].U[j]...)
 				}
 
@@ -102,6 +105,7 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 				resultTemp := chain.ProofResult{}
 				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id
+				resultTemp.Shard_id = proofs[i].Challenge_info.Shard_id
 				resultTemp.Result = types.Bool(result)
 				verifyResults = append(verifyResults, resultTemp)
 			}

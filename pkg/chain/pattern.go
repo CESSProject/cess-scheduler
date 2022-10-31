@@ -123,7 +123,7 @@ type Ipv6Type struct {
 
 // proof type
 type Proof struct {
-	FileId         types.Bytes
+	FileId         FileHash
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
@@ -137,7 +137,8 @@ type ChallengeInfo struct {
 	File_size  types.U64
 	File_type  types.U8
 	Block_list types.Bytes
-	File_id    types.Bytes
+	File_id    FileHash
+	Shard_id   FileBlockId
 	Random     []types.Bytes
 }
 
@@ -156,6 +157,7 @@ type SpacePackage struct {
 // proof result
 type ProofResult struct {
 	PublicKey types.AccountID
-	FileId    types.Bytes
+	FileId    FileHash
+	Shard_id  FileBlockId
 	Result    types.Bool
 }

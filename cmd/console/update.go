@@ -72,6 +72,7 @@ func updateCmd(cmd *cobra.Command, args []string) {
 		c, err := chain.NewChainClient(
 			confile.GetRpcAddr(),
 			confile.GetCtrlPrk(),
+			confile.GetStashAcc(),
 			time.Duration(time.Second*15),
 		)
 		if err != nil {

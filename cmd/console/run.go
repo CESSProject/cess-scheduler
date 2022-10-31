@@ -108,7 +108,7 @@ func buildConfigFile(cmd *cobra.Command) (confile.Confiler, error) {
 func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, error) {
 	var isReg bool
 	// connecting chain
-	client, err := chain.NewChainClient(cfg.GetRpcAddr(), cfg.GetCtrlPrk(), timeout)
+	client, err := chain.NewChainClient(cfg.GetRpcAddr(), cfg.GetCtrlPrk(), cfg.GetStashAcc(), timeout)
 	if err != nil {
 		return nil, err
 	}

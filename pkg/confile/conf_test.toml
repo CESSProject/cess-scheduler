@@ -7,6 +7,6 @@ ServicePort = "15000"
 # Data storage directory
 DataDir     = "."
 # Phrase or seed of the controller account
-CtrlPrk     = "test"
+CtrlPrk     = "swear theme bounce soccer hungry gesture hurdle asset typical call balcony wrist"
 # The address of stash account
 StashAcc    = "cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY"

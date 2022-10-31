@@ -14,16 +14,20 @@
    limitations under the License.
 */
 
-package confile
+package chain
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParse(t *testing.T) {
-	confile := "./conf_test.toml"
-	err := NewConfigfile().Parse(confile)
+func TestNewChainClient(t *testing.T) {
+	rpcAddr := "wss://testnet-rpc0.cess.cloud/ws/"
+	secret := "swear theme bounce soccer hungry gesture hurdle asset typical call balcony wrist"
+	stash := "cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY"
+	time := time.Duration(time.Second * time.Duration(20))
+	_, err := NewChainClient(rpcAddr, secret, stash, time)
 	assert.NoError(t, err)
 }

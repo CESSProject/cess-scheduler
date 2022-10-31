@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package confile
+package logger
 
 import (
 	"testing"
@@ -22,8 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParse(t *testing.T) {
-	confile := "./conf_test.toml"
-	err := NewConfigfile().Parse(confile)
+func TestNewLogs(t *testing.T) {
+	log_files := make(map[string]string, 2)
+	log_files["info"] = "./info.log"
+	log_files["err"] = "./err.log"
+	_, err := NewLogs(log_files)
 	assert.NoError(t, err)
 }
