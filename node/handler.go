@@ -27,6 +27,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -49,7 +51,8 @@ func (n *Node) NewServer(conn NetConn) Server {
 	node.Chain = n.Chain
 	node.Confile = n.Confile
 	node.Logs = n.Logs
-	node.Connections = n.Connections
+	node.lock = n.lock
+	node.conns = n.conns
 	node.FileDir = n.FileDir
 	node.FillerDir = n.FillerDir
 	node.TagDir = n.TagDir
@@ -69,7 +72,8 @@ func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
 	node.Chain = n.Chain
 	node.Confile = n.Confile
 	node.Logs = n.Logs
-	node.Connections = n.Connections
+	node.lock = n.lock
+	node.conns = n.conns
 	node.FileDir = n.FileDir
 	node.FillerDir = n.FillerDir
 	node.TagDir = n.TagDir
@@ -83,7 +87,6 @@ func (n *Node) Start() {
 		log.Println(err)
 		return
 	}
-
 }
 
 func (n *Node) handler() error {
@@ -96,9 +99,10 @@ func (n *Node) handler() error {
 		minerAcc   []byte
 		remoteAddr string
 	)
-	n.AddConnection()
+	n.AddConns()
 
 	defer func() {
+		n.ClearConns()
 		n.Conn.conn.Close()
 		if fs != nil {
 			_ = fs.Close()
@@ -106,7 +110,6 @@ func (n *Node) handler() error {
 		if fillerFs != nil {
 			_ = fillerFs.Close()
 		}
-		n.ClearConnection()
 	}()
 
 	for !n.Conn.conn.IsClose() {
@@ -120,7 +123,6 @@ func (n *Node) handler() error {
 
 		switch m.MsgType {
 		case MsgHead:
-			log.Println("Recv a MsgHead")
 			// Verify signature
 			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
@@ -153,10 +155,9 @@ func (n *Node) handler() error {
 			}
 			// Notify the other party
 			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
-			log.Println("MsgHead suc")
 		case MsgFillerHead:
 			// Determine the upper limit of connections
-			if n.Connections.Load() > configs.MAX_TCP_CONNECTION {
+			if n.GetConns() > configs.MAX_TCP_CONNECTION {
 				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
 				return errors.New("Max Connections")
 			}
@@ -182,12 +183,13 @@ func (n *Node) handler() error {
 			n.Conn.conn.SendMsg(NewNotifyFillerMsg(filler.Hash, Status_Ok))
 		case MsgFiller:
 			// Determine the upper limit of connections
-			if n.Connections.Load() > configs.MAX_TCP_CONNECTION {
+			if n.GetConns() > configs.MAX_TCP_CONNECTION {
 				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				return errors.New("Max Connections")
 			}
+
 			remoteAddr = n.Conn.conn.GetRemoteAddr()
-			log.Printf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr())
+			//log.Printf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr())
 			tStart = time.Now()
 			n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
 
@@ -224,7 +226,6 @@ func (n *Node) handler() error {
 			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
 
 		case MsgFile:
-			log.Println("Recv a MsgFile")
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
 			if fs == nil {
@@ -238,7 +239,6 @@ func (n *Node) handler() error {
 			}
 
 		case MsgEnd:
-			log.Println("Recv a MsgEnd")
 			info, _ := fs.Stat()
 			if info.Size() != int64(m.FileSize) {
 				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
@@ -269,18 +269,19 @@ func (n *Node) handler() error {
 				// If the transmission is completed, the information will be recorded
 				// Uplink and delete local cache later
 				if filler.Hash == string(m.Bytes[1:]) {
-					log.Printf("Transfer completed filler [%v] to [%v]", filler.Hash, remoteAddr)
+					//log.Printf("Transfer completed filler [%v] to [%v]", filler.Hash, remoteAddr)
 					n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [%v]", filler.Hash, remoteAddr))
 					sharingtime := time.Since(tStart).Seconds()
 					averagespeed := float64(configs.FillerSize) / sharingtime
-					log.Printf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed)
-					n.Logs.Speed(fmt.Errorf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed))
+					//log.Printf("Sharing time: %.2f seconds, average speed: %.2f byte/s", sharingtime, averagespeed)
+					n.Logs.Speed(fmt.Errorf("[%v] Total time: %.2f seconds, average speed: %.2f bytes/s", filler.Hash, sharingtime, averagespeed))
 					fillerMetaEle := combineFillerMeta(filler.Hash, minerAcc)
 					C_FillerMeta <- fillerMetaEle
 					os.Remove(filler.FillerPath)
 					os.Remove(filler.TagPath)
+					return nil
 				}
-				return nil
+
 			}
 		case MsgClose:
 			if m.Bytes[0] != byte(Status_Ok) {
@@ -410,14 +411,10 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 
 	var chunksInfo = make([]chain.BlockInfo, len(chunks))
 
-	if len(chunks) == 1 {
-		chunks[0] = chunks[0] + ".000"
-	}
-
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
-		time.Sleep(time.Second)
 		if err != nil {
+			time.Sleep(time.Second)
 			continue
 		}
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
@@ -539,45 +536,72 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	for i := 0; i < len(allMinerPubkey); i++ {
 		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
 		if err != nil {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 
 		err = json.Unmarshal(minercache, &minerinfo)
 		if err != nil {
 			n.Cache.Delete(allMinerPubkey[i][:])
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 
 		tcpAddr, err := net.ResolveTCPAddr("tcp", minerinfo.Ip)
 		if err != nil {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 		dialer := net.Dialer{Timeout: configs.TCP_ShortMessage_WaitingTime}
 		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 		conTcp, ok := netCon.(*net.TCPConn)
 		if !ok {
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, tcpAddr.String()))
 			continue
 		}
 		srv := n.NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
 		err = srv.SendFile(fid, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
-			time.Sleep(time.Second)
+			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
-		var hash [68]types.U8
-		for i := 0; i < 68; i++ {
-			hash[i] = types.U8(fname[i])
+		var blockId chain.FileBlockId
+		if len(fname) < len(blockId) {
+			fname += ".000"
 		}
-		rtnValue.BlockId = hash
+		if len(fname) != len(blockId) {
+			continue
+		}
+		for i := 0; i < len(blockId); i++ {
+			blockId[i] = types.U8(fname[i])
+		}
+		rtnValue.BlockId = blockId
+
+		var ipType chain.Ipv4Type
+		ipType.Index = types.U8(0)
+		ip_port := strings.Split(minerinfo.Ip, ":")
+		port, _ := strconv.Atoi(ip_port[1])
+		ipType.Port = types.U16(port)
+		if utils.IsIPv4(ip_port[0]) {
+			ips := strings.Split(ip_port[0], ".")
+			for i := 0; i < len(ipType.Value); i++ {
+				temp, _ := strconv.Atoi(ips[i])
+				ipType.Value[i] = types.U8(temp)
+			}
+		}
 		rtnValue.BlockSize = types.U64(fstat.Size())
 		rtnValue.MinerAcc = allMinerPubkey[i]
-		rtnValue.MinerIp = types.NewBytes([]byte(minerinfo.Ip))
+		rtnValue.MinerIp = ipType
 		rtnValue.MinerId = types.U64(minerinfo.Peerid)
 		rtnValue.BlockNum = types.U32(blocknum)
 		break
+	}
+	if rtnValue.MinerId == 0 {
+		return rtnValue, errors.New("failed")
 	}
 	return rtnValue, err
 }

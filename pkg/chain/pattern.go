@@ -34,6 +34,9 @@ var (
 	ERR_RPC_EMPTY_VALUE = errors.New("empty")
 )
 
+type FileHash [64]types.U8
+type FileBlockId [68]types.U8
+
 // storage miner info
 type MinerInfo struct {
 	PeerId      types.U64
@@ -74,7 +77,7 @@ type BlockInfo struct {
 	BlockSize types.U64
 	BlockNum  types.U32
 	BlockId   [68]types.U8
-	MinerIp   types.Bytes
+	MinerIp   Ipv4Type
 	MinerAcc  types.AccountID
 }
 
@@ -120,7 +123,7 @@ type Ipv6Type struct {
 
 // proof type
 type Proof struct {
-	FileId         types.Bytes
+	FileId         FileHash
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
 	Mu             []types.Bytes
@@ -134,7 +137,8 @@ type ChallengeInfo struct {
 	File_size  types.U64
 	File_type  types.U8
 	Block_list types.Bytes
-	File_id    types.Bytes
+	File_id    FileHash
+	Shard_id   FileBlockId
 	Random     []types.Bytes
 }
 
@@ -153,6 +157,7 @@ type SpacePackage struct {
 // proof result
 type ProofResult struct {
 	PublicKey types.AccountID
-	FileId    types.Bytes
+	FileId    FileHash
+	Shard_id  FileBlockId
 	Result    types.Bool
 }

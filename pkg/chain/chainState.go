@@ -27,6 +27,10 @@ func (c *chainClient) GetPublicKey() []byte {
 	return c.keyring.PublicKey
 }
 
+func (c *chainClient) GetStashPublicKey() ([]byte, error) {
+	return utils.DecodePublicKeyOfCessAccount(c.stash)
+}
+
 func (c *chainClient) GetMnemonicSeed() string {
 	return c.keyring.URI
 }
@@ -107,7 +111,10 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 
 // Query file meta info
 func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
-	var data FileMetaInfo
+	var (
+		data FileMetaInfo
+		hash FileHash
+	)
 
 	if !c.IsChainClientOk() {
 		c.SetChainState(false)
@@ -115,8 +122,11 @@ func (c *chainClient) GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error) {
 	}
 	c.SetChainState(true)
 
-	var hash [68]types.U8
-	for i := 0; i < 68; i++ {
+	if len(fid) != len(hash) {
+		return data, errors.New(ERR_Failed)
+	}
+
+	for i := 0; i < len(hash); i++ {
 		hash[i] = types.U8(fid[i])
 	}
 

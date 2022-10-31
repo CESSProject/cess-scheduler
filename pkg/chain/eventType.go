@@ -148,8 +148,8 @@ type Event_UpdataBeneficiary struct {
 type Event_UpdataIp struct {
 	Phase  types.Phase
 	Acc    types.AccountID
-	Old    types.Bytes
-	New    types.Bytes
+	Old    Ipv4Type
+	New    Ipv4Type
 	Topics []types.Hash
 }
 
@@ -169,7 +169,7 @@ type Event_EndOfBufferPeriod struct {
 type Event_DeleteFile struct {
 	Phase  types.Phase
 	Acc    types.AccountID
-	Fileid [64]types.U8
+	Fileid FileHash
 	Topics []types.Hash
 }
 

@@ -99,10 +99,9 @@ func (node *Node) task_MinerCache(ch chan bool) {
 					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
 					continue
 				}
-
-				node.Logs.MinerCache("info", fmt.Errorf("[%v] Cached", addr))
+				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v", addr, minerCache))
 			}
+			time.Sleep(configs.BlockInterval)
 		}
-		time.Sleep(configs.BlockInterval)
 	}
 }

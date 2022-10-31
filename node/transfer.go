@@ -164,7 +164,7 @@ func (t *TcpCon) GetRemoteAddr() string {
 
 func (t *TcpCon) Close() error {
 	t.onceStop.Do(func() {
-		fmt.Println("close a connect, addr: ", t.conn.RemoteAddr())
+		//fmt.Println("close a connect, addr: ", t.conn.RemoteAddr())
 		_ = t.conn.Close()
 		close(t.stop)
 	})
