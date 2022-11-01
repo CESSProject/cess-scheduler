@@ -62,36 +62,42 @@ type Notify struct {
 
 var (
 	msgPool = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			return &Message{}
 		},
 	}
 
 	BytesPool = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			return make([]byte, 40*1024)
 		},
 	}
 )
 
 func (m *Message) GC() {
-	if m.MsgType == MsgFile {
-		BytesPool.Put(m.Bytes[:cap(m.Bytes)])
+	if m != nil {
+		if m.MsgType == MsgFile {
+			BytesPool.Put(m.Bytes[:cap(m.Bytes)])
+		}
+		m.reset()
+		msgPool.Put(m)
 	}
-	m.reset()
-	msgPool.Put(m)
 }
 
 func (m *Message) reset() {
-	m.MsgType = MsgInvalid
-	m.FileName = ""
-	m.FileHash = ""
-	m.FileSize = 0
-	m.LastMark = false
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
-	m.Bytes = nil
+	if m != nil {
+		m.MsgType = MsgInvalid
+		m.FileName = ""
+		m.FileHash = ""
+		m.FileSize = 0
+		m.LastMark = false
+		m.Pubkey = nil
+		m.SignMsg = nil
+		m.Sign = nil
+		m.Bytes = nil
+	} else {
+		m = &Message{}
+	}
 }
 
 func (m *Message) String() string {
@@ -108,30 +114,25 @@ func Decode(b []byte) (m *Message, err error) {
 
 func NewNotifyMsg(fileName string, status Status) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgNotify
 	m.Bytes = []byte{byte(status)}
 	m.FileName = fileName
-	m.FileHash = ""
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
 	return m
 }
 
 func NewNotifyFillerMsg(fileName string, status Status) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgNotify
 	m.Bytes = []byte{byte(status)}
 	m.Bytes = append(m.Bytes, []byte(fileName)...)
-	m.FileHash = ""
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
 	return m
 }
 
 func NewHeadMsg(fileName string, fid string, lastmark bool, pkey, signmsg, sign []byte) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgHead
 	m.FileName = fileName
 	m.FileHash = fid
@@ -144,6 +145,7 @@ func NewHeadMsg(fileName string, fid string, lastmark bool, pkey, signmsg, sign 
 
 func NewFileMsg(fileName string, buf []byte) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgFile
 	m.FileName = fileName
 	m.Bytes = buf
@@ -152,6 +154,7 @@ func NewFileMsg(fileName string, buf []byte) *Message {
 
 func NewFillerMsg(fileName string, buf []byte) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgFiller
 	m.FileName = fileName
 	m.FileHash = fileName
@@ -161,6 +164,7 @@ func NewFillerMsg(fileName string, buf []byte) *Message {
 
 func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgEnd
 	m.FileName = fileName
 	m.FileSize = size
@@ -170,6 +174,7 @@ func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
 
 func NewFillerEndMsg(fileName string, size uint64) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgFillerEnd
 	m.FileName = fileName
 	m.FileHash = fileName
@@ -179,6 +184,7 @@ func NewFillerEndMsg(fileName string, size uint64) *Message {
 
 func NewCloseMsg(fileName string, status Status) *Message {
 	m := msgPool.Get().(*Message)
+	m.reset()
 	m.MsgType = MsgClose
 	m.Bytes = []byte{byte(status)}
 	m.FileName = fileName

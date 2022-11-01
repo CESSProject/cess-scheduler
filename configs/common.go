@@ -64,11 +64,11 @@ const (
 	// The slowest tcp transfers bytes per second
 	TCP_Transmission_Slowest = 1021 * 10
 	// Tcp read buffer
-	TCP_Read_Buf = 64 * 1024
+	TCP_Read_Buf = 64 * SIZE_1KiB
 	// Tcp write buffer
-	TCP_Write_Buf = 64 * 1024
+	TCP_Write_Buf = 64 * SIZE_1KiB
 	// Number of tcp message caches
-	TCP_Message_Buffers = 1024
+	TCP_Message_Buffers = 512
 )
 
 const (

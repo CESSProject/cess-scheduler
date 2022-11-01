@@ -38,6 +38,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 	}()
 
 	var (
+		ipv4       string
 		minerCache chain.Cache_MinerInfo
 		minerInfo  chain.MinerInfo
 	)
@@ -79,13 +80,13 @@ func (node *Node) task_MinerCache(ch chan bool) {
 
 				// save data
 				minerCache.Peerid = uint64(minerInfo.PeerId)
-				minerCache.Ip = fmt.Sprintf("%d.%d.%d.%d:%d",
+				ipv4 = fmt.Sprintf("%d.%d.%d.%d",
 					minerInfo.Ip.Value[0],
 					minerInfo.Ip.Value[1],
 					minerInfo.Ip.Value[2],
 					minerInfo.Ip.Value[3],
-					minerInfo.Ip.Port,
 				)
+				minerCache.Ip = fmt.Sprintf("%v:%d", ipv4, minerInfo.Ip.Port)
 
 				value, err := json.Marshal(&minerCache)
 				if err != nil {
@@ -99,9 +100,15 @@ func (node *Node) task_MinerCache(ch chan bool) {
 					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
 					continue
 				}
-				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v", addr, minerCache))
+
+				err = node.Cache.Put([]byte(ipv4), nil)
+				if err != nil {
+					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
+					continue
+				}
+				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v : %v", addr, ipv4, minerInfo.Ip.Value[3]))
 			}
-			time.Sleep(configs.BlockInterval)
+			time.Sleep(time.Minute)
 		}
 	}
 }

@@ -71,7 +71,6 @@ func (t *TcpCon) sendMsg() {
 		select {
 		case m := <-t.send:
 			data := m.String()
-			m.GC()
 
 			dataLen := len(data)
 
@@ -90,6 +89,7 @@ func (t *TcpCon) sendMsg() {
 func (t *TcpCon) readMsg() {
 	var (
 		err    error
+		n      int
 		header = make([]byte, 4)
 		buf    = make([]byte, configs.TCP_Read_Buf)
 	)
@@ -124,15 +124,12 @@ func (t *TcpCon) readMsg() {
 		// data size
 		msgSize := binary.BigEndian.Uint32(header)
 
-		var n int
-		var m *Message
-
 		n, err = io.ReadFull(t.conn, buf[:msgSize])
 		if err != nil {
 			err = fmt.Errorf("initial read error: %v \n", err)
 			return
 		}
-
+		var m *Message
 		m, err = Decode(buf[:n])
 		if err != nil {
 			err = fmt.Errorf("read message error: %v \n", err)
@@ -144,7 +141,10 @@ func (t *TcpCon) readMsg() {
 }
 
 func (t *TcpCon) GetMsg() (*Message, bool) {
-	timer := time.NewTimer(5 * time.Second)
+	var (
+		timer = time.NewTimer(configs.TCP_ShortMessage_WaitingTime)
+	)
+
 	defer timer.Stop()
 	select {
 	case m, ok := <-t.recv:
@@ -164,7 +164,6 @@ func (t *TcpCon) GetRemoteAddr() string {
 
 func (t *TcpCon) Close() error {
 	t.onceStop.Do(func() {
-		//fmt.Println("close a connect, addr: ", t.conn.RemoteAddr())
 		_ = t.conn.Close()
 		close(t.stop)
 	})

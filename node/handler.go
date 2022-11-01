@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net"
 	"os"
@@ -81,10 +80,13 @@ func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
 }
 
 func (n *Node) Start() {
+	defer func() {
+		n.Logs.Common("info", fmt.Errorf("Close a conn: %v", n.Conn.conn.GetRemoteAddr()))
+	}()
 	n.Conn.conn.HandlerLoop()
 	err := n.handler()
 	if err != nil {
-		log.Println(err)
+		n.Logs.Common("error", err)
 		return
 	}
 }
@@ -124,7 +126,7 @@ func (n *Node) handler() error {
 		switch m.MsgType {
 		case MsgHead:
 			// Verify signature
-			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
+			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
 				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
 				return err
