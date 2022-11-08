@@ -61,24 +61,22 @@ type Notify struct {
 }
 
 var (
-	msgPool = sync.Pool{
+	msgPool = &sync.Pool{
 		New: func() interface{} {
 			return &Message{}
 		},
 	}
 
-	BytesPool = sync.Pool{
+	bytesPool = &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 40*1024)
+			mem := make([]byte, 40*1024)
+			return &mem
 		},
 	}
 )
 
 func (m *Message) GC() {
 	if m != nil {
-		if m.MsgType == MsgFile {
-			BytesPool.Put(m.Bytes[:cap(m.Bytes)])
-		}
 		m.reset()
 		msgPool.Put(m)
 	}
@@ -100,9 +98,9 @@ func (m *Message) reset() {
 	}
 }
 
-func (m *Message) String() string {
-	bytes, _ := json.Marshal(m)
-	return string(bytes)
+func (m *Message) String() (string, error) {
+	bytes, err := json.Marshal(m)
+	return string(bytes), err
 }
 
 // Decode will convert from bytes
@@ -112,13 +110,16 @@ func Decode(b []byte) (m *Message, err error) {
 	return
 }
 
-func NewNotifyMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
-	m.reset()
+func (m *Message) buildNotifyMsg(fileName string, status Status) {
 	m.MsgType = MsgNotify
 	m.Bytes = []byte{byte(status)}
 	m.FileName = fileName
-	return m
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
 }
 
 func NewNotifyFillerMsg(fileName string, status Status) *Message {
@@ -152,14 +153,16 @@ func NewFileMsg(fileName string, buf []byte) *Message {
 	return m
 }
 
-func NewFillerMsg(fileName string, buf []byte) *Message {
-	m := msgPool.Get().(*Message)
-	m.reset()
+func (m *Message) buildFillerMsg(fileName string, buf []byte) {
 	m.MsgType = MsgFiller
 	m.FileName = fileName
 	m.FileHash = fileName
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
 	m.Bytes = buf
-	return m
 }
 
 func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
@@ -172,21 +175,26 @@ func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
 	return m
 }
 
-func NewFillerEndMsg(fileName string, size uint64) *Message {
-	m := msgPool.Get().(*Message)
-	m.reset()
+func (m *Message) buildFillerEndMsg(fileName string, size uint64) {
 	m.MsgType = MsgFillerEnd
 	m.FileName = fileName
 	m.FileHash = fileName
 	m.FileSize = size
-	return m
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = nil
 }
 
-func NewCloseMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
-	m.reset()
+func (m *Message) buildCloseMsg(fileName string, status Status) {
 	m.MsgType = MsgClose
-	m.Bytes = []byte{byte(status)}
 	m.FileName = fileName
-	return m
+	m.FileHash = fileName
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = []byte{byte(status)}
 }

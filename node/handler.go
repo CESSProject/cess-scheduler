@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -82,13 +83,15 @@ func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
 func (n *Node) Start() {
 	defer func() {
 		n.Logs.Common("info", fmt.Errorf("Close a conn: %v", n.Conn.conn.GetRemoteAddr()))
+		n = nil
 	}()
 	n.Conn.conn.HandlerLoop()
 	err := n.handler()
 	if err != nil {
 		n.Logs.Common("error", err)
-		return
 	}
+	time.Sleep(time.Second)
+	runtime.Goexit()
 }
 
 func (n *Node) handler() error {
@@ -97,27 +100,44 @@ func (n *Node) handler() error {
 		fs         *os.File
 		fillerFs   *os.File
 		tStart     time.Time
+		tTimer     *time.Ticker
 		filler     Filler
 		minerAcc   []byte
 		remoteAddr string
 	)
 	n.AddConns()
-
+	//log.Printf("Recv a conn:%v", n.Conn.conn.GetRemoteAddr())
 	defer func() {
+		err := recover()
+		if err != nil {
+			n.Logs.Pnc("error", utils.RecoverError(err))
+		}
 		n.ClearConns()
 		n.Conn.conn.Close()
+		close(n.Conn.stop)
+		close(n.Conn.waitNotify)
 		if fs != nil {
-			_ = fs.Close()
+			fs.Close()
 		}
 		if fillerFs != nil {
-			_ = fillerFs.Close()
+			fillerFs.Close()
+		}
+		if tTimer != nil {
+			tTimer.Stop()
 		}
 	}()
 
 	for !n.Conn.conn.IsClose() {
+		if tTimer != nil {
+			select {
+			case <-tTimer.C:
+				runtime.Goexit()
+			default:
+			}
+		}
 		m, ok := n.Conn.conn.GetMsg()
 		if !ok {
-			return errors.New("close by connect")
+			runtime.Goexit()
 		}
 		if m == nil {
 			continue
@@ -125,24 +145,30 @@ func (n *Node) handler() error {
 
 		switch m.MsgType {
 		case MsgHead:
+			msg := msgPool.Get().(*Message)
+			defer msgPool.Put(msg)
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				msg.buildNotifyMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				//n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				runtime.Goexit()
 			}
-
 			//Judge whether the file has been uploaded
 			fileState, err := GetFileState(n.Chain, m.FileHash)
 			if err != nil {
-				n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Err))
-				return err
+				msg.buildNotifyMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				runtime.Goexit()
 			}
 
 			// file state
 			if fileState == chain.FILE_STATE_ACTIVE {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				msg.buildNotifyMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				//n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				runtime.Goexit()
 			}
 
 			//TODO: Judge whether the space is enough
@@ -152,23 +178,25 @@ func (n *Node) handler() error {
 			// create file
 			fs, err = os.OpenFile(filepath.Join(n.Conn.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				msg.buildNotifyMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				//n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				runtime.Goexit()
 			}
 			// Notify the other party
-			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
-		case MsgFillerHead:
-			// Determine the upper limit of connections
-			if n.GetConns() > configs.MAX_TCP_CONNECTION {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return errors.New("Max Connections")
-			}
+			msg.buildNotifyMsg(n.Conn.fileName, Status_Ok)
+			n.Conn.conn.SendMsg(msg)
+			//n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
 
+		case MsgFillerHead:
 			// Verify signature
 			ok, err := VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				msg := msgPool.Get().(*Message)
+				defer msgPool.Put(msg)
+				msg.buildNotifyMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				runtime.Goexit()
 			}
 
 			minerAcc = m.Pubkey
@@ -179,76 +207,96 @@ func (n *Node) handler() error {
 			case filler = <-C_Filler:
 				n.Logs.GenFiller("info", fmt.Errorf("Consumed a filler: %v", filler.Hash))
 			case <-timer.C:
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+				msg := msgPool.Get().(*Message)
+				defer msgPool.Put(msg)
+				msg.buildNotifyMsg(n.Conn.fileName, Status_Ok)
+				n.Conn.conn.SendMsg(msg)
+				//n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
 			}
 			// Notify the other party
 			n.Conn.conn.SendMsg(NewNotifyFillerMsg(filler.Hash, Status_Ok))
+			tTimer = time.NewTicker(configs.TCP_ShortMessage_WaitingTime)
 		case MsgFiller:
-			// Determine the upper limit of connections
-			if n.GetConns() > configs.MAX_TCP_CONNECTION {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return errors.New("Max Connections")
-			}
+			tTimer = time.NewTicker(configs.TCP_FillerMessage_WaitingTime)
+			readBuf := bytesPool.Get().(*[]byte)
+			defer bytesPool.Put(readBuf)
+			msg := msgPool.Get().(*Message)
+			defer msgPool.Put(msg)
 
 			remoteAddr = n.Conn.conn.GetRemoteAddr()
-			//log.Printf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr())
-			tStart = time.Now()
-			n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", m.FileName, n.Conn.conn.GetRemoteAddr()))
-
+			if !strings.Contains(m.FileName, "tag") {
+				tStart = time.Now()
+				n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", m.FileName, remoteAddr))
+			}
 			// open filler
 			fillerFs, err = os.OpenFile(filepath.Join(n.FillerDir, m.FileName), os.O_RDONLY, os.ModePerm)
 			if err != nil {
-				n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-				return err
+				msg.buildNotifyMsg(n.Conn.fileName, Status_Ok)
+				n.Conn.conn.SendMsg(msg)
+				runtime.Goexit()
 			}
 
 			fillerInfo, _ := fillerFs.Stat()
 
 			// send filler
 			for !n.Conn.conn.IsClose() {
-				readBuf := BytesPool.Get().([]byte)
-				num, err := fillerFs.Read(readBuf)
+				num, err := fillerFs.Read(*readBuf)
 				if err != nil && err != io.EOF {
 					// notify the other party
-					n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
-					return err
+					bytesPool.Put(readBuf)
+					msg.buildNotifyMsg(n.Conn.fileName, Status_Ok)
+					n.Conn.conn.SendMsg(msg)
+					//n.Conn.conn.SendMsg(NewNotifyMsg("", Status_Err))
+					runtime.Goexit()
 				}
 				if num == 0 {
 					break
 				}
-				n.Conn.conn.SendMsg(NewFillerMsg(m.FileName, readBuf[:num]))
+				msg.buildFillerMsg(m.FileName, (*readBuf)[:num])
+				n.Conn.conn.SendMsg(msg)
+				time.Sleep(configs.TCP_Connection_Interval)
 			}
 
-			time.Sleep(configs.TCP_Message_Interval)
 			// send end msg
-			n.Conn.conn.SendMsg(NewFillerEndMsg(m.FileName, uint64(fillerInfo.Size())))
-			time.Sleep(configs.TCP_Message_Interval)
+			msg.buildFillerEndMsg(m.FileName, uint64(fillerInfo.Size()))
+			n.Conn.conn.SendMsg(msg)
+			time.Sleep(configs.TCP_Connection_Interval)
 
 			// notify the other party
-			n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
+			msg.buildNotifyMsg(m.FileName, Status_Ok)
+			n.Conn.conn.SendMsg(msg)
+			//n.Conn.conn.SendMsg(NewNotifyMsg(m.FileName, Status_Ok))
 
 		case MsgFile:
+			msg := msgPool.Get().(*Message)
+			defer msgPool.Put(msg)
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
 			if fs == nil {
-				n.Conn.conn.SendMsg(NewCloseMsg("", Status_Err))
-				return errors.New("file is not open")
+				msg.buildCloseMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				runtime.Goexit()
 			}
 			_, err = fs.Write(m.Bytes)
 			if err != nil {
-				n.Conn.conn.SendMsg(NewCloseMsg("", Status_Err))
-				return err
+				msg.buildCloseMsg("", Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				runtime.Goexit()
 			}
 
 		case MsgEnd:
+			msg := msgPool.Get().(*Message)
+			defer msgPool.Put(msg)
 			info, _ := fs.Stat()
 			if info.Size() != int64(m.FileSize) {
 				err = fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
-				n.Conn.conn.SendMsg(NewCloseMsg(n.Conn.fileName, Status_Err))
-				return err
+				msg.buildCloseMsg(n.Conn.fileName, Status_Err)
+				n.Conn.conn.SendMsg(msg)
+				runtime.Goexit()
 			}
-
-			n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
+			msg.buildNotifyMsg(n.Conn.fileName, Status_Ok)
+			n.Conn.conn.SendMsg(msg)
+			//n.Conn.conn.SendMsg(NewNotifyMsg(n.Conn.fileName, Status_Ok))
 
 			// close fs
 			_ = fs.Close()
@@ -264,7 +312,7 @@ func (n *Node) handler() error {
 		case MsgNotify:
 			n.Conn.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 			if !(m.Bytes[0] == byte(Status_Ok)) {
-				return errors.New("failed")
+				runtime.Goexit()
 			}
 
 			if len(m.Bytes) > 1 {
@@ -281,15 +329,11 @@ func (n *Node) handler() error {
 					C_FillerMeta <- fillerMetaEle
 					os.Remove(filler.FillerPath)
 					os.Remove(filler.TagPath)
-					return nil
+					runtime.Goexit()
 				}
-
 			}
 		case MsgClose:
-			if m.Bytes[0] != byte(Status_Ok) {
-				return fmt.Errorf("server an error occurred")
-			}
-			return nil
+			runtime.Goexit()
 		}
 	}
 	return err
@@ -326,12 +370,15 @@ func (c *ConMgr) sendFile(fid string, pkey, signmsg, sign []byte) error {
 			}
 		}
 	}
-	c.conn.SendMsg(NewCloseMsg(c.fileName, Status_Ok))
+	msg := msgPool.Get().(*Message)
+	defer msgPool.Put(msg)
+	msg.buildCloseMsg(c.fileName, Status_Ok)
+	c.conn.SendMsg(msg)
 	timer := time.NewTimer(configs.TCP_ShortMessage_WaitingTime)
 	select {
 	case <-timer.C:
-		return err
 	}
+	return nil
 }
 
 func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey, signmsg, sign []byte) error {
@@ -361,10 +408,11 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey
 		return fmt.Errorf("wait server msg timeout")
 	}
 
+	readBuf := bytesPool.Get().(*[]byte)
+	defer bytesPool.Put(readBuf)
 	for !c.conn.IsClose() {
-		readBuf := BytesPool.Get().([]byte)
 
-		n, err := file.Read(readBuf)
+		n, err := file.Read(*readBuf)
 		if err != nil && err != io.EOF {
 			return err
 		}
@@ -372,8 +420,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, lastmark bool, pkey
 		if n == 0 {
 			break
 		}
-
-		c.conn.SendMsg(NewFileMsg(c.fileName, readBuf[:n]))
+		c.conn.SendMsg(NewFileMsg(c.fileName, (*readBuf)[:n]))
 	}
 
 	c.conn.SendMsg(NewEndMsg(c.fileName, uint64(fileInfo.Size()), lastmark))
@@ -546,6 +593,10 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		if err != nil {
 			n.Cache.Delete(allMinerPubkey[i][:])
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
+			continue
+		}
+
+		if minerinfo.Free < uint64(fstat.Size()) {
 			continue
 		}
 

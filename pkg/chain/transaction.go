@@ -137,7 +137,8 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 		return txhash, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
 	}
 	defer sub.Unsubscribe()
-	timeout := time.After(c.timeForBlockOut)
+	timeout := time.NewTimer(c.timeForBlockOut)
+	defer timeout.Stop()
 	for {
 		select {
 		case status := <-sub.Chan():
@@ -158,7 +159,7 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 			}
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "[sub]")
-		case <-timeout:
+		case <-timeout.C:
 			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
@@ -184,6 +185,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 	if len(fid) != len(hash) {
 		return txhash, errors.New(ERR_Failed)
 	}
+
 	for i := 0; i < len(hash); i++ {
 		hash[i] = types.U8(fid[i])
 	}
@@ -264,7 +266,8 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 		return txhash, errors.Wrap(err, "SubmitAndWatchExtrinsic err")
 	}
 	defer sub.Unsubscribe()
-	timeout := time.After(c.timeForBlockOut)
+	timeout := time.NewTimer(c.timeForBlockOut)
+	defer timeout.Stop()
 	for {
 		select {
 		case status := <-sub.Chan():
@@ -285,7 +288,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 			}
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
-		case <-timeout:
+		case <-timeout.C:
 			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
@@ -377,7 +380,8 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 		return "", errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
 	}
 	defer sub.Unsubscribe()
-	timeout := time.After(c.timeForBlockOut)
+	timeout := time.NewTimer(c.timeForBlockOut)
+	defer timeout.Stop()
 	for {
 		select {
 		case status := <-sub.Chan():
@@ -398,7 +402,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 			}
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
-		case <-timeout:
+		case <-timeout.C:
 			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
@@ -489,7 +493,8 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	}
 
 	defer sub.Unsubscribe()
-	timeout := time.After(c.timeForBlockOut)
+	timeout := time.NewTimer(c.timeForBlockOut)
+	defer timeout.Stop()
 	for {
 		select {
 		case status := <-sub.Chan():
@@ -510,7 +515,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 			}
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
-		case <-timeout:
+		case <-timeout.C:
 			return txhash, ERR_RPC_TIMEOUT
 		}
 	}
@@ -619,7 +624,8 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 		return txhash, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
 	}
 	defer sub.Unsubscribe()
-	timeout := time.After(c.timeForBlockOut)
+	timeout := time.NewTimer(c.timeForBlockOut)
+	defer timeout.Stop()
 	for {
 		select {
 		case status := <-sub.Chan():
@@ -640,7 +646,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 			}
 		case err = <-sub.Err():
 			return txhash, errors.Wrap(err, "sub")
-		case <-timeout:
+		case <-timeout.C:
 			return txhash, ERR_RPC_TIMEOUT
 		}
 	}

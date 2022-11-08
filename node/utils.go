@@ -23,23 +23,23 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/CESSProject/go-keyring"
-	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
 func GetFileState(c chain.Chainer, fileHash string) (string, error) {
 	var try_count uint8
-	for {
-		fmeta, err := c.GetFileMetaInfo(types.NewBytes([]byte(fileHash)))
+	for try_count <= 3 {
+		fmeta, err := c.GetFileMetaInfo(fileHash)
 		if err != nil {
 			try_count++
-			if try_count > 3 {
+			if try_count >= 3 {
 				return "", err
 			}
-			time.Sleep(time.Second * time.Duration(try_count))
+			time.Sleep(time.Second * 3)
 			continue
 		}
 		return string(fmeta.State), nil
 	}
+	return "", errors.New("GetFileMetaInfo failed")
 }
 
 func VerifySign(pkey, signmsg, sign []byte) (bool, error) {

@@ -59,16 +59,22 @@ type RewardInfo struct {
 type Cache_MinerInfo struct {
 	Peerid uint64 `json:"peerid"`
 	Ip     string `json:"ip"`
+	Free   uint64 `json:"free"`
 }
 
 // file meta info
 type FileMetaInfo struct {
-	Size      types.U64
-	Index     types.U32
-	State     types.Bytes
-	Users     []types.AccountID
-	Names     []types.Bytes
-	BlockInfo []BlockInfo
+	Size       types.U64
+	Index      types.U32
+	State      types.Bytes
+	UserBriefs []UserBrief
+	BlockInfo  []BlockInfo
+}
+
+type UserBrief struct {
+	User        types.AccountID
+	File_name   types.Bytes
+	Bucket_name types.Bytes
 }
 
 // file block info
@@ -76,7 +82,7 @@ type BlockInfo struct {
 	MinerId   types.U64
 	BlockSize types.U64
 	BlockNum  types.U32
-	BlockId   [68]types.U8
+	BlockId   FileBlockId
 	MinerIp   Ipv4Type
 	MinerAcc  types.AccountID
 }
@@ -89,7 +95,7 @@ type FillerMetaInfo struct {
 	BlockSize types.U32
 	ScanSize  types.U32
 	Acc       types.AccountID
-	Hash      [64]types.U8
+	Hash      FileHash
 }
 
 // scheduler info

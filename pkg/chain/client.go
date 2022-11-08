@@ -44,7 +44,7 @@ type Chainer interface {
 	// Getallstorageminer is used to obtain the AccountID of all miners
 	GetAllStorageMiner() ([]types.AccountID, error)
 	// GetFileMetaInfo is used to get the meta information of the file
-	GetFileMetaInfo(fid types.Bytes) (FileMetaInfo, error)
+	GetFileMetaInfo(fid string) (FileMetaInfo, error)
 	// GetAllSchedulerInfo is used to get information about all schedules
 	GetAllSchedulerInfo() ([]SchedulerInfo, error)
 	// GetProofs is used to get all the proofs to be verified

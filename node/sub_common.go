@@ -20,6 +20,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -41,6 +42,7 @@ func (node *Node) task_Common(ch chan bool) {
 
 	for {
 		time.Sleep(time.Minute)
+		runtime.GC()
 		count++
 		if count >= 5 {
 			count = 0

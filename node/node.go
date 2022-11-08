@@ -86,6 +86,9 @@ func (n *Node) Run() {
 	log.Println("Service started successfully")
 
 	for {
+		// Connection interval
+		time.Sleep(configs.TCP_Connection_Interval)
+
 		// Accepts the next connection
 		acceptTCP, err = listener.AcceptTCP()
 		if err != nil {
@@ -101,13 +104,14 @@ func (n *Node) Run() {
 		remote = acceptTCP.RemoteAddr().String()
 		n.Logs.Common("info", fmt.Errorf("Recv a conn: %v", remote))
 
-		// Set server maximum connection control
+		// Chain status
 		if !n.Chain.GetChainStatus() {
 			acceptTCP.Close()
 			n.Logs.Common("info", fmt.Errorf("Chain state not available: %v", remote))
 			continue
 		}
 
+		// Set server maximum connection control
 		if n.GetConns() >= configs.MAX_TCP_CONNECTION {
 			ok, err = n.Cache.Has([]byte(strings.Split(remote, ":")[0]))
 			if ok {
@@ -119,9 +123,6 @@ func (n *Node) Run() {
 
 		// Start the processing service of the new connection
 		go n.NewServer(NewTcp(acceptTCP)).Start()
-
-		// Connection interval
-		time.Sleep(configs.TCP_Connection_Interval)
 	}
 }
 
@@ -154,20 +155,4 @@ func (n *Node) GetConns() uint8 {
 	num = *n.conns
 	n.lock.Unlock()
 	return num
-}
-
-// GC is used to reset a node
-func (n *Node) GC() {
-	if n != nil {
-		n.Confile = nil
-		n.Cache = nil
-		n.Chain = nil
-		n.Conn = nil
-		n.Logs = nil
-		n.FileDir = ""
-		n.FillerDir = ""
-		n.TagDir = ""
-		n.conns = nil
-		n.lock = nil
-	}
 }

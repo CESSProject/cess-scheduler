@@ -19,6 +19,7 @@ package node
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -87,7 +88,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 					minerInfo.Ip.Value[3],
 				)
 				minerCache.Ip = fmt.Sprintf("%v:%d", ipv4, minerInfo.Ip.Port)
-
+				minerCache.Free = new(big.Int).Sub(new(big.Int).SetBytes(minerInfo.Power.Bytes()), new(big.Int).SetBytes(minerInfo.Space.Bytes())).Uint64()
 				value, err := json.Marshal(&minerCache)
 				if err != nil {
 					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
@@ -106,7 +107,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))
 					continue
 				}
-				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v : %v", addr, ipv4, minerInfo.Ip.Value[3]))
+				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v : %v : %v", addr, ipv4, minerInfo.Ip.Port, minerCache.Free))
 			}
 			time.Sleep(time.Minute)
 		}

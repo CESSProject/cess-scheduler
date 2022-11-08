@@ -61,21 +61,20 @@ const (
 	TCP_Message_Interval = time.Duration(time.Millisecond * 20)
 	// Tcp short message waiting time
 	TCP_ShortMessage_WaitingTime = time.Duration(time.Second * 5)
+	// Tcp short message waiting time
+	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
 	// The slowest tcp transfers bytes per second
-	TCP_Transmission_Slowest = 1021 * 10
-	// Tcp read buffer
-	TCP_Read_Buf = 64 * SIZE_1KiB
-	// Tcp write buffer
-	TCP_Write_Buf = 64 * SIZE_1KiB
+	TCP_Transmission_Slowest = SIZE_1KiB * 10
 	// Number of tcp message caches
-	TCP_Message_Buffers = 512
+	TCP_Message_Send_Buffers = 3
+	TCP_Message_Read_Buffers = 3
 )
 
 const (
 	// Time out waiting for transaction completion
 	TimeOut_WaitBlock = time.Duration(time.Second * 15)
 	// Submit fillermeta interval
-	SubmitFillermetaInterval = 180
+	SubmitFillermetaInterval = 60
 	// The maximum number of proof results submitted in a transaction
 	Max_SubProofResults = 40
 )
