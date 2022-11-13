@@ -49,7 +49,9 @@ const (
 	// Number of local filler caches
 	Num_Filler_Reserved = 5
 
-	Max_Filler_Meta = 100
+	Max_Filler_Meta = 50
+	//
+	WaitFillerTime = time.Duration(time.Second * 3)
 )
 
 const (
@@ -58,16 +60,21 @@ const (
 	// Tcp client connection interval
 	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
 	// Tcp message interval
-	TCP_Message_Interval = time.Duration(time.Millisecond * 20)
+	TCP_Message_Interval = time.Duration(time.Millisecond * 10)
 	// Tcp short message waiting time
-	TCP_ShortMessage_WaitingTime = time.Duration(time.Second * 5)
+	TCP_Time_WaitNotification = time.Duration(time.Second * 10)
 	// Tcp short message waiting time
 	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
 	// The slowest tcp transfers bytes per second
 	TCP_Transmission_Slowest = SIZE_1KiB * 10
 	// Number of tcp message caches
-	TCP_Message_Send_Buffers = 3
-	TCP_Message_Read_Buffers = 3
+	TCP_Message_Send_Buffers = 10
+	TCP_Message_Read_Buffers = 10
+	//
+	TCP_SendBuffer = SIZE_1KiB * 8
+	TCP_ReadBuffer = SIZE_1KiB * 16
+	//
+	Tcp_Dial_Timeout = time.Duration(time.Second * 5)
 )
 
 const (
@@ -103,5 +110,6 @@ var (
 		"fillerMeta", //Submit filler meta log
 		"genFiller",  //Generate filler log
 		"speed",      //Record transmission time and speed
+		"space",      //Fills the miner's space log
 	}
 )

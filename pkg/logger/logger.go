@@ -39,6 +39,7 @@ type Logger interface {
 	FillerMeta(string, error)
 	Verify(string, error)
 	Speed(error)
+	Spc(string, error)
 }
 
 type logs struct {
@@ -195,6 +196,21 @@ func (l *logs) Speed(err error) {
 	v, ok := l.log["speed"]
 	if ok {
 		v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+	}
+}
+
+func (l *logs) Spc(level string, err error) {
+	_, file, line, _ := runtime.Caller(1)
+	v, ok := l.log["space"]
+	if ok {
+		switch level {
+		case "info":
+			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
+		case "error", "err":
+			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
+		case "warn":
+			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
+		}
 	}
 }
 

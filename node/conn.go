@@ -21,7 +21,7 @@ type Server interface {
 }
 
 type Client interface {
-	SendFile(fid string, pkey, signmsg, sign []byte) error
+	SendFile(fid string, filetype uint8, pkey, signmsg, sign []byte) error
 }
 
 type NetConn interface {

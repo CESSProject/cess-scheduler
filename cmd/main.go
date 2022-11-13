@@ -17,16 +17,16 @@
 package main
 
 import (
-	//"net/http"
-	//_ "net/http/pprof"
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/CESSProject/cess-scheduler/cmd/console"
 )
 
 // program entry
 func main() {
-	// go func() {
-	// 	http.ListenAndServe(":6060", nil)
-	// }()
+	go func() {
+		http.ListenAndServe(":15001", nil)
+	}()
 	console.Execute()
 }

@@ -133,7 +133,7 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 			break
 		}
 		log.Println("In sync block...")
-		time.Sleep(time.Second * configs.BlockInterval)
+		time.Sleep(configs.BlockInterval)
 	}
 	log.Println("Complete synchronization of primary network block data")
 

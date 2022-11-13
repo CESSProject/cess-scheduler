@@ -19,7 +19,7 @@ package configs
 import "time"
 
 // type and version
-const Version = "cess-scheduler v0.5.2"
+const Version = "cess-scheduler v0.5.3_dev"
 
 const (
 	// Name is the name of the program

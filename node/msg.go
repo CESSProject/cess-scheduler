@@ -17,11 +17,13 @@
 package node
 
 import (
-	"encoding/json"
 	"sync"
+
+	"github.com/CESSProject/cess-scheduler/configs"
 )
 
 type MsgType byte
+type Status byte
 
 const (
 	MsgInvalid MsgType = iota
@@ -32,12 +34,12 @@ const (
 	MsgClose
 	MsgRecvHead
 	MsgRecvFile
-	MsgFillerHead
-	MsgFiller
-	MsgFillerEnd
 )
 
-type Status byte
+const (
+	FileType_file   uint8 = 1
+	FileType_filler uint8 = 2
+)
 
 const (
 	Status_Ok Status = iota
@@ -45,15 +47,16 @@ const (
 )
 
 type Message struct {
-	MsgType  MsgType `json:"msg_type"`
-	FileName string  `json:"file_name"`
-	FileHash string  `json:"file_hash"`
-	FileSize uint64  `json:"file_size"`
-	LastMark bool    `json:"last_mark"`
-	Pubkey   []byte  `json:"pub_key"`
-	SignMsg  []byte  `json:"sign_msg"`
+	Pubkey   []byte  `json:"pubkey"`
+	SignMsg  []byte  `json:"signmsg"`
 	Sign     []byte  `json:"sign"`
 	Bytes    []byte  `json:"bytes"`
+	FileName string  `json:"filename"`
+	FileHash string  `json:"filehash"`
+	FileSize uint64  `json:"filesize"`
+	MsgType  MsgType `json:"msgtype"`
+	LastMark bool    `json:"lastmark"`
+	FileType uint8   `json:"filetype"`
 }
 
 type Notify struct {
@@ -69,50 +72,14 @@ var (
 
 	bytesPool = &sync.Pool{
 		New: func() interface{} {
-			mem := make([]byte, 40*1024)
-			return &mem
+			return make([]byte, configs.TCP_SendBuffer)
 		},
 	}
 )
 
-func (m *Message) GC() {
-	if m != nil {
-		m.reset()
-		msgPool.Put(m)
-	}
-}
-
-func (m *Message) reset() {
-	if m != nil {
-		m.MsgType = MsgInvalid
-		m.FileName = ""
-		m.FileHash = ""
-		m.FileSize = 0
-		m.LastMark = false
-		m.Pubkey = nil
-		m.SignMsg = nil
-		m.Sign = nil
-		m.Bytes = nil
-	} else {
-		m = &Message{}
-	}
-}
-
-func (m *Message) String() (string, error) {
-	bytes, err := json.Marshal(m)
-	return string(bytes), err
-}
-
-// Decode will convert from bytes
-func Decode(b []byte) (m *Message, err error) {
-	m = msgPool.Get().(*Message)
-	err = json.Unmarshal(b, &m)
-	return
-}
-
-func (m *Message) buildNotifyMsg(fileName string, status Status) {
+func buildNotifyMsg(fileName string, status Status) *Message {
+	m := msgPool.Get().(*Message)
 	m.MsgType = MsgNotify
-	m.Bytes = []byte{byte(status)}
 	m.FileName = fileName
 	m.FileHash = ""
 	m.FileSize = 0
@@ -120,81 +87,81 @@ func (m *Message) buildNotifyMsg(fileName string, status Status) {
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
+	m.Bytes = []byte{byte(status)}
+	return m
 }
 
-func NewNotifyFillerMsg(fileName string, status Status) *Message {
+func buildNotifyFillerMsg(fileName string, status Status) *Message {
 	m := msgPool.Get().(*Message)
-	m.reset()
 	m.MsgType = MsgNotify
+	m.FileName = ""
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
 	m.Bytes = []byte{byte(status)}
 	m.Bytes = append(m.Bytes, []byte(fileName)...)
 	return m
 }
 
-func NewHeadMsg(fileName string, fid string, lastmark bool, pkey, signmsg, sign []byte) *Message {
+func buildHeadMsg(filename, fid string, filetype uint8, lastmark bool, pkey, signmsg, sign []byte) *Message {
 	m := msgPool.Get().(*Message)
-	m.reset()
 	m.MsgType = MsgHead
-	m.FileName = fileName
+	m.FileType = filetype
+	m.FileName = filename
 	m.FileHash = fid
+	m.FileSize = 0
 	m.LastMark = lastmark
 	m.Pubkey = pkey
 	m.SignMsg = signmsg
 	m.Sign = sign
+	m.Bytes = nil
 	return m
 }
 
-func NewFileMsg(fileName string, buf []byte) *Message {
+func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
 	m := msgPool.Get().(*Message)
-	m.reset()
 	m.MsgType = MsgFile
+	m.FileType = filetype
 	m.FileName = fileName
-	m.Bytes = buf
-	return m
-}
-
-func (m *Message) buildFillerMsg(fileName string, buf []byte) {
-	m.MsgType = MsgFiller
-	m.FileName = fileName
-	m.FileHash = fileName
+	m.FileHash = ""
 	m.FileSize = 0
 	m.LastMark = false
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
 	m.Bytes = buf
-}
-
-func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
-	m := msgPool.Get().(*Message)
-	m.reset()
-	m.MsgType = MsgEnd
-	m.FileName = fileName
-	m.FileSize = size
-	m.LastMark = lastmark
 	return m
 }
 
-func (m *Message) buildFillerEndMsg(fileName string, size uint64) {
-	m.MsgType = MsgFillerEnd
+func buildEndMsg(fileName string, size uint64, lastmark bool) *Message {
+	m := msgPool.Get().(*Message)
+	m.MsgType = MsgEnd
+	m.FileType = 0
 	m.FileName = fileName
-	m.FileHash = fileName
+	m.FileHash = ""
 	m.FileSize = size
-	m.LastMark = false
+	m.LastMark = lastmark
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
 	m.Bytes = nil
+	return m
 }
 
-func (m *Message) buildCloseMsg(fileName string, status Status) {
+func buildCloseMsg(status Status) *Message {
+	m := msgPool.Get().(*Message)
 	m.MsgType = MsgClose
-	m.FileName = fileName
-	m.FileHash = fileName
+	m.FileType = 0
+	m.FileName = ""
+	m.FileHash = ""
 	m.FileSize = 0
 	m.LastMark = false
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
 	m.Bytes = []byte{byte(status)}
+	return m
 }

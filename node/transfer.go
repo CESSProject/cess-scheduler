@@ -64,7 +64,7 @@ func (t *TcpCon) HandlerLoop() {
 
 func (t *TcpCon) sendMsg() {
 	defer func() {
-		_ = t.Close()
+		t.Close()
 		time.Sleep(time.Second)
 		close(t.send)
 	}()
@@ -78,19 +78,12 @@ func (t *TcpCon) sendMsg() {
 				return
 			}
 
-			head := make([]byte, len(MAGIC_BYTES)+4)
-			for i := 0; i < len(MAGIC_BYTES); i++ {
-				head[i] = MAGIC_BYTES[i]
-			}
+			head := make([]byte, len(MAGIC_BYTES)+4+len(data))
+			copy(head[:len(MAGIC_BYTES)], MAGIC_BYTES)
 			binary.BigEndian.PutUint32(head[len(MAGIC_BYTES):len(MAGIC_BYTES)+4], uint32(len(data)))
-			data = append(head, data...)
-			// dataLen = len(data)
-			// buf := make([]byte, 8+len(data))
-			// copy(buf[:4], MAGIC_BYTES)
-			// binary.BigEndian.PutUint32(buf[4:8], uint32(len(data)))
-			// copy(buf[8:], data)
+			copy(head[len(MAGIC_BYTES)+4:], data)
 
-			_, err = t.conn.Write(data)
+			_, err = t.conn.Write(head)
 			if err != nil {
 				return
 			}
@@ -105,6 +98,7 @@ func (t *TcpCon) readMsg() {
 		err    error
 		n      int
 		header = make([]byte, 4)
+		buf    = make([]byte, configs.TCP_ReadBuffer)
 	)
 	defer func() {
 		t.Close()
@@ -118,7 +112,6 @@ func (t *TcpCon) readMsg() {
 			if err != io.EOF {
 				runtime.Goexit()
 			}
-			time.Sleep(configs.TCP_Message_Interval)
 			continue
 		}
 
@@ -134,13 +127,14 @@ func (t *TcpCon) readMsg() {
 
 		// data size
 		msgSize := binary.BigEndian.Uint32(header)
-		buf := make([]byte, msgSize)
-		n, err = io.ReadFull(t.conn, buf)
+
+		n, err = io.ReadFull(t.conn, buf[:msgSize])
 		if err != nil {
 			runtime.Goexit()
 		}
-		var m *Message
-		m, err = Decode(buf[:n])
+
+		m := &Message{}
+		err = json.Unmarshal(buf[:n], &m)
 		if err != nil {
 			runtime.Goexit()
 		}
@@ -150,7 +144,7 @@ func (t *TcpCon) readMsg() {
 }
 
 func (t *TcpCon) GetMsg() (*Message, bool) {
-	timer := time.NewTimer(configs.TCP_ShortMessage_WaitingTime)
+	timer := time.NewTimer(configs.TCP_Time_WaitNotification)
 	defer timer.Stop()
 	select {
 	case m, ok := <-t.recv:
@@ -161,9 +155,7 @@ func (t *TcpCon) GetMsg() (*Message, bool) {
 }
 
 func (t *TcpCon) SendMsg(m *Message) {
-	if !t.IsClose() {
-		t.send <- m
-	}
+	t.send <- m
 }
 
 func (t *TcpCon) GetRemoteAddr() string {

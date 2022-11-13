@@ -87,8 +87,7 @@ func (n *Node) Run() {
 
 	for {
 		// Connection interval
-		time.Sleep(configs.TCP_Connection_Interval)
-
+		time.Sleep(time.Second)
 		// Accepts the next connection
 		acceptTCP, err = listener.AcceptTCP()
 		if err != nil {
