@@ -16,12 +16,6 @@
 
 package node
 
-import (
-	"sync"
-
-	"github.com/CESSProject/cess-scheduler/configs"
-)
-
 type MsgType byte
 type Status byte
 
@@ -37,8 +31,9 @@ const (
 )
 
 const (
-	FileType_file   uint8 = 1
-	FileType_filler uint8 = 2
+	FileType_Invalid uint8 = iota
+	FileType_file
+	FileType_filler
 )
 
 const (
@@ -63,22 +58,8 @@ type Notify struct {
 	Status byte
 }
 
-var (
-	msgPool = &sync.Pool{
-		New: func() interface{} {
-			return &Message{}
-		},
-	}
-
-	bytesPool = &sync.Pool{
-		New: func() interface{} {
-			return make([]byte, configs.TCP_SendBuffer)
-		},
-	}
-)
-
 func buildNotifyMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
+	m := &Message{}
 	m.MsgType = MsgNotify
 	m.FileName = fileName
 	m.FileHash = ""
@@ -92,7 +73,7 @@ func buildNotifyMsg(fileName string, status Status) *Message {
 }
 
 func buildNotifyFillerMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
+	m := &Message{}
 	m.MsgType = MsgNotify
 	m.FileName = ""
 	m.FileHash = ""
@@ -107,7 +88,7 @@ func buildNotifyFillerMsg(fileName string, status Status) *Message {
 }
 
 func buildHeadMsg(filename, fid string, filetype uint8, lastmark bool, pkey, signmsg, sign []byte) *Message {
-	m := msgPool.Get().(*Message)
+	m := &Message{}
 	m.MsgType = MsgHead
 	m.FileType = filetype
 	m.FileName = filename
@@ -122,7 +103,7 @@ func buildHeadMsg(filename, fid string, filetype uint8, lastmark bool, pkey, sig
 }
 
 func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
-	m := msgPool.Get().(*Message)
+	m := &Message{}
 	m.MsgType = MsgFile
 	m.FileType = filetype
 	m.FileName = fileName
@@ -137,7 +118,7 @@ func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
 }
 
 func buildEndMsg(fileName string, size uint64, lastmark bool) *Message {
-	m := msgPool.Get().(*Message)
+	m := &Message{}
 	m.MsgType = MsgEnd
 	m.FileType = 0
 	m.FileName = fileName
@@ -152,7 +133,7 @@ func buildEndMsg(fileName string, size uint64, lastmark bool) *Message {
 }
 
 func buildCloseMsg(status Status) *Message {
-	m := msgPool.Get().(*Message)
+	m := &Message{}
 	m.MsgType = MsgClose
 	m.FileType = 0
 	m.FileName = ""

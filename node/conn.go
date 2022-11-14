@@ -39,5 +39,4 @@ type ConMgr struct {
 	fileName   string
 	sendFiles  []string
 	waitNotify chan bool
-	stop       chan struct{}
 }

@@ -64,6 +64,7 @@ func (t *TcpCon) HandlerLoop() {
 
 func (t *TcpCon) sendMsg() {
 	defer func() {
+		recover()
 		t.Close()
 		time.Sleep(time.Second)
 		close(t.send)
@@ -95,19 +96,21 @@ func (t *TcpCon) sendMsg() {
 
 func (t *TcpCon) readMsg() {
 	var (
-		err    error
-		n      int
-		header = make([]byte, 4)
-		buf    = make([]byte, configs.TCP_ReadBuffer)
+		err     error
+		n       int
+		header  = make([]byte, len(MAGIC_BYTES))
+		readBuf = make([]byte, configs.TCP_ReadBuffer)
 	)
 	defer func() {
+		recover()
 		t.Close()
 		close(t.recv)
+		readBuf = nil
 	}()
 
 	for !t.IsClose() {
 		// read until we get 4 bytes for the magic
-		_, err = io.ReadFull(t.conn, header)
+		_, err = io.ReadAtLeast(t.conn, header, len(MAGIC_BYTES))
 		if err != nil {
 			if err != io.EOF {
 				runtime.Goexit()
@@ -120,21 +123,24 @@ func (t *TcpCon) readMsg() {
 		}
 
 		// read until we get 4 bytes for the header
-		_, err = io.ReadFull(t.conn, header)
+		_, err = io.ReadAtLeast(t.conn, header, len(MAGIC_BYTES))
 		if err != nil {
 			runtime.Goexit()
 		}
 
 		// data size
 		msgSize := binary.BigEndian.Uint32(header)
+		// if msgSize > configs.TCP_ReadBuffer {
+		// 	readBuf = append(readBuf, make([]byte, int(msgSize-configs.TCP_ReadBuffer))...)
+		// }
 
-		n, err = io.ReadFull(t.conn, buf[:msgSize])
+		n, err = io.ReadFull(t.conn, readBuf[:msgSize])
 		if err != nil {
 			runtime.Goexit()
 		}
 
 		m := &Message{}
-		err = json.Unmarshal(buf[:n], &m)
+		err = json.Unmarshal(readBuf[:n], &m)
 		if err != nil {
 			runtime.Goexit()
 		}

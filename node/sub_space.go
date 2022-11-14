@@ -46,18 +46,16 @@ func (n *Node) task_Space(ch chan bool) {
 		concurrency <- true
 	}
 
-	for n.Chain.GetChainStatus() {
-		select {
-		case <-concurrency:
-			go n.storagefiller(concurrency)
-		default:
-			time.Sleep(time.Second)
-		}
-	}
 	for {
-		if len(concurrency) == int(configs.MAX_TCP_CONNECTION) {
-			break
+		for n.Chain.GetChainStatus() {
+			select {
+			case <-concurrency:
+				go n.storagefiller(concurrency)
+			default:
+				time.Sleep(time.Second)
+			}
 		}
+		time.Sleep(configs.BlockInterval)
 	}
 }
 
@@ -74,6 +72,9 @@ func (n *Node) storagefiller(ch chan bool) {
 
 	defer func() {
 		ch <- true
+		if err := recover(); err != nil {
+			n.Logs.Pnc("error", utils.RecoverError(err))
+		}
 	}()
 	// get all miner addresses
 	allMinerPubkey, err := n.Chain.GetAllStorageMiner()
@@ -139,6 +140,7 @@ func (n *Node) storagefiller(ch chan bool) {
 		filler.Hash = ""
 		os.Remove(filler.FillerPath)
 		os.Remove(filler.TagPath)
+		time.Sleep(time.Second)
 	}
 }
 

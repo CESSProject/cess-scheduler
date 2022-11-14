@@ -44,7 +44,6 @@ func (n *Node) NewServer(conn NetConn) Server {
 		conn:       conn,
 		dir:        n.FileDir,
 		waitNotify: make(chan bool, 1),
-		stop:       make(chan struct{}),
 	}
 	node.Cache = n.Cache
 	node.Chain = n.Chain
@@ -65,7 +64,6 @@ func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
 		dir:        dir,
 		sendFiles:  files,
 		waitNotify: make(chan bool, 1),
-		stop:       make(chan struct{}),
 	}
 	node.Cache = n.Cache
 	node.Chain = n.Chain
@@ -107,7 +105,6 @@ func (n *Node) handler() error {
 		}
 		n.ClearConns()
 		n.Conn.conn.Close()
-		close(n.Conn.stop)
 		close(n.Conn.waitNotify)
 		if fs != nil {
 			fs.Close()
@@ -172,11 +169,12 @@ func (n *Node) handler() error {
 		case MsgEnd:
 			info, err := fs.Stat()
 			if err != nil {
+				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return errors.New("Invalid file")
 			}
 
 			if info.Size() != int64(m.FileSize) {
-				n.Conn.conn.SendMsg(buildCloseMsg(Status_Err))
+				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
 			}
 			n.Conn.conn.SendMsg(buildNotifyMsg(n.Conn.fileName, Status_Ok))
@@ -261,9 +259,8 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 	case <-timerHead.C:
 		return fmt.Errorf("Timeout waiting for HeadMsg notification")
 	}
-
+	readBuf := make([]byte, configs.TCP_SendBuffer)
 	for !c.conn.IsClose() {
-		readBuf := bytesPool.Get().([]byte)
 		n, err := file.Read(readBuf)
 		if err != nil && err != io.EOF {
 			return err
