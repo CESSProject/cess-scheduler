@@ -29,5 +29,5 @@ func init() {
 		os.Exit(1)
 	}
 	// Allocate all cores to the program
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
 }

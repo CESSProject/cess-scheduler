@@ -36,7 +36,7 @@ func TestNewCache(t *testing.T) {
 		assert.NoError(t, err)
 	}
 	//put
-	err = cache.Put([]byte("key1"), []byte("value1"))
+	err = cache.Put([]byte("key1"), nil)
 	assert.NoError(t, err)
 
 	//has

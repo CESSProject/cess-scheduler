@@ -19,7 +19,7 @@ package node
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net"
 	"sync"
@@ -39,104 +39,118 @@ type TcpCon struct {
 }
 
 var (
-	MAGIC_BYTES = []byte("cess")
-	EmErr       = fmt.Errorf("dont have msg")
+	HEAD_FILE   = []byte("c100")
+	HEAD_FILLER = []byte("c101")
 )
 
 func NewTcp(conn *net.TCPConn) *TcpCon {
 	return &TcpCon{
 		conn:     conn,
-		recv:     make(chan *Message, configs.TCP_Message_Buffers),
-		send:     make(chan *Message, configs.TCP_Message_Buffers),
-		onceStop: &sync.Once{},
+		recv:     make(chan *Message, configs.TCP_Message_Read_Buffers),
+		send:     make(chan *Message, configs.TCP_Message_Send_Buffers),
+		onceStop: new(sync.Once),
 		stop:     make(chan struct{}),
 	}
 }
 
-func (t *TcpCon) HandlerLoop() {
-	go t.readMsg()
+func (t *TcpCon) HandlerLoop(flag bool) {
+	go t.readMsg(flag)
 	go t.sendMsg()
 }
 
 func (t *TcpCon) sendMsg() {
-	var (
-		err error
-		buf = make([]byte, configs.TCP_Write_Buf)
-	)
 	defer func() {
-		_ = t.Close()
+		recover()
+		t.Close()
+		time.Sleep(time.Second)
+		close(t.send)
 	}()
-
+	sendBuf := make([]byte, configs.TCP_ReadBuffer)
 	for !t.IsClose() {
 		select {
 		case m := <-t.send:
-			data := m.String()
-			m.GC()
 
-			dataLen := len(data)
-
-			copy(buf[:4], MAGIC_BYTES)
-			binary.BigEndian.PutUint32(buf[4:8], uint32(dataLen))
-			copy(buf[8:], []byte(data))
-
-			_, err = t.conn.Write(buf[:8+dataLen])
+			data, err := json.Marshal(m)
 			if err != nil {
 				return
 			}
+
+			// := make([]byte, len(HEAD_FILLER)+4+len(data))
+			copy(sendBuf[:len(HEAD_FILLER)], HEAD_FILLER)
+			binary.BigEndian.PutUint32(sendBuf[len(HEAD_FILLER):len(HEAD_FILLER)+4], uint32(len(data)))
+			copy(sendBuf[len(HEAD_FILLER)+4:], data)
+
+			_, err = t.conn.Write(sendBuf[:len(HEAD_FILLER)+4+len(data)])
+			if err != nil {
+				return
+			}
+		default:
+			time.Sleep(configs.TCP_Message_Interval)
 		}
 	}
 }
 
-func (t *TcpCon) readMsg() {
+func (t *TcpCon) readMsg(flag bool) {
 	var (
-		err    error
-		header = make([]byte, 4)
-		buf    = make([]byte, configs.TCP_Read_Buf)
+		err     error
+		n       int
+		header  = make([]byte, 4)
+		readBuf = make([]byte, configs.TCP_ReadBuffer)
 	)
 	defer func() {
-		_ = t.Close()
+		recover()
+		t.Close()
+		close(t.recv)
+		readBuf = nil
 	}()
 
-	for {
-		// read until we get 4 bytes for the magic
-		_, err = io.ReadFull(t.conn, header)
-		if err != nil {
-			if err != io.EOF {
-				err = fmt.Errorf("initial read error: %v \n", err)
+	for !t.IsClose() {
+		if !flag {
+			// read until we get 4 bytes for the magic
+			_, err = io.ReadAtLeast(t.conn, header, 4)
+			if err != nil {
+				if err != io.EOF {
+					return
+				}
+				continue
+			}
+
+			if !bytes.Equal(header, HEAD_FILLER) && !bytes.Equal(header, HEAD_FILE) {
 				return
 			}
-			time.Sleep(time.Millisecond)
-			continue
 		}
-
-		if !bytes.Equal(header, MAGIC_BYTES) {
-			err = fmt.Errorf("initial bytes are not magic: %s", header)
-			return
-		}
+		flag = false
 
 		// read until we get 4 bytes for the header
-		_, err = io.ReadFull(t.conn, header)
+		_, err = io.ReadAtLeast(t.conn, header, 4)
 		if err != nil {
-			err = fmt.Errorf("initial read error: %v \n", err)
 			return
 		}
 
+		m := &Message{}
 		// data size
 		msgSize := binary.BigEndian.Uint32(header)
 
-		var n int
-		var m *Message
-
-		n, err = io.ReadFull(t.conn, buf[:msgSize])
-		if err != nil {
-			err = fmt.Errorf("initial read error: %v \n", err)
-			return
-		}
-
-		m, err = Decode(buf[:n])
-		if err != nil {
-			err = fmt.Errorf("read message error: %v \n", err)
-			return
+		// read data
+		if msgSize > configs.TCP_ReadBuffer {
+			var readBufMax = make([]byte, msgSize)
+			n, err = io.ReadFull(t.conn, readBufMax)
+			if err != nil {
+				return
+			}
+			err = json.Unmarshal(readBufMax[:n], &m)
+			if err != nil {
+				return
+			}
+		} else {
+			n, err = io.ReadFull(t.conn, readBuf[:msgSize])
+			if err != nil {
+				return
+			}
+			err = json.Unmarshal(readBuf[:n], &m)
+			if err != nil {
+				return
+			}
 		}
 
 		t.recv <- m
@@ -144,7 +158,7 @@ func (t *TcpCon) readMsg() {
 }
 
 func (t *TcpCon) GetMsg() (*Message, bool) {
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(configs.TCP_Time_WaitNotification)
 	defer timer.Stop()
 	select {
 	case m, ok := <-t.recv:
@@ -164,8 +178,7 @@ func (t *TcpCon) GetRemoteAddr() string {
 
 func (t *TcpCon) Close() error {
 	t.onceStop.Do(func() {
-		//fmt.Println("close a connect, addr: ", t.conn.RemoteAddr())
-		_ = t.conn.Close()
+		t.conn.Close()
 		close(t.stop)
 	})
 	return nil

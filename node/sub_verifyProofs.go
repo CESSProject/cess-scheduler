@@ -18,7 +18,6 @@ package node
 
 import (
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -123,7 +122,6 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 				verifyResults = make([]chain.ProofResult, 0)
 			}
 			time.Sleep(time.Second * configs.BlockInterval)
-			runtime.GC()
 		}
 		time.Sleep(configs.BlockInterval)
 	}

@@ -60,9 +60,6 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Initialization lock
-	node.InitLock()
-
 	//Build Data Directory
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
 	if err != nil {
@@ -133,9 +130,9 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 			break
 		}
 		log.Println("In sync block...")
-		time.Sleep(time.Second * configs.BlockInterval)
+		time.Sleep(configs.BlockInterval)
 	}
-	log.Println("Sync complete")
+	log.Println("Complete synchronization of primary network block data")
 
 	// whether to register
 	schelist, err := client.GetAllSchedulerInfo()
@@ -182,7 +179,7 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 		return "", "", "", "", "", err
 	}
 	baseDir := filepath.Join(cfg.GetDataDir(), ctlAccount, configs.BaseDir)
-	log.Println(baseDir)
+
 	_, err = os.Stat(baseDir)
 	if err != nil {
 		err = os.MkdirAll(baseDir, os.ModeDir)
@@ -224,6 +221,7 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
 		return "", "", "", "", "", err
 	}
+	log.Println(baseDir)
 	return logDir, cacheDir, fillerDir, fileDir, tagDir, nil
 }
 

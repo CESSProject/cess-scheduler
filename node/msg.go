@@ -16,12 +16,8 @@
 
 package node
 
-import (
-	"encoding/json"
-	"sync"
-)
-
 type MsgType byte
+type Status byte
 
 const (
 	MsgInvalid MsgType = iota
@@ -32,12 +28,13 @@ const (
 	MsgClose
 	MsgRecvHead
 	MsgRecvFile
-	MsgFillerHead
-	MsgFiller
-	MsgFillerEnd
 )
 
-type Status byte
+const (
+	FileType_Invalid uint8 = iota
+	FileType_file
+	FileType_filler
+)
 
 const (
 	Status_Ok Status = iota
@@ -45,45 +42,39 @@ const (
 )
 
 type Message struct {
-	MsgType  MsgType `json:"msg_type"`
-	FileName string  `json:"file_name"`
-	FileHash string  `json:"file_hash"`
-	FileSize uint64  `json:"file_size"`
-	LastMark bool    `json:"last_mark"`
-	Pubkey   []byte  `json:"pub_key"`
-	SignMsg  []byte  `json:"sign_msg"`
+	Pubkey   []byte  `json:"pubkey"`
+	SignMsg  []byte  `json:"signmsg"`
 	Sign     []byte  `json:"sign"`
 	Bytes    []byte  `json:"bytes"`
+	FileName string  `json:"filename"`
+	FileHash string  `json:"filehash"`
+	FileSize uint64  `json:"filesize"`
+	MsgType  MsgType `json:"msgtype"`
+	LastMark bool    `json:"lastmark"`
+	FileType uint8   `json:"filetype"`
 }
 
 type Notify struct {
 	Status byte
 }
 
-var (
-	msgPool = sync.Pool{
-		New: func() any {
-			return &Message{}
-		},
-	}
-
-	BytesPool = sync.Pool{
-		New: func() any {
-			return make([]byte, 40*1024)
-		},
-	}
-)
-
-func (m *Message) GC() {
-	if m.MsgType == MsgFile {
-		BytesPool.Put(m.Bytes[:cap(m.Bytes)])
-	}
-	m.reset()
-	msgPool.Put(m)
+func buildNotifyMsg(fileName string, status Status) *Message {
+	m := &Message{}
+	m.MsgType = MsgNotify
+	m.FileName = fileName
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = []byte{byte(status)}
+	return m
 }
 
-func (m *Message) reset() {
-	m.MsgType = MsgInvalid
+func buildNotifyFillerMsg(fileName string, status Status) *Message {
+	m := &Message{}
+	m.MsgType = MsgNotify
 	m.FileName = ""
 	m.FileHash = ""
 	m.FileSize = 0
@@ -91,96 +82,68 @@ func (m *Message) reset() {
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
-	m.Bytes = nil
-}
-
-func (m *Message) String() string {
-	bytes, _ := json.Marshal(m)
-	return string(bytes)
-}
-
-// Decode will convert from bytes
-func Decode(b []byte) (m *Message, err error) {
-	m = msgPool.Get().(*Message)
-	err = json.Unmarshal(b, &m)
-	return
-}
-
-func NewNotifyMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
-	m.MsgType = MsgNotify
-	m.Bytes = []byte{byte(status)}
-	m.FileName = fileName
-	m.FileHash = ""
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
-	return m
-}
-
-func NewNotifyFillerMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
-	m.MsgType = MsgNotify
 	m.Bytes = []byte{byte(status)}
 	m.Bytes = append(m.Bytes, []byte(fileName)...)
-	m.FileHash = ""
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
 	return m
 }
 
-func NewHeadMsg(fileName string, fid string, lastmark bool, pkey, signmsg, sign []byte) *Message {
-	m := msgPool.Get().(*Message)
+func buildHeadMsg(filename, fid string, filetype uint8, lastmark bool, pkey, signmsg, sign []byte) *Message {
+	m := &Message{}
 	m.MsgType = MsgHead
-	m.FileName = fileName
+	m.FileType = filetype
+	m.FileName = filename
 	m.FileHash = fid
+	m.FileSize = 0
 	m.LastMark = lastmark
 	m.Pubkey = pkey
 	m.SignMsg = signmsg
 	m.Sign = sign
+	m.Bytes = nil
 	return m
 }
 
-func NewFileMsg(fileName string, buf []byte) *Message {
-	m := msgPool.Get().(*Message)
+func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
+	m := &Message{}
 	m.MsgType = MsgFile
+	m.FileType = filetype
 	m.FileName = fileName
-	m.Bytes = buf
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = make([]byte, len(buf))
+	copy(m.Bytes, buf)
 	return m
 }
 
-func NewFillerMsg(fileName string, buf []byte) *Message {
-	m := msgPool.Get().(*Message)
-	m.MsgType = MsgFiller
-	m.FileName = fileName
-	m.FileHash = fileName
-	m.Bytes = buf
-	return m
-}
-
-func NewEndMsg(fileName string, size uint64, lastmark bool) *Message {
-	m := msgPool.Get().(*Message)
+func buildEndMsg(filetype uint8, fileName, fileHash string, size uint64, lastmark bool) *Message {
+	m := &Message{}
 	m.MsgType = MsgEnd
+	m.FileType = filetype
 	m.FileName = fileName
+	m.FileHash = fileHash
 	m.FileSize = size
 	m.LastMark = lastmark
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = nil
 	return m
 }
 
-func NewFillerEndMsg(fileName string, size uint64) *Message {
-	m := msgPool.Get().(*Message)
-	m.MsgType = MsgFillerEnd
-	m.FileName = fileName
-	m.FileHash = fileName
-	m.FileSize = size
-	return m
-}
-
-func NewCloseMsg(fileName string, status Status) *Message {
-	m := msgPool.Get().(*Message)
+func buildCloseMsg(status Status) *Message {
+	m := &Message{}
 	m.MsgType = MsgClose
+	m.FileType = 0
+	m.FileName = ""
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
 	m.Bytes = []byte{byte(status)}
-	m.FileName = fileName
 	return m
 }

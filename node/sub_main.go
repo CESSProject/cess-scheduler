@@ -25,6 +25,7 @@ func (node *Node) CoroutineMgr() {
 		channel_3 = make(chan bool, 1)
 		channel_4 = make(chan bool, 1)
 		channel_5 = make(chan bool, 1)
+		channel_6 = make(chan bool, 1)
 	)
 
 	go node.task_MinerCache(channel_1)
@@ -32,6 +33,7 @@ func (node *Node) CoroutineMgr() {
 	go node.task_SubmitFillerMeta(channel_3)
 	go node.task_GenerateFiller(channel_4)
 	go node.task_Common(channel_5)
+	go node.task_Space(channel_6)
 
 	for {
 		select {
@@ -45,6 +47,8 @@ func (node *Node) CoroutineMgr() {
 			go node.task_GenerateFiller(channel_4)
 		case <-channel_5:
 			go node.task_Common(channel_5)
+		case <-channel_6:
+			go node.task_Space(channel_6)
 		}
 	}
 }

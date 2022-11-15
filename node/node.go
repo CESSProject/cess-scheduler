@@ -17,15 +17,15 @@
 package node
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
-	"sync"
 	"time"
 
-	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
@@ -41,9 +41,6 @@ type Node struct {
 	Chain     chain.Chainer
 	Logs      logger.Logger
 	Cache     db.Cacher
-	Conn      *ConMgr
-	lock      *sync.Mutex
-	conns     uint8
 	FileDir   string
 	TagDir    string
 	FillerDir string
@@ -55,6 +52,10 @@ func New() *Node {
 }
 
 func (n *Node) Run() {
+	var (
+		remote string
+	)
+
 	// Start the subtask manager
 	go n.CoroutineMgr()
 
@@ -72,7 +73,13 @@ func (n *Node) Run() {
 		os.Exit(1)
 	}
 
+	time.Sleep(time.Second)
+	log.Println("Service started successfully")
+
 	for {
+		// Connection interval
+		time.Sleep(time.Second)
+
 		// Accepts the next connection
 		acceptTCP, err := listener.AcceptTCP()
 		if err != nil {
@@ -80,55 +87,37 @@ func (n *Node) Run() {
 				log.Println("[err] The port is closed and the service exits.")
 				os.Exit(1)
 			}
-			n.Logs.Common("error", fmt.Errorf("accept tcp: %v\n", err))
+			n.Logs.Common("error", fmt.Errorf("Accept tcp err: %v", err))
 			continue
 		}
 
 		// Record client address
-		remote := acceptTCP.RemoteAddr().String()
-		n.Logs.Common("info", fmt.Errorf("received a conn: %v\n", remote))
+		remote = acceptTCP.RemoteAddr().String()
+		n.Logs.Common("info", fmt.Errorf("Recv a conn: %v", remote))
 
-		// Set server maximum connection control
+		// Chain status
 		if !n.Chain.GetChainStatus() {
 			acceptTCP.Close()
-			n.Logs.Common("info", fmt.Errorf("close conn: %v\n", remote))
+			n.Logs.Common("info", fmt.Errorf("Chain state not available: %v", remote))
+			continue
+		}
+
+		if !ConnectionFiltering(acceptTCP) {
+			acceptTCP.Close()
+			n.Logs.Common("info", fmt.Errorf("Close the conn not for a file req: %v ", remote))
 			continue
 		}
 
 		// Start the processing service of the new connection
-		go n.NewServer(NewTcp(acceptTCP)).Start()
-
-		// Connection interval
-		time.Sleep(configs.TCP_Connection_Interval)
+		go NewServer(NewTcp(acceptTCP), n.FileDir).Start(n)
 	}
 }
 
-// InitLock is used to initialize lock
-func (n *Node) InitLock() {
-	n.lock = new(sync.Mutex)
-}
-
-// AddConns is used to add a connection number record
-func (n *Node) AddConns() {
-	n.lock.Lock()
-	n.conns += 1
-	n.lock.Unlock()
-}
-
-// ClearConns is used to clear a connection number record
-func (n *Node) ClearConns() {
-	if n.conns > 0 {
-		n.lock.Lock()
-		n.conns -= 1
-		n.lock.Unlock()
+func ConnectionFiltering(conn *net.TCPConn) bool {
+	buf := make([]byte, len(HEAD_FILE))
+	_, err := io.ReadAtLeast(conn, buf, len(HEAD_FILE))
+	if err != nil {
+		return false
 	}
-}
-
-// ClearConns is used to clear a connection number record
-func (n *Node) GetConns() uint8 {
-	n.lock.Lock()
-	num := n.conns
-	n.lock.Unlock()
-	return num
-
+	return bytes.Equal(buf, HEAD_FILE)
 }
