@@ -17,15 +17,15 @@
 package node
 
 type Server interface {
-	Start()
+	Start(node *Node)
 }
 
 type Client interface {
-	SendFile(fid string, filetype uint8, pkey, signmsg, sign []byte) error
+	SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error
 }
 
 type NetConn interface {
-	HandlerLoop()
+	HandlerLoop(flag bool)
 	GetMsg() (*Message, bool)
 	SendMsg(m *Message)
 	GetRemoteAddr() string

@@ -60,9 +60,6 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Initialization lock
-	node.InitLock()
-
 	//Build Data Directory
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
 	if err != nil {

@@ -38,81 +38,61 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
-func (n *Node) NewServer(conn NetConn) Server {
-	node := New()
-	node.Conn = &ConMgr{
+func NewServer(conn NetConn, dir string) Server {
+	return &ConMgr{
 		conn:       conn,
-		dir:        n.FileDir,
+		dir:        dir,
 		waitNotify: make(chan bool, 1),
 	}
-	node.Cache = n.Cache
-	node.Chain = n.Chain
-	node.Confile = n.Confile
-	node.Logs = n.Logs
-	node.lock = n.lock
-	node.conns = n.conns
-	node.FileDir = n.FileDir
-	node.FillerDir = n.FillerDir
-	node.TagDir = n.TagDir
-	return node
 }
 
-func (n *Node) NewClient(conn NetConn, dir string, files []string) Client {
-	node := New()
-	node.Conn = &ConMgr{
+func NewClient(conn NetConn, dir string, files []string) Client {
+	return &ConMgr{
 		conn:       conn,
 		dir:        dir,
 		sendFiles:  files,
 		waitNotify: make(chan bool, 1),
 	}
-	node.Cache = n.Cache
-	node.Chain = n.Chain
-	node.Confile = n.Confile
-	node.Logs = n.Logs
-	node.lock = n.lock
-	node.conns = n.conns
-	node.FileDir = n.FileDir
-	node.FillerDir = n.FillerDir
-	node.TagDir = n.TagDir
-	return node
 }
 
-func (n *Node) Start() {
-	n.Conn.conn.HandlerLoop()
-
-	err := n.handler()
+func (c *ConMgr) Start(node *Node) {
+	c.conn.HandlerLoop(true)
+	err := c.handler(node)
 	if err != nil {
-		n.Logs.Common("error", err)
+		node.Logs.Common("error", err)
 	}
-
-	time.Sleep(time.Second)
-	n.Logs.Common("info", fmt.Errorf("Close a conn: %v", n.Conn.conn.GetRemoteAddr()))
-	n = nil
+	node.Logs.Common("info", fmt.Errorf("Close a conn: %v", c.conn.GetRemoteAddr()))
 }
 
-func (n *Node) handler() error {
+func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
+	c.conn.HandlerLoop(false)
+	go func() {
+		_ = c.handler(node)
+	}()
+	err := c.sendFile(fid, filetype, pkey, signmsg, sign)
+	return err
+}
+
+func (c *ConMgr) handler(node *Node) error {
 	var (
 		err error
 		fs  *os.File
 	)
 
-	n.AddConns()
-
 	defer func() {
 		err := recover()
 		if err != nil {
-			n.Logs.Pnc("error", utils.RecoverError(err))
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
-		n.ClearConns()
-		n.Conn.conn.Close()
-		close(n.Conn.waitNotify)
+		c.conn.Close()
+		close(c.waitNotify)
 		if fs != nil {
 			fs.Close()
 		}
 	}()
 
-	for !n.Conn.conn.IsClose() {
-		m, ok := n.Conn.conn.GetMsg()
+	for !c.conn.IsClose() {
+		m, ok := c.conn.GetMsg()
 		if !ok {
 			return errors.New("Getmsg failed")
 		}
@@ -126,58 +106,58 @@ func (n *Node) handler() error {
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
-				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return errors.New("Signature error")
 			}
 			//Judge whether the file has been uploaded
-			fileState, err := GetFileState(n.Chain, m.FileHash)
+			fileState, err := GetFileState(node.Chain, m.FileHash)
 			if err != nil {
-				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return errors.New("Get file state error")
 			}
 
 			// file state
 			if fileState == chain.FILE_STATE_ACTIVE {
-				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return errors.New("File uploaded")
 			}
 
-			n.Conn.fileName = m.FileName
+			c.fileName = m.FileName
 
 			// create file
-			fs, err = os.OpenFile(filepath.Join(n.Conn.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+			fs, err = os.OpenFile(filepath.Join(c.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return err
 			}
 			// notify suc
-			n.Conn.conn.SendMsg(buildNotifyMsg(n.Conn.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
 
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
 			if fs == nil {
-				n.Conn.conn.SendMsg(buildCloseMsg(Status_Err))
+				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File not open")
 			}
 			_, err = fs.Write(m.Bytes)
 			if err != nil {
-				n.Conn.conn.SendMsg(buildCloseMsg(Status_Err))
+				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File write failed")
 			}
 
 		case MsgEnd:
 			info, err := fs.Stat()
 			if err != nil {
-				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return errors.New("Invalid file")
 			}
 
 			if info.Size() != int64(m.FileSize) {
-				n.Conn.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
 				return fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
 			}
-			n.Conn.conn.SendMsg(buildNotifyMsg(n.Conn.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
 
 			// close fs
 			fs.Close()
@@ -185,13 +165,13 @@ func (n *Node) handler() error {
 
 			// Last file Mark
 			if m.LastMark {
-				allChunksPath, _ := filepath.Glob(n.Conn.dir + "/" + m.FileHash + "*")
+				allChunksPath, _ := filepath.Glob(c.dir + "/" + m.FileHash + "*")
 				filesize := binary.BigEndian.Uint64(m.SignMsg)
 				// backup file to miner
-				go n.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
+				go node.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
 			}
 		case MsgNotify:
-			n.Conn.waitNotify <- m.Bytes[0] == byte(Status_Ok)
+			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 			if !(m.Bytes[0] == byte(Status_Ok)) {
 				return errors.New("Notification message failed")
 			}
@@ -203,16 +183,6 @@ func (n *Node) handler() error {
 			return errors.New("Invalid msgType")
 		}
 	}
-	return err
-}
-
-func (n *Node) SendFile(fid string, filetype uint8, pkey, signmsg, sign []byte) error {
-	var err error
-	n.Conn.conn.HandlerLoop()
-	go func() {
-		_ = n.handler()
-	}()
-	err = n.Conn.sendFile(fid, filetype, pkey, signmsg, sign)
 	return err
 }
 
@@ -259,6 +229,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 	case <-timerHead.C:
 		return fmt.Errorf("Timeout waiting for HeadMsg notification")
 	}
+
 	readBuf := make([]byte, configs.TCP_SendBuffer)
 	for !c.conn.IsClose() {
 		n, err := file.Read(readBuf)
@@ -268,10 +239,11 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		if n == 0 {
 			break
 		}
+
 		c.conn.SendMsg(buildFileMsg("", filetype, readBuf[:n]))
 	}
 
-	c.conn.SendMsg(buildEndMsg(c.fileName, uint64(fileInfo.Size()), lastmark))
+	c.conn.SendMsg(buildEndMsg(filetype, fileInfo.Name(), fid, uint64(fileInfo.Size()), lastmark))
 
 	var t time.Duration
 	waitTime := fileInfo.Size() / configs.TCP_Transmission_Slowest
@@ -290,6 +262,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 	case <-timerFile.C:
 		return fmt.Errorf("Timeout waiting for EndMsg notification")
 	}
+
 	return nil
 }
 
@@ -465,8 +438,8 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, tcpAddr.String()))
 			continue
 		}
-		srv := n.NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
-		err = srv.SendFile(fid, FileType_file, n.Chain.GetPublicKey(), []byte(msg), sign[:])
+		srv := NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
+		err = srv.SendFile(n, fid, FileType_file, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue

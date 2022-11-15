@@ -125,8 +125,8 @@ func (n *Node) storagefiller(ch chan bool) {
 
 		tRecord = time.Now()
 		n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [C%v]", filler.Hash, minerinfo.Peerid))
-		srv := n.NewClient(NewTcp(tcpConn), "", []string{filler.TagPath, filler.FillerPath})
-		err = srv.SendFile(filler.Hash, FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
+		srv := NewClient(NewTcp(tcpConn), "", []string{filler.TagPath, filler.FillerPath})
+		err = srv.SendFile(n, filler.Hash, FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
 			n.Logs.Spc("err", fmt.Errorf("[C%v] %v", minerinfo.Peerid, err))
 			continue

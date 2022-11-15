@@ -20,10 +20,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 
@@ -37,13 +35,12 @@ type TcpCon struct {
 	send chan *Message
 
 	onceStop *sync.Once
-	lock     *sync.RWMutex
-	stop     *bool
+	stop     chan struct{}
 }
 
 var (
-	MAGIC_BYTES = []byte("cess")
-	EmErr       = fmt.Errorf("dont have msg")
+	HEAD_FILE   = []byte("c100")
+	HEAD_FILLER = []byte("c101")
 )
 
 func NewTcp(conn *net.TCPConn) *TcpCon {
@@ -51,14 +48,13 @@ func NewTcp(conn *net.TCPConn) *TcpCon {
 		conn:     conn,
 		recv:     make(chan *Message, configs.TCP_Message_Read_Buffers),
 		send:     make(chan *Message, configs.TCP_Message_Send_Buffers),
-		onceStop: &sync.Once{},
-		lock:     new(sync.RWMutex),
-		stop:     new(bool),
+		onceStop: new(sync.Once),
+		stop:     make(chan struct{}),
 	}
 }
 
-func (t *TcpCon) HandlerLoop() {
-	go t.readMsg()
+func (t *TcpCon) HandlerLoop(flag bool) {
+	go t.readMsg(flag)
 	go t.sendMsg()
 }
 
@@ -69,7 +65,7 @@ func (t *TcpCon) sendMsg() {
 		time.Sleep(time.Second)
 		close(t.send)
 	}()
-
+	sendBuf := make([]byte, configs.TCP_ReadBuffer)
 	for !t.IsClose() {
 		select {
 		case m := <-t.send:
@@ -79,12 +75,12 @@ func (t *TcpCon) sendMsg() {
 				return
 			}
 
-			head := make([]byte, len(MAGIC_BYTES)+4+len(data))
-			copy(head[:len(MAGIC_BYTES)], MAGIC_BYTES)
-			binary.BigEndian.PutUint32(head[len(MAGIC_BYTES):len(MAGIC_BYTES)+4], uint32(len(data)))
-			copy(head[len(MAGIC_BYTES)+4:], data)
+			// := make([]byte, len(HEAD_FILLER)+4+len(data))
+			copy(sendBuf[:len(HEAD_FILLER)], HEAD_FILLER)
+			binary.BigEndian.PutUint32(sendBuf[len(HEAD_FILLER):len(HEAD_FILLER)+4], uint32(len(data)))
+			copy(sendBuf[len(HEAD_FILLER)+4:], data)
 
-			_, err = t.conn.Write(head)
+			_, err = t.conn.Write(sendBuf[:len(HEAD_FILLER)+4+len(data)])
 			if err != nil {
 				return
 			}
@@ -94,11 +90,11 @@ func (t *TcpCon) sendMsg() {
 	}
 }
 
-func (t *TcpCon) readMsg() {
+func (t *TcpCon) readMsg(flag bool) {
 	var (
 		err     error
 		n       int
-		header  = make([]byte, len(MAGIC_BYTES))
+		header  = make([]byte, 4)
 		readBuf = make([]byte, configs.TCP_ReadBuffer)
 	)
 	defer func() {
@@ -109,40 +105,52 @@ func (t *TcpCon) readMsg() {
 	}()
 
 	for !t.IsClose() {
-		// read until we get 4 bytes for the magic
-		_, err = io.ReadAtLeast(t.conn, header, len(MAGIC_BYTES))
-		if err != nil {
-			if err != io.EOF {
-				runtime.Goexit()
+		if !flag {
+			// read until we get 4 bytes for the magic
+			_, err = io.ReadAtLeast(t.conn, header, 4)
+			if err != nil {
+				if err != io.EOF {
+					return
+				}
+				continue
 			}
-			continue
-		}
 
-		if !bytes.Equal(header, MAGIC_BYTES) {
-			runtime.Goexit()
+			if !bytes.Equal(header, HEAD_FILLER) && !bytes.Equal(header, HEAD_FILE) {
+				return
+			}
 		}
+		flag = false
 
 		// read until we get 4 bytes for the header
-		_, err = io.ReadAtLeast(t.conn, header, len(MAGIC_BYTES))
+		_, err = io.ReadAtLeast(t.conn, header, 4)
 		if err != nil {
-			runtime.Goexit()
-		}
-
-		// data size
-		msgSize := binary.BigEndian.Uint32(header)
-		// if msgSize > configs.TCP_ReadBuffer {
-		// 	readBuf = append(readBuf, make([]byte, int(msgSize-configs.TCP_ReadBuffer))...)
-		// }
-
-		n, err = io.ReadFull(t.conn, readBuf[:msgSize])
-		if err != nil {
-			runtime.Goexit()
+			return
 		}
 
 		m := &Message{}
-		err = json.Unmarshal(readBuf[:n], &m)
-		if err != nil {
-			runtime.Goexit()
+		// data size
+		msgSize := binary.BigEndian.Uint32(header)
+
+		// read data
+		if msgSize > configs.TCP_ReadBuffer {
+			var readBufMax = make([]byte, msgSize)
+			n, err = io.ReadFull(t.conn, readBufMax)
+			if err != nil {
+				return
+			}
+			err = json.Unmarshal(readBufMax[:n], &m)
+			if err != nil {
+				return
+			}
+		} else {
+			n, err = io.ReadFull(t.conn, readBuf[:msgSize])
+			if err != nil {
+				return
+			}
+			err = json.Unmarshal(readBuf[:n], &m)
+			if err != nil {
+				return
+			}
 		}
 
 		t.recv <- m
@@ -171,19 +179,18 @@ func (t *TcpCon) GetRemoteAddr() string {
 func (t *TcpCon) Close() error {
 	t.onceStop.Do(func() {
 		t.conn.Close()
-		t.lock.Lock()
-		*t.stop = true
-		t.lock.Unlock()
+		close(t.stop)
 	})
 	return nil
 }
 
 func (t *TcpCon) IsClose() bool {
-	var ok bool
-	t.lock.RLock()
-	ok = *t.stop
-	t.lock.RUnlock()
-	return ok
+	select {
+	case <-t.stop:
+		return true
+	default:
+		return false
+	}
 }
 
 var _ = NetConn(&TcpCon{})

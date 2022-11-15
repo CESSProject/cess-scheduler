@@ -113,16 +113,17 @@ func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
-	m.Bytes = buf
+	m.Bytes = make([]byte, len(buf))
+	copy(m.Bytes, buf)
 	return m
 }
 
-func buildEndMsg(fileName string, size uint64, lastmark bool) *Message {
+func buildEndMsg(filetype uint8, fileName, fileHash string, size uint64, lastmark bool) *Message {
 	m := &Message{}
 	m.MsgType = MsgEnd
-	m.FileType = 0
+	m.FileType = filetype
 	m.FileName = fileName
-	m.FileHash = ""
+	m.FileHash = fileHash
 	m.FileSize = size
 	m.LastMark = lastmark
 	m.Pubkey = nil
