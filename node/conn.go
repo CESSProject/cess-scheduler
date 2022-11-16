@@ -16,6 +16,8 @@
 
 package node
 
+import "sync"
+
 type Server interface {
 	Start(node *Node)
 }
@@ -25,7 +27,7 @@ type Client interface {
 }
 
 type NetConn interface {
-	HandlerLoop(flag bool)
+	HandlerLoop(*sync.WaitGroup, bool)
 	GetMsg() (*Message, bool)
 	SendMsg(m *Message)
 	GetRemoteAddr() string

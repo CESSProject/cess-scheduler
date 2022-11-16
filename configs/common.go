@@ -64,6 +64,8 @@ const (
 	// Tcp short message waiting time
 	TCP_Time_WaitNotification = time.Duration(time.Second * 10)
 	// Tcp short message waiting time
+	TCP_Time_WaitMsg = time.Duration(time.Minute)
+	// Tcp short message waiting time
 	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
 	// The slowest tcp transfers bytes per second
 	TCP_Transmission_Slowest = SIZE_1KiB * 10

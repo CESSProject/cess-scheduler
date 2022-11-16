@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -56,53 +57,79 @@ func NewClient(conn NetConn, dir string, files []string) Client {
 }
 
 func (c *ConMgr) Start(node *Node) {
-	c.conn.HandlerLoop(true)
+	wg := &sync.WaitGroup{}
+	c.conn.HandlerLoop(wg, true)
 	err := c.handler(node)
 	if err != nil {
 		node.Logs.Common("error", err)
 	}
+	wg.Wait()
 	node.Logs.Common("info", fmt.Errorf("Close a conn: %v", c.conn.GetRemoteAddr()))
 }
 
 func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
-	c.conn.HandlerLoop(false)
+	wg := &sync.WaitGroup{}
+	c.conn.HandlerLoop(wg, false)
 	go func() {
 		_ = c.handler(node)
 	}()
 	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
+	wg.Wait()
 	return err
 }
 
 func (c *ConMgr) handler(node *Node) error {
 	var (
-		err error
-		fs  *os.File
+		err          error
+		fs           *os.File
+		timeOutTimer *time.Timer
 	)
 
 	defer func() {
-		err := recover()
-		if err != nil {
-			node.Logs.Pnc("error", utils.RecoverError(err))
-		}
 		c.conn.Close()
 		close(c.waitNotify)
 		if fs != nil {
 			fs.Close()
 		}
+		if timeOutTimer != nil {
+			timeOutTimer.Stop()
+		}
+		if err := recover(); err != nil {
+			node.Logs.Pnc("error", utils.RecoverError(err))
+		}
 	}()
 
 	for !c.conn.IsClose() {
+		if timeOutTimer != nil {
+			select {
+			case <-timeOutTimer.C:
+				return errors.New("Get msg timeout")
+			default:
+			}
+		}
+
 		m, ok := c.conn.GetMsg()
 		if !ok {
 			return errors.New("Getmsg failed")
 		}
 
 		if m == nil {
+			timeOutTimer = time.NewTimer(configs.TCP_Time_WaitMsg)
 			continue
+		} else {
+			if timeOutTimer != nil {
+				timeOutTimer.Stop()
+			}
+			timeOutTimer = nil
 		}
 
 		switch m.MsgType {
 		case MsgHead:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
@@ -140,13 +167,22 @@ func (c *ConMgr) handler(node *Node) error {
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File not open")
 			}
-			_, err = fs.Write(m.Bytes)
+			_, err = fs.Write(m.Bytes[:m.FileSize])
 			if err != nil {
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File write failed")
 			}
-
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 		case MsgEnd:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			info, err := fs.Stat()
 			if err != nil {
 				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
@@ -171,12 +207,27 @@ func (c *ConMgr) handler(node *Node) error {
 				go node.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
 			}
 		case MsgNotify:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 
 		case MsgClose:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			return errors.New("Close message")
 
 		default:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			return errors.New("Invalid msgType")
 		}
 	}

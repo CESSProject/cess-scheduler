@@ -53,14 +53,16 @@ func NewTcp(conn *net.TCPConn) *TcpCon {
 	}
 }
 
-func (t *TcpCon) HandlerLoop(flag bool) {
-	go t.readMsg(flag)
-	go t.sendMsg()
+func (t *TcpCon) HandlerLoop(wg *sync.WaitGroup, flag bool) {
+	go t.readMsg(wg, flag)
+	go t.sendMsg(wg)
 }
 
-func (t *TcpCon) sendMsg() {
+func (t *TcpCon) sendMsg(wg *sync.WaitGroup) {
 	sendBuf := readBufPool.Get().([]byte)
+	wg.Add(1)
 	defer func() {
+		wg.Done()
 		recover()
 		t.Close()
 		time.Sleep(time.Second)
@@ -100,14 +102,16 @@ func (t *TcpCon) sendMsg() {
 	}
 }
 
-func (t *TcpCon) readMsg(flag bool) {
+func (t *TcpCon) readMsg(wg *sync.WaitGroup, flag bool) {
 	var (
 		err    error
 		n      int
 		header = make([]byte, 4)
 	)
+	wg.Add(1)
 	readBuf := readBufPool.Get().([]byte)
 	defer func() {
+		wg.Done()
 		recover()
 		t.Close()
 		close(t.recv)
@@ -122,6 +126,7 @@ func (t *TcpCon) readMsg(flag bool) {
 				if err != io.EOF {
 					return
 				}
+				time.Sleep(configs.TCP_Message_Interval)
 				continue
 			}
 
@@ -137,7 +142,6 @@ func (t *TcpCon) readMsg(flag bool) {
 			return
 		}
 
-		m := &Message{}
 		// data size
 		msgSize := binary.BigEndian.Uint32(header)
 
@@ -150,6 +154,9 @@ func (t *TcpCon) readMsg(flag bool) {
 		if err != nil {
 			return
 		}
+		m := &Message{}
+		m.Bytes = readBufPool.Get().([]byte)
+
 		err = json.Unmarshal(readBuf[:n], &m)
 		if err != nil {
 			return
