@@ -21,12 +21,14 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
+	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
 
@@ -61,13 +63,19 @@ func (n *Node) task_Space(ch chan bool) {
 
 func (n *Node) storagefiller(ch chan bool) {
 	var (
-		err          error
-		msg          string
-		sharingtime  float64
-		averagespeed float64
-		tRecord      time.Time
-		filler       Filler
-		minerinfo    chain.Cache_MinerInfo
+		err    error
+		msg    string
+		txhash string
+		//sharingtime float64
+		//averagespeed float64
+		//tRecord   time.Time
+		filler1     Filler
+		filler2     Filler
+		filler3     Filler
+		filler4     Filler
+		filler5     Filler
+		minerinfo   chain.Cache_MinerInfo
+		fillerMetas = make([]chain.FillerMetaInfo, 5)
 	)
 
 	defer func() {
@@ -113,34 +121,93 @@ func (n *Node) storagefiller(ch chan bool) {
 			n.Logs.Spc("err", err)
 			continue
 		}
+
 		tcpConn, err := dialTcpServer(minerinfo.Ip)
 		if err != nil {
 			n.Logs.Spc("err", err)
 			continue
 		}
 
-		if filler.Hash == "" {
-			filler = <-C_Filler
+		if filler1.Hash == "" {
+			filler1 = <-C_Filler
+		}
+		if filler2.Hash == "" {
+			filler2 = <-C_Filler
+		}
+		if filler3.Hash == "" {
+			filler3 = <-C_Filler
+		}
+		if filler4.Hash == "" {
+			filler4 = <-C_Filler
+		}
+		if filler5.Hash == "" {
+			filler5 = <-C_Filler
 		}
 
-		tRecord = time.Now()
-		n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [C%v]", filler.Hash, minerinfo.Peerid))
-		srv := NewClient(NewTcp(tcpConn), "", []string{filler.TagPath, filler.FillerPath})
-		err = srv.SendFile(n, filler.Hash, FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
+		//tRecord = time.Now()
+		//n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [C%v]", filler.Hash, minerinfo.Peerid))
+		srv := NewClient(NewTcp(tcpConn), "",
+			[]string{
+				filler1.TagPath, filler1.FillerPath,
+				filler2.TagPath, filler2.FillerPath,
+				filler3.TagPath, filler3.FillerPath,
+				filler4.TagPath, filler4.FillerPath,
+				filler5.TagPath, filler5.FillerPath,
+			})
+		err = srv.SendFile(n, "", FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
 			n.Logs.Spc("err", fmt.Errorf("[C%v] %v", minerinfo.Peerid, err))
 			continue
 		}
-		n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [C%v]", filler.Hash, minerinfo.Peerid))
-		sharingtime = time.Since(tRecord).Seconds()
-		averagespeed = float64(configs.FillerSize) / sharingtime
-		n.Logs.Speed(fmt.Errorf("[%v] Total time: %.2f seconds, average speed: %.2f bytes/s", filler.Hash, sharingtime, averagespeed))
-		fillerMetaEle := combineFillerMeta(filler.Hash, allMinerPubkey[i][:])
-		C_FillerMeta <- fillerMetaEle
-		filler.Hash = ""
-		os.Remove(filler.FillerPath)
-		os.Remove(filler.TagPath)
+
+		//n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [C%v]", filler.Hash, minerinfo.Peerid))
+		//sharingtime = time.Since(tRecord).Seconds()
+		//averagespeed = float64(configs.FillerSize) / sharingtime
+		//n.Logs.Speed(fmt.Errorf("[%v] Total time: %.2f seconds, average speed: %.2f bytes/s", filler.Hash, sharingtime, averagespeed))
+
+		// C_FillerMeta <- combineFillerMeta(filler1.Hash, allMinerPubkey[i][:])
+		// C_FillerMeta <- combineFillerMeta(filler2.Hash, allMinerPubkey[i][:])
+		// C_FillerMeta <- combineFillerMeta(filler3.Hash, allMinerPubkey[i][:])
+		// C_FillerMeta <- combineFillerMeta(filler4.Hash, allMinerPubkey[i][:])
+		// C_FillerMeta <- combineFillerMeta(filler5.Hash, allMinerPubkey[i][:])
+
+		fillerMetas[0] = combineFillerMeta(filler1.Hash, allMinerPubkey[i][:])
+		fillerMetas[1] = combineFillerMeta(filler2.Hash, allMinerPubkey[i][:])
+		fillerMetas[2] = combineFillerMeta(filler3.Hash, allMinerPubkey[i][:])
+		fillerMetas[3] = combineFillerMeta(filler4.Hash, allMinerPubkey[i][:])
+		fillerMetas[4] = combineFillerMeta(filler5.Hash, allMinerPubkey[i][:])
+
+		// submit filler meta
+		txhash = ""
+		for {
+			txhash, err = n.Chain.SubmitFillerMeta(types.NewAccountID(allMinerPubkey[i][:]), fillerMetas)
+			if txhash == "" {
+				n.Logs.FillerMeta("error", err)
+				time.Sleep(configs.BlockInterval)
+				continue
+			}
+			n.Logs.FillerMeta("info", fmt.Errorf("[C%v] %v", minerinfo.Peerid, txhash))
+			break
+		}
+
+		filler1.Hash = ""
+		filler2.Hash = ""
+		filler3.Hash = ""
+		filler4.Hash = ""
+		filler5.Hash = ""
+
+		os.Remove(filler1.FillerPath)
+		os.Remove(filler1.TagPath)
+		os.Remove(filler2.FillerPath)
+		os.Remove(filler2.TagPath)
+		os.Remove(filler3.FillerPath)
+		os.Remove(filler3.TagPath)
+		os.Remove(filler4.FillerPath)
+		os.Remove(filler4.TagPath)
+		os.Remove(filler5.FillerPath)
+		os.Remove(filler5.TagPath)
 		time.Sleep(time.Second)
+		runtime.GC()
 	}
 }
 

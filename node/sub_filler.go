@@ -26,7 +26,6 @@ import (
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
-	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
 
@@ -131,56 +130,6 @@ func (node *Node) task_GenerateFiller(ch chan bool) {
 			node.Logs.GenFiller("info", fmt.Errorf("Produced a filler: %v", fillerHash))
 		}
 		time.Sleep(time.Second)
-	}
-}
-
-// task_SubmitFillerMeta records the fillermeta on the chain
-func (node *Node) task_SubmitFillerMeta(ch chan bool) {
-	defer func() {
-		ch <- true
-		if err := recover(); err != nil {
-			node.Logs.Pnc("error", utils.RecoverError(err))
-		}
-	}()
-	var (
-		err    error
-		count  int
-		txhash string
-	)
-	node.Logs.FillerMeta("info", errors.New(">>> Start task_SubmitFillerMeta <<<"))
-
-	t_active := time.Now()
-	for {
-		time.Sleep(time.Second)
-		for len(C_FillerMeta) > 0 {
-			var tmp = <-C_FillerMeta
-			FillerMap.Add(string(tmp.Acc[:]), tmp)
-		}
-		if time.Since(t_active).Seconds() > configs.SubmitFillermetaInterval {
-			t_active = time.Now()
-			for k, v := range FillerMap.Fillermetas {
-				addr, _ := utils.EncodePublicKeyAsCessAccount([]byte(k))
-				if len(v) > 0 {
-					count = 0
-					if len(v) >= configs.Max_SubFillerMeta {
-						count = configs.Max_SubFillerMeta
-					} else {
-						count = len(v)
-					}
-					txhash, err = node.Chain.SubmitFillerMeta(types.NewAccountID([]byte(k)), v[:count])
-					if txhash == "" {
-						node.Logs.FillerMeta("error", err)
-						time.Sleep(configs.BlockInterval)
-						continue
-					}
-					FillerMap.Delete(k)
-					for i := 0; i < count; i++ {
-						os.Remove(filepath.Join(node.FillerDir, string(v[i].Hash[:])))
-					}
-					node.Logs.FillerMeta("info", fmt.Errorf("[%v] %v", addr, txhash))
-				}
-			}
-		}
 	}
 }
 

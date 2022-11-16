@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"path/filepath"
 	"reflect"
 	"runtime/debug"
 	"strings"
@@ -82,4 +83,11 @@ func IsIPv4(ipAddr string) bool {
 func IsIPv6(ipAddr string) bool {
 	ip := net.ParseIP(ipAddr)
 	return ip != nil && strings.Contains(ipAddr, ":")
+}
+
+// GetFileNameWithoutSuffix is used to obtain the file name, excluding the file suffix
+func GetFileNameWithoutSuffix(fpath string) string {
+	base := filepath.Base(fpath)
+	ext := filepath.Ext(base)
+	return strings.TrimSuffix(base, ext)
 }

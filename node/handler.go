@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"os"
@@ -65,11 +66,14 @@ func (c *ConMgr) Start(node *Node) {
 }
 
 func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
+	log.Println("conn: ", c.conn.GetRemoteAddr())
 	c.conn.HandlerLoop(false)
 	go func() {
 		_ = c.handler(node)
 	}()
 	err := c.sendFile(fid, filetype, pkey, signmsg, sign)
+	log.Println("Close this connection......")
+	time.Sleep(time.Second * 5)
 	return err
 }
 
@@ -172,9 +176,9 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 		case MsgNotify:
 			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
-			if !(m.Bytes[0] == byte(Status_Ok)) {
-				return errors.New("Notification message failed")
-			}
+			// if !(m.Bytes[0] == byte(Status_Ok)) {
+			// 	return errors.New("Notification message failed")
+			// }
 
 		case MsgClose:
 			return errors.New("Close message")
@@ -197,10 +201,15 @@ func (c *ConMgr) sendFile(fid string, filetype uint8, pkey, signmsg, sign []byte
 		if (i + 1) == len(c.sendFiles) {
 			lastmatrk = true
 		}
-		err = c.sendSingleFile(c.sendFiles[i], fid, filetype, lastmatrk, pkey, signmsg, sign)
+		fileHash := utils.GetFileNameWithoutSuffix(c.sendFiles[i])
+
+		log.Println("Will send: ", c.sendFiles[i], " Hash: ", fileHash)
+		err = c.sendSingleFile(c.sendFiles[i], fileHash, filetype, lastmatrk, pkey, signmsg, sign)
 		if err != nil {
+			log.Println("Send failed: ", c.sendFiles[i], "err: ", err)
 			break
 		}
+		log.Println("Send suc: ", c.sendFiles[i])
 	}
 	c.conn.SendMsg(buildCloseMsg(Status_Ok))
 	time.Sleep(time.Second)
@@ -230,7 +239,11 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		return fmt.Errorf("Timeout waiting for HeadMsg notification")
 	}
 
-	readBuf := make([]byte, configs.TCP_SendBuffer)
+	readBuf := sendBufPool.Get().([]byte)
+	defer func() {
+		sendBufPool.Put(readBuf)
+	}()
+
 	for !c.conn.IsClose() {
 		n, err := file.Read(readBuf)
 		if err != nil && err != io.EOF {
@@ -240,7 +253,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 			break
 		}
 
-		c.conn.SendMsg(buildFileMsg("", filetype, readBuf[:n]))
+		c.conn.SendMsg(buildFileMsg(fileInfo.Name(), filetype, readBuf[:n]))
 	}
 
 	c.conn.SendMsg(buildEndMsg(filetype, fileInfo.Name(), fid, uint64(fileInfo.Size()), lastmark))
