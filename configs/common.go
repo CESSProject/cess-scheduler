@@ -71,8 +71,8 @@ const (
 	TCP_Message_Send_Buffers = 10
 	TCP_Message_Read_Buffers = 10
 	//
-	TCP_SendBuffer = SIZE_1KiB * 8
-	TCP_ReadBuffer = SIZE_1KiB * 16
+	TCP_SendBuffer = 8192
+	TCP_ReadBuffer = 12000
 	TCP_TagBuffer  = 2012
 	//
 	Tcp_Dial_Timeout = time.Duration(time.Second * 5)

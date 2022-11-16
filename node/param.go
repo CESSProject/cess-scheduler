@@ -17,10 +17,7 @@
 package node
 
 import (
-	"sync"
-
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 )
 
@@ -35,44 +32,10 @@ type Filler struct {
 	TagPath    string
 }
 
-type Fillermetamap struct {
-	lock        *sync.Mutex
-	Fillermetas map[string][]chain.FillerMetaInfo
-}
-
 var (
-	C_Filler     chan Filler
-	C_FillerMeta chan chain.FillerMetaInfo
-	FillerMap    *Fillermetamap
+	C_Filler chan Filler
 )
 
 func init() {
 	C_Filler = make(chan Filler, configs.Num_Filler_Reserved)
-	C_FillerMeta = make(chan chain.FillerMetaInfo, configs.Max_Filler_Meta)
-
-	FillerMap = new(Fillermetamap)
-	FillerMap.Fillermetas = make(map[string][]chain.FillerMetaInfo)
-	FillerMap.lock = new(sync.Mutex)
-}
-
-func (this *Fillermetamap) Add(pubkey string, data chain.FillerMetaInfo) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	_, ok := this.Fillermetas[pubkey]
-	if !ok {
-		this.Fillermetas[pubkey] = make([]chain.FillerMetaInfo, 0)
-	}
-	this.Fillermetas[pubkey] = append(this.Fillermetas[pubkey], data)
-}
-
-func (this *Fillermetamap) GetNum(pubkey string) int {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	return len(this.Fillermetas[pubkey])
-}
-
-func (this *Fillermetamap) Delete(pubkey string) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	delete(this.Fillermetas, pubkey)
 }

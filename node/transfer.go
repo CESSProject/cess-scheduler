@@ -84,6 +84,7 @@ func (t *TcpCon) sendMsg() {
 				tagBufPool.Put(m.Bytes)
 			case configs.TCP_SendBuffer:
 				sendBufPool.Put(m.Bytes)
+			default:
 			}
 
 			binary.BigEndian.PutUint32(sendBuf[len(HEAD_FILLER):len(HEAD_FILLER)+4], uint32(len(data)))

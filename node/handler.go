@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net"
 	"os"
@@ -66,14 +65,11 @@ func (c *ConMgr) Start(node *Node) {
 }
 
 func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
-	log.Println("conn: ", c.conn.GetRemoteAddr())
 	c.conn.HandlerLoop(false)
 	go func() {
 		_ = c.handler(node)
 	}()
-	err := c.sendFile(fid, filetype, pkey, signmsg, sign)
-	log.Println("Close this connection......")
-	time.Sleep(time.Second * 5)
+	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
 	return err
 }
 
@@ -176,9 +172,6 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 		case MsgNotify:
 			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
-			// if !(m.Bytes[0] == byte(Status_Ok)) {
-			// 	return errors.New("Notification message failed")
-			// }
 
 		case MsgClose:
 			return errors.New("Close message")
@@ -190,30 +183,48 @@ func (c *ConMgr) handler(node *Node) error {
 	return err
 }
 
-func (c *ConMgr) sendFile(fid string, filetype uint8, pkey, signmsg, sign []byte) error {
+func (c *ConMgr) sendFile(n *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
 	defer func() {
 		c.conn.Close()
 	}()
 
-	var err error
-	var lastmatrk bool
+	var (
+		err          error
+		lastmatrk    bool
+		remoteAddr   string
+		sharingtime  float64
+		averagespeed float64
+		tRecord      time.Time
+	)
+
+	remoteAddr = strings.Split(c.conn.GetRemoteAddr(), ":")[0]
+
 	for i := 0; i < len(c.sendFiles); i++ {
 		if (i + 1) == len(c.sendFiles) {
 			lastmatrk = true
 		}
 		fileHash := utils.GetFileNameWithoutSuffix(c.sendFiles[i])
-
-		log.Println("Will send: ", c.sendFiles[i], " Hash: ", fileHash)
+		if !strings.Contains(c.sendFiles[i], ".tag") {
+			tRecord = time.Now()
+			n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", fileHash, remoteAddr))
+		}
 		err = c.sendSingleFile(c.sendFiles[i], fileHash, filetype, lastmatrk, pkey, signmsg, sign)
 		if err != nil {
-			log.Println("Send failed: ", c.sendFiles[i], "err: ", err)
+			if !strings.Contains(c.sendFiles[i], ".tag") {
+				n.Logs.Speed(fmt.Errorf("Transfer Failed filler [%v] to [%v]", fileHash, remoteAddr))
+			}
 			break
 		}
-		log.Println("Send suc: ", c.sendFiles[i])
+		if !strings.Contains(c.sendFiles[i], ".tag") {
+			n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [%v]", fileHash, remoteAddr))
+			sharingtime = time.Since(tRecord).Seconds()
+			averagespeed = float64(configs.FillerSize) / sharingtime
+			n.Logs.Speed(fmt.Errorf("[%v] Total time: %.2f seconds, average speed: %.2f bytes/s", fileHash, sharingtime, averagespeed))
+		}
 	}
 	c.conn.SendMsg(buildCloseMsg(Status_Ok))
 	time.Sleep(time.Second)
-	return nil
+	return err
 }
 
 func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, lastmark bool, pkey, signmsg, sign []byte) error {
@@ -252,8 +263,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		if n == 0 {
 			break
 		}
-
-		c.conn.SendMsg(buildFileMsg(fileInfo.Name(), filetype, readBuf[:n]))
+		c.conn.SendMsg(buildFileMsg(fileInfo.Name(), filetype, n, readBuf[:n]))
 	}
 
 	c.conn.SendMsg(buildEndMsg(filetype, fileInfo.Name(), fid, uint64(fileInfo.Size()), lastmark))

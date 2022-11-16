@@ -17,7 +17,6 @@
 package node
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -49,25 +48,19 @@ const (
 )
 
 var (
-	msgPool = sync.Pool{
-		New: func() any {
-			return &Message{}
-		},
-	}
-
-	sendBufPool = sync.Pool{
+	sendBufPool = &sync.Pool{
 		New: func() any {
 			return make([]byte, configs.TCP_SendBuffer)
 		},
 	}
 
-	readBufPool = sync.Pool{
+	readBufPool = &sync.Pool{
 		New: func() any {
 			return make([]byte, configs.TCP_ReadBuffer)
 		},
 	}
 
-	tagBufPool = sync.Pool{
+	tagBufPool = &sync.Pool{
 		New: func() any {
 			return make([]byte, configs.TCP_TagBuffer)
 		},
@@ -120,18 +113,18 @@ func buildHeadMsg(filename, fid string, filetype uint8, lastmark bool, pkey, sig
 	return m
 }
 
-func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
+func buildFileMsg(fileName string, filetype uint8, buflen int, buf []byte) *Message {
 	m := &Message{}
 	m.MsgType = MsgFile
 	m.FileType = filetype
 	m.FileName = fileName
 	m.FileHash = ""
-	m.FileSize = 0
+	m.FileSize = uint64(buflen)
 	m.LastMark = false
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
-	if strings.Contains(fileName, ".tag") && len(buf) == configs.TCP_TagBuffer {
+	if filetype == FileType_filler && buflen == configs.TCP_TagBuffer {
 		m.Bytes = tagBufPool.Get().([]byte)
 	} else {
 		m.Bytes = sendBufPool.Get().([]byte)
