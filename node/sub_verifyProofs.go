@@ -37,9 +37,9 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 		}
 	}()
 	var (
-		err           error
-		txhash        string
-		poDR2verify   pbc.PoDR2Verify
+		err    error
+		txhash string
+		//poDR2verify   pbc.PoDR2Verify
 		proofs        = make([]chain.Proof, 0)
 		verifyResults = make([]chain.ProofResult, 0)
 	)
@@ -85,22 +85,16 @@ func (node *Node) task_ValidateProof(ch chan bool) {
 					node.Logs.Verify("error", fmt.Errorf("qslice: %v", err))
 				}
 
-				poDR2verify.QSlice = qSlice
-				poDR2verify.MU = make([][]byte, len(proofs[i].Mu))
-				for j := 0; j < len(proofs[i].Mu); j++ {
-					poDR2verify.MU[j] = make([]byte, 0)
-					poDR2verify.MU[j] = append(poDR2verify.MU[j], proofs[i].Mu[j]...)
+				var t pbc.T
+				var mht pbc.MHTInfo
+				mht.HashMi = make([][]byte, len(proofs[i].HashMi))
+				for j := 0; j < len(proofs[i].HashMi); j++ {
+					mht.HashMi[j] = make([]byte, 0)
+					mht.HashMi[j] = append(mht.HashMi[j], proofs[i].HashMi[j]...)
 				}
-				poDR2verify.Sigma = proofs[i].Sigma
-				poDR2verify.T.T0.Name = proofs[i].Name
-				poDR2verify.T.T0.U = make([][]byte, len(proofs[i].U))
-				for j := 0; j < len(proofs[i].U); j++ {
-					poDR2verify.T.T0.U[j] = make([]byte, 0)
-					poDR2verify.T.T0.U[j] = append(poDR2verify.T.T0.U[j], proofs[i].U[j]...)
-				}
-
+				t.U = proofs[i].U
 				// validate proof
-				result := poDR2verify.PoDR2ProofVerify(pbc.Key_SharedG, pbc.Key_Spk, string(pbc.Key_SharedParams))
+				result := pbc.PbcKey.VerifyProof(t, qSlice, proofs[i].Mu, proofs[i].Sigma, mht)
 				resultTemp := chain.ProofResult{}
 				resultTemp.PublicKey = proofs[i].Miner_pubkey
 				resultTemp.FileId = proofs[i].Challenge_info.File_id

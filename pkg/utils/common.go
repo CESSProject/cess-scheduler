@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime/debug"
@@ -90,4 +91,12 @@ func GetFileNameWithoutSuffix(fpath string) string {
 	base := filepath.Base(fpath)
 	ext := filepath.Ext(base)
 	return strings.TrimSuffix(base, ext)
+}
+
+// ClearMemBuf is used to clear membuf
+func ClearMemBuf() {
+	exec.Command("bash", "-c", "sync;sync;sync;sync;sync;sync;").Output()
+	exec.Command("bash", "-c", "echo 1 > /proc/sys/vm/drop_caches").Output()
+	exec.Command("bash", "-c", "echo 2 > /proc/sys/vm/drop_caches").Output()
+	exec.Command("bash", "-c", "echo 3 > /proc/sys/vm/drop_caches").Output()
 }

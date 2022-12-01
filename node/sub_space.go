@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -42,46 +43,44 @@ func (n *Node) task_Space(ch chan bool) {
 		}
 	}()
 
-	concurrency := make(chan bool, configs.MAX_TCP_CONNECTION)
-	defer close(concurrency)
-
-	for i := uint8(0); i < configs.MAX_TCP_CONNECTION; i++ {
-		concurrency <- true
-	}
+	wg := new(sync.WaitGroup)
 
 	for {
-		for n.Chain.GetChainStatus() {
-			select {
-			case <-concurrency:
-				runtime.GC()
-				time.Sleep(time.Second)
-				runtime.GC()
-				go storagefiller(concurrency, n)
-			default:
-				time.Sleep(time.Second)
+		if n.Chain.GetChainStatus() {
+			for i := 0; i < int(configs.MAX_TCP_CONNECTION); i++ {
+				wg.Add(1)
+				go storagefiller(wg, n)
 			}
+			wg.Wait()
+			runtime.GC()
+			time.Sleep(time.Second)
+			runtime.GC()
+			utils.ClearMemBuf()
 		}
+
 		time.Sleep(configs.BlockInterval)
 	}
 }
 
-func storagefiller(ch chan bool, n *Node) {
+func storagefiller(wg *sync.WaitGroup, n *Node) {
 	var (
-		err         error
-		msg         string
-		txhash      string
-		count       uint8
-		minerinfo   chain.Cache_MinerInfo
+		err       error
+		msg       string
+		txhash    string
+		count     uint8
+		minerinfo chain.Cache_MinerInfo
+
 		sendFillers = make([]string, configs.Num_Filler_Reserved*2)
 		fillerMetas = make([]chain.FillerMetaInfo, configs.Num_Filler_Reserved)
 	)
 
 	defer func() {
-		ch <- true
+		wg.Done()
 		if err := recover(); err != nil {
 			n.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
+
 	// get all miner addresses
 	allMinerPubkey, err := n.Chain.GetAllStorageMiner()
 	if err != nil {
@@ -103,7 +102,6 @@ func storagefiller(ch chan bool, n *Node) {
 	count = 0
 	// iterate over all minerss
 	for i := 0; i < len(allMinerPubkey); i++ {
-		time.Sleep(time.Second)
 		if !n.Chain.GetChainStatus() {
 			return
 		}
@@ -121,12 +119,13 @@ func storagefiller(ch chan bool, n *Node) {
 			continue
 		}
 
-		// if minerinfo.Ip != "139.196.35.64:15001" {
-		// 	continue
-		// }
+		if blackMiners.IsExist(minerinfo.Peerid) {
+			continue
+		}
 
 		tcpConn, err := dialTcpServer(minerinfo.Ip)
 		if err != nil {
+			blackMiners.Add(minerinfo.Peerid)
 			n.Logs.Spc("err", err)
 			continue
 		}
@@ -141,6 +140,7 @@ func storagefiller(ch chan bool, n *Node) {
 
 		err = NewClient(NewTcp(tcpConn), "", sendFillers).SendFile(n, "", FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
+			blackMiners.Add(minerinfo.Peerid)
 			n.Logs.Spc("err", fmt.Errorf("[C%v] %v", minerinfo.Peerid, err))
 			continue
 		}
@@ -171,6 +171,7 @@ func storagefiller(ch chan bool, n *Node) {
 			sendFillers[j] = ""
 			sendFillers[j+1] = ""
 		}
+
 		count++
 		if count > 10 {
 			break

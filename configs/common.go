@@ -62,13 +62,13 @@ const (
 	// Tcp message interval
 	TCP_Message_Interval = time.Duration(time.Millisecond * 10)
 	// Tcp short message waiting time
-	TCP_Time_WaitNotification = time.Duration(time.Second * 10)
+	TCP_Time_WaitNotification = time.Duration(time.Second * 6)
 	// Tcp short message waiting time
-	TCP_Time_WaitMsg = time.Duration(time.Minute)
+	TCP_Time_WaitMsg = time.Duration(time.Second * 10)
 	// Tcp short message waiting time
 	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
 	// The slowest tcp transfers bytes per second
-	TCP_Transmission_Slowest = SIZE_1KiB * 10
+	TCP_Transmission_Slowest = SIZE_1KiB * 50
 	// Number of tcp message caches
 	TCP_Message_Send_Buffers = 10
 	TCP_Message_Read_Buffers = 10

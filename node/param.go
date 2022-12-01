@@ -17,13 +17,18 @@
 package node
 
 import (
+	"sync"
+	"time"
+
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 )
 
 type TagInfo struct {
-	T      pbc.FileTagT
-	Sigmas [][]byte `json:"sigmas"`
+	T           pbc.T
+	Phi         []pbc.Sigma `json:"phi"`           //Φ = {σi}
+	SigRootHash []byte      `json:"sig_root_hash"` //BLS
+
 }
 
 type Filler struct {
@@ -32,10 +37,46 @@ type Filler struct {
 	TagPath    string
 }
 
+type BlacklistMiner struct {
+	Lock *sync.Mutex
+	List map[uint64]int64
+}
+
 var (
-	C_Filler chan Filler
+	C_Filler    chan Filler
+	blackMiners *BlacklistMiner
 )
 
 func init() {
 	C_Filler = make(chan Filler, configs.Num_Filler_Reserved)
+	blackMiners = &BlacklistMiner{
+		Lock: new(sync.Mutex),
+		List: make(map[uint64]int64, 100),
+	}
+}
+
+func (b *BlacklistMiner) Add(peerid uint64) {
+	b.Lock.Lock()
+	b.List[peerid] = time.Now().Unix()
+	b.Lock.Unlock()
+}
+
+func (b *BlacklistMiner) Delete(peerid uint64) {
+	b.Lock.Lock()
+	delete(b.List, peerid)
+	b.Lock.Unlock()
+}
+
+func (b *BlacklistMiner) IsExist(peerid uint64) bool {
+	b.Lock.Lock()
+	defer b.Lock.Unlock()
+	v, ok := b.List[peerid]
+	if !ok {
+		return false
+	}
+	if time.Since(time.Unix(v, 0)).Hours() > 3 {
+		delete(b.List, peerid)
+		return false
+	}
+	return true
 }

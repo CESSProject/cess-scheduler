@@ -71,7 +71,10 @@ func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg,
 	wg := &sync.WaitGroup{}
 	c.conn.HandlerLoop(wg, false)
 	go func() {
-		_ = c.handler(node)
+		err := c.handler(node)
+		if err != nil {
+			node.Logs.Spc("err", err)
+		}
 	}()
 	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
 	wg.Wait()
@@ -110,17 +113,19 @@ func (c *ConMgr) handler(node *Node) error {
 
 		m, ok := c.conn.GetMsg()
 		if !ok {
-			return errors.New("Getmsg failed")
+			return fmt.Errorf("Getmsg failed")
 		}
 
 		if m == nil {
-			timeOutTimer = time.NewTimer(configs.TCP_Time_WaitMsg)
+			if timeOutTimer == nil {
+				timeOutTimer = time.NewTimer(configs.TCP_Time_WaitMsg)
+			}
 			continue
 		} else {
 			if timeOutTimer != nil {
 				timeOutTimer.Stop()
+				timeOutTimer = nil
 			}
-			timeOutTimer = nil
 		}
 
 		switch m.MsgType {
@@ -207,12 +212,12 @@ func (c *ConMgr) handler(node *Node) error {
 				go node.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
 			}
 		case MsgNotify:
+			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
 				readBufPool.Put(m.Bytes)
 			default:
 			}
-			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 
 		case MsgClose:
 			switch cap(m.Bytes) {
@@ -362,6 +367,9 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 			time.Sleep(time.Second)
 			continue
 		}
+		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
+			continue
+		}
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 		i++
 	}
@@ -402,35 +410,32 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 		return rtnValue, err
 	}
-	blocksize, scansize := CalcFileBlockSizeAndScanSize(fstat.Size())
+	blocksize, _ := CalcFileBlockSizeAndScanSize(fstat.Size())
 	blocknum := fstat.Size() / blocksize
 
 	fileTagPath := filepath.Join(n.TagDir, fname+".tag")
 	_, err = os.Stat(fileTagPath)
 	if err != nil {
 		// calculate file tag info
-		var PoDR2commit pbc.PoDR2Commit
-		var commitResponse pbc.PoDR2CommitResponse
-		PoDR2commit.FilePath = fpath
-		PoDR2commit.BlockSize = blocksize
-		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(pbc.Key_Ssk, string(pbc.Key_SharedParams), scansize)
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] PoDR2ProofCommit: %v", fname, err))
-			return rtnValue, err
-		}
+		var commitResponse pbc.SigGenResponse
+
+		matrix, num := pbc.SplitV2(fpath, configs.SIZE_1MiB)
+		commitResponseCh := pbc.PbcKey.SigGen(matrix, num)
+
 		select {
 		case commitResponse = <-commitResponseCh:
 		}
+
 		if commitResponse.StatueMsg.StatusCode != pbc.Success {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
 			return rtnValue, errors.New("failed")
 		}
+
 		var tag TagInfo
-		tag.T.Name = commitResponse.T.Name
-		tag.T.N = commitResponse.T.N
-		tag.T.U = commitResponse.T.U
-		tag.T.Signature = commitResponse.T.Signature
-		tag.Sigmas = commitResponse.Sigmas
+		tag.T = commitResponse.T
+		tag.Phi = commitResponse.Phi
+		tag.SigRootHash = commitResponse.SigRootHash
+
 		tag_bytes, err := json.Marshal(&tag)
 		if err != nil {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
@@ -489,6 +494,10 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		if err != nil {
 			n.Cache.Delete(allMinerPubkey[i][:])
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
+			continue
+		}
+
+		if blackMiners.IsExist(minerinfo.Peerid) {
 			continue
 		}
 

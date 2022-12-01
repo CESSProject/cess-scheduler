@@ -17,9 +17,11 @@
 package node
 
 import (
+	"fmt"
 	"log"
 	"math/big"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -29,25 +31,33 @@ import (
 
 // task_ Common is used to judge whether the balance of
 // your wallet meets the operation requirements.
-func (node *Node) task_Common(ch chan bool) {
+func (n *Node) task_Common(ch chan bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
-			node.Logs.Pnc("error", utils.RecoverError(err))
+			n.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
-	var count uint8
-	node.Logs.Common("info", errors.New(">>> Start task_Common <<<"))
 
+	n.Logs.Common("info", errors.New(">>> Start task_Common <<<"))
+	memSt := &runtime.MemStats{}
+	tikProgram := time.NewTicker(time.Second * 3)
+	defer tikProgram.Stop()
+	tikBalance := time.NewTicker(time.Minute)
+	defer tikBalance.Stop()
 	for {
-		time.Sleep(time.Minute)
-		count++
-		if count >= 5 {
-			count = 0
-			accountinfo, err := node.Chain.GetAccountInfo(node.Chain.GetPublicKey())
+		select {
+		case <-tikProgram.C:
+			runtime.ReadMemStats(memSt)
+			if memSt.HeapSys >= configs.SIZE_1GiB*2 {
+				n.Logs.Common("err", fmt.Errorf("%d", memSt.HeapSys))
+				os.Exit(1)
+			}
+		case <-tikBalance.C:
+			accountinfo, err := n.Chain.GetAccountInfo(n.Chain.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
-					node.Logs.Common("info", errors.New("Insufficient balance, program exited"))
+					n.Logs.Common("info", errors.New("Insufficient balance, program exited"))
 					log.Printf("Insufficient balance, program exited.\n")
 					os.Exit(1)
 				}

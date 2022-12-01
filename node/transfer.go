@@ -187,6 +187,7 @@ func (t *TcpCon) GetRemoteAddr() string {
 
 func (t *TcpCon) Close() error {
 	t.onceStop.Do(func() {
+		time.Sleep(time.Second * 3)
 		t.conn.Close()
 		close(t.stop)
 	})

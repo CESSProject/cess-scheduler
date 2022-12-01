@@ -71,7 +71,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 				}
 
 				// if exit
-				if string(minerInfo.State) == chain.MINER_STATE_EXIT {
+				if string(minerInfo.State) != chain.MINER_STATE_POSITIVE {
 					exist, _ := node.Cache.Has(allMinerAcc[i][:])
 					if exist {
 						node.Cache.Delete(allMinerAcc[i][:])
@@ -109,7 +109,8 @@ func (node *Node) task_MinerCache(ch chan bool) {
 				}
 				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v : %v : %v", addr, ipv4, minerInfo.Ip.Port, minerCache.Free))
 			}
-			time.Sleep(time.Minute)
+			time.Sleep(time.Minute * 10)
 		}
+		time.Sleep(configs.BlockInterval)
 	}
 }
