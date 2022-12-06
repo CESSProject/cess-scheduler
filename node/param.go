@@ -42,6 +42,17 @@ type BlacklistMiner struct {
 	List map[uint64]int64
 }
 
+type FileStoreInfo struct {
+	FileId      string         `json:"file_id"`
+	FileState   string         `json:"file_state"`
+	FileSize    int64          `json:"file_size"`
+	IsUpload    bool           `json:"is_upload"`
+	IsCheck     bool           `json:"is_check"`
+	IsShard     bool           `json:"is_shard"`
+	IsScheduler bool           `json:"is_scheduler"`
+	Miners      map[int]string `json:"miners"`
+}
+
 var (
 	C_Filler    chan Filler
 	blackMiners *BlacklistMiner

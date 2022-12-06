@@ -85,7 +85,7 @@ func (c *ConMgr) handler(node *Node) error {
 	var (
 		err          error
 		fs           *os.File
-		timeOutTimer *time.Timer
+		timeOutTimer *time.Ticker
 	)
 
 	defer func() {
@@ -118,13 +118,12 @@ func (c *ConMgr) handler(node *Node) error {
 
 		if m == nil {
 			if timeOutTimer == nil {
-				timeOutTimer = time.NewTimer(configs.TCP_Time_WaitMsg)
+				timeOutTimer = time.NewTicker(configs.TCP_Time_WaitMsg)
 			}
 			continue
 		} else {
 			if timeOutTimer != nil {
-				timeOutTimer.Stop()
-				timeOutTimer = nil
+				timeOutTimer.Reset(configs.TCP_Time_WaitMsg)
 			}
 		}
 
@@ -165,6 +164,18 @@ func (c *ConMgr) handler(node *Node) error {
 			// notify suc
 			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
 
+		case MsgFileSt:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			val, _ := node.Cache.Get([]byte(m.FileHash))
+
+			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
+			c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
+			time.Sleep(time.Second * 3)
+			return nil
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
@@ -182,6 +193,7 @@ func (c *ConMgr) handler(node *Node) error {
 				readBufPool.Put(m.Bytes)
 			default:
 			}
+
 		case MsgEnd:
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
@@ -356,11 +368,30 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		err    error
 		txhash string
 	)
-
+	var fileSt = FileStoreInfo{
+		FileId:      fid,
+		FileSize:    fsize,
+		FileState:   chain.FILE_STATE_PENDING,
+		IsUpload:    true,
+		IsCheck:     true,
+		IsShard:     true,
+		IsScheduler: true,
+	}
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
 
-	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	if len(chunks) <= 0 {
+		fileSt.IsScheduler = false
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
+		n.Logs.Upfile("err", fmt.Errorf("[%v] Not found", fid))
+		return
+	}
 
+	b, _ := json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
+
+	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	fileSt.Miners = make(map[int]string, len(chunks))
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
 		if err != nil {
@@ -370,20 +401,42 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
 			continue
 		}
+		fileSt.Miners[i] = string(chunksInfo[i].MinerAcc[:])
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 		i++
 	}
 
 	// Submit the file meta information to the chain
+	var tryCount uint8
 	for {
 		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
-		if txhash == "" {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+		if err != nil {
+			tryCount++
+			if tryCount > 3 {
+				fileSt.FileState = chain.ERR_Failed
+				b, _ = json.Marshal(&fileSt)
+				n.Cache.Put([]byte(fid), b)
+				return
+			}
 			time.Sleep(configs.BlockInterval)
+
+			//Judge whether the file has been uploaded
+			fileState, _ := GetFileState(n.Chain, fid)
+
+			// file state
+			if fileState == chain.FILE_STATE_ACTIVE {
+				break
+			}
+			n.Logs.Upfile("err", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
 			continue
 		}
 		break
 	}
+	fileSt.FileState = chain.FILE_STATE_ACTIVE
+	b, _ = json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
 	return
 }

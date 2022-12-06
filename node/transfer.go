@@ -75,7 +75,6 @@ func (t *TcpCon) sendMsg(wg *sync.WaitGroup) {
 	for !t.IsClose() {
 		select {
 		case m := <-t.send:
-
 			data, err := json.Marshal(m)
 			if err != nil {
 				return
@@ -91,7 +90,7 @@ func (t *TcpCon) sendMsg(wg *sync.WaitGroup) {
 
 			binary.BigEndian.PutUint32(sendBuf[len(HEAD_FILLER):len(HEAD_FILLER)+4], uint32(len(data)))
 			copy(sendBuf[len(HEAD_FILLER)+4:], data)
-
+			data = nil
 			_, err = t.conn.Write(sendBuf[:len(HEAD_FILLER)+4+len(data)])
 			if err != nil {
 				return
