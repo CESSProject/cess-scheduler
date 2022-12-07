@@ -27,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (c *chainClient) Register(stash, ip, port string) (string, error) {
+func (c *chainClient) Register(stash, ip, port, country string, citycode uint) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -67,6 +67,8 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 		tx_FileMap_Add_schedule,
 		types.NewAccountID(stashPuk),
 		ipType.IPv4,
+		types.Bytes(country),
+		types.NewU64(uint64(citycode)),
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")

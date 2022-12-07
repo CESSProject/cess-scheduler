@@ -170,7 +170,7 @@ func buildFileStMsg(fid string, val []byte) *Message {
 	m.FileType = 0
 	m.FileName = ""
 	m.FileHash = fid
-	m.FileSize = 0
+	m.FileSize = uint64(len(val))
 	m.LastMark = false
 	m.Pubkey = nil
 	m.SignMsg = nil

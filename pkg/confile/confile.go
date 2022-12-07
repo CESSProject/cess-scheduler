@@ -17,6 +17,7 @@
 package confile
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -107,6 +108,18 @@ func (c *confile) Parse(fpath string) error {
 		c.ServiceAddr == "" ||
 		c.ServicePort == "" {
 		return errors.New("The configuration file cannot have empty entries")
+	}
+
+	if !utils.IsIPv4(c.ServiceAddr) {
+		return errors.New("Please enter the ipv4 address")
+	}
+
+	extIp, err := utils.GetExternalIp()
+	if err == nil {
+		if extIp != c.ServiceAddr {
+			msg := fmt.Sprintf("It is detected that your public IP address is: %s, Please check whether your configuration is correct.", extIp)
+			return errors.New(msg)
+		}
 	}
 
 	port, err := strconv.Atoi(c.ServicePort)
