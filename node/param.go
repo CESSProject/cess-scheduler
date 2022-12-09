@@ -45,6 +45,7 @@ type BlacklistMiner struct {
 type FileStoreInfo struct {
 	FileId      string         `json:"file_id"`
 	FileState   string         `json:"file_state"`
+	Scheduler   string         `json:"scheduler"`
 	FileSize    int64          `json:"file_size"`
 	IsUpload    bool           `json:"is_upload"`
 	IsCheck     bool           `json:"is_check"`

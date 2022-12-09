@@ -372,6 +372,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		FileId:      fid,
 		FileSize:    fsize,
 		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   n.Confile.GetServiceAddr() + ":" + n.Confile.GetServicePort(),
 		IsUpload:    true,
 		IsCheck:     true,
 		IsShard:     true,
