@@ -523,7 +523,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	}
 }
 
-func (c *chainClient) Update(ip, port string) (string, error) {
+func (c *chainClient) Update(ip, port, country string, citycode uint) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -557,6 +557,8 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 		c.metadata,
 		tx_FileMap_UpdateScheduler,
 		ipType.IPv4,
+		types.Bytes(country),
+		types.NewU64(uint64(citycode)),
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")

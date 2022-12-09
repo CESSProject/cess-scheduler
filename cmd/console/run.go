@@ -158,10 +158,7 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 }
 
 func register(cfg confile.Confiler, client chain.Chainer) error {
-	country, cityCode, err := utils.ParseCountryFromIp(cfg.GetServiceAddr())
-	if err != nil {
-
-	}
+	country, cityCode, _ := utils.ParseCountryFromIp(cfg.GetServiceAddr())
 
 	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort(), country, cityCode)
 	if err != nil {
