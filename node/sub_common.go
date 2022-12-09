@@ -17,11 +17,9 @@
 package node
 
 import (
-	"fmt"
 	"log"
 	"math/big"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -40,19 +38,11 @@ func (n *Node) task_Common(ch chan bool) {
 	}()
 
 	n.Logs.Common("info", errors.New(">>> Start task_Common <<<"))
-	memSt := &runtime.MemStats{}
-	tikProgram := time.NewTicker(time.Second * 3)
-	defer tikProgram.Stop()
+
 	tikBalance := time.NewTicker(time.Minute)
 	defer tikBalance.Stop()
 	for {
 		select {
-		case <-tikProgram.C:
-			runtime.ReadMemStats(memSt)
-			if memSt.HeapSys >= configs.SIZE_1GiB*2 {
-				n.Logs.Common("err", fmt.Errorf("%d", memSt.HeapSys))
-				os.Exit(1)
-			}
 		case <-tikBalance.C:
 			accountinfo, err := n.Chain.GetAccountInfo(n.Chain.GetPublicKey())
 			if err == nil {
