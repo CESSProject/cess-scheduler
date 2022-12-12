@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -52,11 +52,13 @@ const (
 	Max_Filler_Meta = 50
 	//
 	WaitFillerTime = time.Duration(time.Second * 3)
+
+	TCP_MaxPacketSize = SIZE_1KiB * 32
 )
 
 const (
 	// Maximum number of connections in the miner's certification space
-	MAX_TCP_CONNECTION uint8 = 1
+	MAX_TCP_CONNECTION uint8 = 3
 	// Tcp client connection interval
 	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
 	// Tcp message interval

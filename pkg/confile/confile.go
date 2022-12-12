@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ type Confiler interface {
 	GetRpcAddr() string
 	GetServiceAddr() string
 	GetServicePort() string
+	GetServicePortNum() int
 	GetDataDir() string
 	GetCtrlPrk() string
 	GetStashAcc() string
@@ -158,6 +159,11 @@ func (c *confile) GetServiceAddr() string {
 
 func (c *confile) GetServicePort() string {
 	return c.ServicePort
+}
+
+func (c *confile) GetServicePortNum() int {
+	portNum, _ := strconv.Atoi(c.ServicePort)
+	return portNum
 }
 
 func (c *confile) GetDataDir() string {

@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,19 +17,11 @@
 package node
 
 import (
-	"bytes"
-	"errors"
-	"fmt"
-	"io"
-	"log"
-	"net"
-	"os"
-	"time"
-
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/serve"
 )
 
 type Scheduler interface {
@@ -52,72 +44,17 @@ func New() *Node {
 }
 
 func (n *Node) Run() {
-	var (
-		remote string
-	)
-
 	// Start the subtask manager
 	go n.CoroutineMgr()
 
-	// Get an address of TCP end point
-	tcpAddr, err := net.ResolveTCPAddr("tcp", ":"+n.Confile.GetServicePort())
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	// NewServer
+	s := serve.NewServer("Scheduler Server", "", n.Confile.GetServicePortNum())
 
-	// Listen for TCP networks
-	listener, err := net.ListenTCP("tcp", tcpAddr)
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	// Configure Routes
+	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
+	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
+	s.AddRouter(serve.Msg_File, &serve.FileRouter{})
 
-	time.Sleep(time.Second)
-	log.Println("Service started successfully")
-
-	for {
-		// Connection interval
-		time.Sleep(time.Second)
-
-		// Accepts the next connection
-		acceptTCP, err := listener.AcceptTCP()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				log.Println("[err] The port is closed and the service exits.")
-				os.Exit(1)
-			}
-			n.Logs.Common("error", fmt.Errorf("Accept tcp err: %v", err))
-			continue
-		}
-
-		// Record client address
-		remote = acceptTCP.RemoteAddr().String()
-		n.Logs.Common("info", fmt.Errorf("Recv a conn: %v", remote))
-
-		// Chain status
-		if !n.Chain.GetChainStatus() {
-			acceptTCP.Close()
-			n.Logs.Common("info", fmt.Errorf("Chain state not available: %v", remote))
-			continue
-		}
-
-		if !ConnectionFiltering(acceptTCP) {
-			acceptTCP.Close()
-			n.Logs.Common("info", fmt.Errorf("Close the conn not for a file req: %v ", remote))
-			continue
-		}
-
-		// Start the processing service of the new connection
-		go NewServer(NewTcp(acceptTCP), n.FileDir).Start(n)
-	}
-}
-
-func ConnectionFiltering(conn *net.TCPConn) bool {
-	buf := make([]byte, len(HEAD_FILE))
-	_, err := io.ReadAtLeast(conn, buf, len(HEAD_FILE))
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(buf, HEAD_FILE)
+	// Start Service
+	s.Serve()
 }
