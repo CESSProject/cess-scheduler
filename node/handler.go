@@ -430,7 +430,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 			if fileState == chain.FILE_STATE_ACTIVE {
 				break
 			}
-			n.Logs.Upfile("err", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+			n.Logs.Upfile("err", fmt.Errorf("[%v] Submit filemeta fail:%v, %v", fid, txhash, err))
 			continue
 		}
 		break
