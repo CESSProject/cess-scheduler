@@ -86,7 +86,7 @@ func (b *BlacklistMiner) IsExist(peerid uint64) bool {
 	if !ok {
 		return false
 	}
-	if time.Since(time.Unix(v, 0)).Hours() > 3 {
+	if time.Since(time.Unix(v, 0)).Seconds() > 10 {
 		delete(b.List, peerid)
 		return false
 	}

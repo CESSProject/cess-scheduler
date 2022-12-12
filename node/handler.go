@@ -73,7 +73,7 @@ func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg,
 	go func() {
 		err := c.handler(node)
 		if err != nil {
-			node.Logs.Spc("err", err)
+			node.Logs.Upfile("err", err)
 		}
 	}()
 	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
@@ -525,6 +525,8 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		break
 	}
 
+	n.Logs.Upfile("info", fmt.Errorf("All %d miners found", len(allMinerPubkey)))
+
 	// Disrupt the order of miners
 	utils.RandSlice(allMinerPubkey)
 
@@ -538,6 +540,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	}
 
 	for i := 0; i < len(allMinerPubkey); i++ {
+		n.Logs.Upfile("info", fmt.Errorf("Will storage to: %v", minerinfo.Ip))
 		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
 		if err != nil {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
@@ -552,10 +555,12 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		}
 
 		if blackMiners.IsExist(minerinfo.Peerid) {
+			n.Logs.Upfile("err", fmt.Errorf("Black miner: %v", minerinfo.Peerid))
 			continue
 		}
 
 		if minerinfo.Free < uint64(fstat.Size()) {
+			n.Logs.Upfile("err", fmt.Errorf("Insufficient space: %v", minerinfo.Peerid))
 			continue
 		}
 
@@ -612,7 +617,9 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		rtnValue.BlockNum = types.U32(blocknum)
 		break
 	}
+
 	if rtnValue.MinerId == 0 {
+		n.Logs.Upfile("err", fmt.Errorf("This round of storage failed"))
 		return rtnValue, errors.New("failed")
 	}
 	return rtnValue, err

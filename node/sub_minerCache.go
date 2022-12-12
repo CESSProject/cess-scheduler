@@ -109,7 +109,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 				}
 				node.Logs.MinerCache("info", fmt.Errorf("[%v] %v : %v : %v", addr, ipv4, minerInfo.Ip.Port, minerCache.Free))
 			}
-			time.Sleep(time.Minute * 10)
+			time.Sleep(time.Minute * 3)
 		}
 		time.Sleep(configs.BlockInterval)
 	}
