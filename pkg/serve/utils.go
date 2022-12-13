@@ -18,7 +18,11 @@ package serve
 
 import (
 	"errors"
+	"net"
+	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/CESSProject/go-keyring"
 )
@@ -42,4 +46,38 @@ func VerifySign(pkey, signmsg, sign []byte) (bool, error) {
 
 	// Verify signature
 	return verkr.Verify(verkr.SigningContext(signmsg), sign_array), nil
+}
+
+func GetFileState(c chain.Chainer, fileHash string) (string, error) {
+	var try_count uint8
+	for try_count <= 3 {
+		fmeta, err := c.GetFileMetaInfo(fileHash)
+		if err != nil {
+			try_count++
+			if try_count >= 3 {
+				return "", err
+			}
+			time.Sleep(time.Second * 3)
+			continue
+		}
+		return string(fmeta.State), nil
+	}
+	return "", errors.New("GetFileMetaInfo failed")
+}
+
+func dialTcpServer(address string) (*net.TCPConn, error) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+	dialer := net.Dialer{Timeout: configs.Tcp_Dial_Timeout}
+	netCon, err := dialer.Dial("tcp", tcpAddr.String())
+	if err != nil {
+		return nil, err
+	}
+	conTcp, ok := netCon.(*net.TCPConn)
+	if !ok {
+		return nil, errors.New("network conversion failed")
+	}
+	return conTcp, nil
 }

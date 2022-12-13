@@ -20,12 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 )
 
 type AuthRouter struct {
 	BaseRouter
+	Cache db.Cacher
 }
 
 type MsgAuth struct {
@@ -44,28 +48,46 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 		return
 	}
 
+	remote := request.GetConnection().RemoteAddr().String()
+	val, err := this.Cache.Get([]byte(remote))
+	if err != nil {
+		this.Cache.Put([]byte(remote), utils.Int64ToBytes(time.Now().Unix()))
+	} else {
+		if time.Since(time.Unix(utils.BytesToInt64(val), 0)).Minutes() < 1 {
+			ctx()
+			return
+		} else {
+			this.Cache.Delete([]byte(remote))
+		}
+	}
+
 	var msg MsgAuth
-	err := json.Unmarshal(request.GetData(), &msg)
+	err = json.Unmarshal(request.GetData(), &msg)
 	if err != nil {
 		ctx()
 		return
 	}
-	fmt.Println(msg)
 
 	puk, err := utils.DecodePublicKeyOfCessAccount(msg.Account)
 	if err != nil {
-		ctx()
-		return
+		puk, err = utils.DecodePublicKeyOfSubstrateAccount(msg.Account)
+		if err != nil {
+			ctx()
+			return
+		}
 	}
+
 	ok, err := VerifySign(puk, []byte(msg.Msg), msg.Sign)
 	if err != nil || !ok {
 		ctx()
 		return
 	}
 
-	token := utils.GetRandomcode(32)
+	token := utils.GetRandomcode(configs.TokenLength)
 	err = request.GetConnection().SendMsg(Msg_OK, []byte(token))
 	if err != nil {
-		fmt.Println(err)
+		ctx()
+		return
 	}
+	Tokens.Add(token)
 }

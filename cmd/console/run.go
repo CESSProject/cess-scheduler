@@ -84,7 +84,14 @@ func runCmd(cmd *cobra.Command, args []string) {
 	}
 
 	//Build server instance
-	node.Server = buildServer("Scheduler Server", node.Confile.GetServicePortNum(), node.FileDir)
+	node.Server = buildServer(
+		"Scheduler Server",
+		node.Confile.GetServicePortNum(),
+		node.Chain,
+		node.Logs,
+		node.Cache,
+		node.FileDir,
+	)
 
 	// run
 	node.Run()
@@ -244,13 +251,13 @@ func buildLogs(logDir string) (logger.Logger, error) {
 	return logger.NewLogs(logs_info)
 }
 
-func buildServer(name string, port int, filedir string) serve.IServer {
+func buildServer(name string, port int, chain chain.Chainer, logs logger.Logger, cach db.Cacher, filedir string) serve.IServer {
 	// NewServer
 	s := serve.NewServer(name, "", port)
 
 	// Configure Routes
 	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
 	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
-	s.AddRouter(serve.Msg_File, &serve.FileRouter{FileDir: filedir})
+	s.AddRouter(serve.Msg_File, &serve.FileRouter{Chain: chain, Logs: logs, FileDir: filedir, Cach: cach})
 	return s
 }

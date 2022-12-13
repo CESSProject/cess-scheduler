@@ -48,6 +48,9 @@ func (n *Node) Run() {
 	// Start the subtask manager
 	go n.CoroutineMgr()
 
+	//
+	go serve.AutoExpirationDelete()
+
 	// Start Service
 	n.Server.Serve()
 }

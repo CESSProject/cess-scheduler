@@ -62,7 +62,7 @@ type Chainer interface {
 	// SubmitFillerMeta is used to submit the meta information of the filler
 	SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error)
 	// SubmitFileMeta is used to submit the meta information of the file
-	SubmitFileMeta(fid string, fsize uint64, block []BlockInfo) (string, error)
+	SubmitFileMeta(fid string, fsize uint64, backups []Backup) (string, error)
 	// Update is used to update the communication address of the scheduling service
 	Update(ip, port, country string) (string, error)
 }
