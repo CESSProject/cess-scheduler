@@ -38,8 +38,9 @@ type MsgAuth struct {
 func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	fmt.Println("Call AuthRouter Handle")
 	fmt.Println("recv from client : msgId=", request.GetMsgID())
-	if request.GetMsgID() != 1 {
-		fmt.Println("MsgId is not 1")
+	if request.GetMsgID() != Msg_Auth {
+		fmt.Println("MsgId error")
+		ctx()
 		return
 	}
 
@@ -63,7 +64,7 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	}
 
 	token := utils.GetRandomcode(32)
-	err = request.GetConnection().SendBuffMsg(Msg_OK, []byte(token))
+	err = request.GetConnection().SendMsg(Msg_OK, []byte(token))
 	if err != nil {
 		fmt.Println(err)
 	}

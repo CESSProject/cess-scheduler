@@ -29,6 +29,7 @@ type Scheduler interface {
 }
 
 type Node struct {
+	Server    serve.IServer
 	Confile   confile.Confiler
 	Chain     chain.Chainer
 	Logs      logger.Logger
@@ -47,14 +48,6 @@ func (n *Node) Run() {
 	// Start the subtask manager
 	go n.CoroutineMgr()
 
-	// NewServer
-	s := serve.NewServer("Scheduler Server", "", n.Confile.GetServicePortNum())
-
-	// Configure Routes
-	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
-	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
-	s.AddRouter(serve.Msg_File, &serve.FileRouter{})
-
 	// Start Service
-	s.Serve()
+	n.Server.Serve()
 }

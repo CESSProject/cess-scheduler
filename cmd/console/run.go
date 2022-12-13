@@ -30,6 +30,7 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/serve"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -47,7 +48,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		node     = node.New()
 	)
 
-	//Building Profile Instances
+	//Build profile instances
 	node.Confile, err = buildConfigFile(cmd)
 	if err != nil {
 		log.Println(err)
@@ -61,7 +62,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Build Data Directory
+	//Build data directory
 	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
 	if err != nil {
 		log.Println(err)
@@ -75,12 +76,15 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Build Log Instance
+	//Build log instance
 	node.Logs, err = buildLogs(logDir)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
+
+	//Build server instance
+	node.Server = buildServer("Scheduler Server", node.Confile.GetServicePortNum(), node.FileDir)
 
 	// run
 	node.Run()
@@ -158,9 +162,9 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 }
 
 func register(cfg confile.Confiler, client chain.Chainer) error {
-	country, cityCode, _ := utils.ParseCountryFromIp(cfg.GetServiceAddr())
+	country, _, _ := utils.ParseCountryFromIp(cfg.GetServiceAddr())
 
-	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort(), country, cityCode)
+	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort(), country)
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 			return fmt.Errorf("[err] Please check your wallet balance")
@@ -238,4 +242,15 @@ func buildLogs(logDir string) (logger.Logger, error) {
 		logs_info[v] = filepath.Join(logDir, v+".log")
 	}
 	return logger.NewLogs(logs_info)
+}
+
+func buildServer(name string, port int, filedir string) serve.IServer {
+	// NewServer
+	s := serve.NewServer(name, "", port)
+
+	// Configure Routes
+	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
+	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
+	s.AddRouter(serve.Msg_File, &serve.FileRouter{FileDir: filedir})
+	return s
 }

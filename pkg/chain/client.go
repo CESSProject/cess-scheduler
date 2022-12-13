@@ -56,7 +56,7 @@ type Chainer interface {
 	// GetSpacePackageInfo is used to get the space package information of the account
 	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
 	// Register is used by the scheduling service to register
-	Register(stash, ip, port, country string, citycode uint) (string, error)
+	Register(stash, ip, port, country string) (string, error)
 	// SubmitProofResults is used to submit proof verification results
 	SubmitProofResults(data []ProofResult) (string, error)
 	// SubmitFillerMeta is used to submit the meta information of the filler
@@ -64,7 +64,7 @@ type Chainer interface {
 	// SubmitFileMeta is used to submit the meta information of the file
 	SubmitFileMeta(fid string, fsize uint64, block []BlockInfo) (string, error)
 	// Update is used to update the communication address of the scheduling service
-	Update(ip, port, country string, citycode uint) (string, error)
+	Update(ip, port, country string) (string, error)
 }
 
 type chainClient struct {

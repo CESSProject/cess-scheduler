@@ -80,9 +80,9 @@ func updateCmd(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		country, cityCode, _ := utils.ParseCountryFromIp(os.Args[2])
+		country, _, _ := utils.ParseCountryFromIp(os.Args[2])
 
-		txhash, err := c.Update(os.Args[2], os.Args[3], country, cityCode)
+		txhash, err := c.Update(os.Args[2], os.Args[3], country)
 		if err != nil {
 			if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 				log.Println("[err] Please check your wallet balance.")

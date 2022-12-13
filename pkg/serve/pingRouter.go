@@ -18,6 +18,7 @@ package serve
 
 import (
 	"context"
+	"fmt"
 )
 
 // PingRouter
@@ -27,5 +28,10 @@ type PingRouter struct {
 
 // Ping Handle
 func (this *PingRouter) Handle(ctx context.CancelFunc, request IRequest) {
-	request.GetConnection().SendBuffMsg(Msg_OK, nil)
+	if request.GetMsgID() != Msg_Ping {
+		fmt.Println("MsgId error")
+		ctx()
+		return
+	}
+	request.GetConnection().SendMsg(Msg_OK, nil)
 }

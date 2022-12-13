@@ -21,25 +21,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 )
 
 // FileRouter
 type FileRouter struct {
 	BaseRouter
+	FileDir string
 }
 
 type MsgFile struct {
+	Token    string `json:"token"`
 	FileHash string `json:"filehash"`
 	Data     []byte `json:"data"`
 }
 
 // FileRouter Handle
-func (this *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
+func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	fmt.Println("Call FileRouter Handle")
-
 	fmt.Println("recv from client : msgId=", request.GetMsgID())
-	if request.GetMsgID() != 2 {
-		fmt.Println("MsgId is not 1")
+
+	if request.GetMsgID() != Msg_File {
+		fmt.Println("MsgId error")
+		ctx()
 		return
 	}
 
@@ -47,19 +53,34 @@ func (this *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	err := json.Unmarshal(request.GetData(), &msg)
 	if err != nil {
 		fmt.Println("Msg format error")
+		ctx()
+		return
+	}
+	fpath := filepath.Join(f.FileDir, msg.FileHash)
+
+	hash, _ := utils.CalcPathSHA256(fpath)
+	if hash == msg.FileHash {
+		request.GetConnection().SendBuffMsg(Msg_OK_FILE, nil)
 		return
 	}
 
 	fs, err := os.OpenFile(msg.FileHash, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		fmt.Println("OpenFile  error")
+		ctx()
 		return
 	}
-	fs.Write(msg.Data)
-	fs.Sync()
-	fs.Close()
+	defer fs.Close()
 
-	err = request.GetConnection().SendBuffMsg(200, nil)
+	fs.Write(msg.Data)
+	err = fs.Sync()
+	if err != nil {
+		fmt.Println("Sync  error")
+		ctx()
+		return
+	}
+
+	err = request.GetConnection().SendMsg(Msg_OK, nil)
 	if err != nil {
 		fmt.Println(err)
 	}
