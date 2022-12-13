@@ -29,14 +29,12 @@ type Scheduler interface {
 }
 
 type Node struct {
-	Server    serve.IServer
-	Confile   confile.Confiler
-	Chain     chain.Chainer
-	Logs      logger.Logger
-	Cache     db.Cacher
-	FileDir   string
-	TagDir    string
-	FillerDir string
+	Server  serve.IServer
+	Confile confile.Confiler
+	Chain   chain.Chainer
+	Logs    logger.Logger
+	Cache   db.Cacher
+	FileDir string
 }
 
 // New is used to build a node instance
