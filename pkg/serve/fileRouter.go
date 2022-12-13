@@ -59,17 +59,6 @@ type MsgFile struct {
 	Data     []byte `json:"data"`
 }
 
-type FileStoreInfo struct {
-	FileId      string         `json:"file_id"`
-	FileState   string         `json:"file_state"`
-	FileSize    int64          `json:"file_size"`
-	IsUpload    bool           `json:"is_upload"`
-	IsCheck     bool           `json:"is_check"`
-	IsShard     bool           `json:"is_shard"`
-	IsScheduler bool           `json:"is_scheduler"`
-	Miners      map[int]string `json:"miners"`
-}
-
 var sendFileBufPool = &sync.Pool{
 	New: func() interface{} {
 		return make([]byte, configs.SIZE_1MiB)
@@ -142,7 +131,7 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 			appendBuf := make([]byte, configs.SIZE_SLICE-msg.LastSize)
 			fs.Write(appendBuf)
 			fs.Sync()
-			go FileBackupManagement(msg.RootHash, f.FileDir, msg.LastSize, f.Chain, f.Logs, f.Cach)
+			go dataBackupMgt(msg.RootHash, f.FileDir, msg.LastSize, f.Chain, f.Logs, f.Cach)
 			return
 		}
 	}
@@ -153,7 +142,7 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 }
 
 // file backup management
-func FileBackupManagement(fid, fdir string, lastsize int64, c chain.Chainer, logs logger.Logger, cach db.Cacher) {
+func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logger.Logger, cach db.Cacher) {
 	defer func() {
 		if err := recover(); err != nil {
 			logs.Pnc("error", utils.RecoverError(err))
@@ -175,7 +164,7 @@ func FileBackupManagement(fid, fdir string, lastsize int64, c chain.Chainer, log
 		return
 	}
 
-	var fileSt = FileStoreInfo{
+	var fileSt = StorageProgress{
 		FileId:      fid,
 		FileSize:    int64(configs.SIZE_SLICE * len(fileMeta.Blockups[0].Slice_info)),
 		FileState:   chain.FILE_STATE_PENDING,
@@ -210,11 +199,16 @@ func FileBackupManagement(fid, fdir string, lastsize int64, c chain.Chainer, log
 	for i := uint8(0); i < configs.BackupNum; i++ {
 		backups[i].Slice_info = make([]chain.SliceInfo, len(chunks))
 	}
-	fileSt.Miners = make(map[int]string, len(chunks))
+	fileSt.Backups = make([]map[int]string, configs.BackupNum)
+	for i := uint8(0); i < configs.BackupNum; i++ {
+		fileSt.Backups[i] = make(map[int]string)
+	}
+
 	var lastfile = false
 	for bck := uint8(0); bck < configs.BackupNum; bck++ {
 		backups[bck].Backup_index = types.U8(bck)
 		backups[bck].State = types.Bool(true)
+
 		for i := 0; i < len(chunks); {
 			lastfile = false
 			if (i + 1) == len(chunks) {
@@ -225,12 +219,9 @@ func FileBackupManagement(fid, fdir string, lastsize int64, c chain.Chainer, log
 				time.Sleep(time.Second)
 				continue
 			}
-			// if types.U64(backups[bck].Slice_info[i].Miner_acc[]) == types.U64(0) {
-			// 	continue
-			// }
-			// fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(backups[bck].Slice_info[i].Miner_acc[:])
-			// b, _ := json.Marshal(&fileSt)
-			// n.Cache.Put([]byte(fid), b)
+			fileSt.Backups[bck][i], _ = utils.EncodePublicKeyAsCessAccount(backups[bck].Slice_info[i].Miner_acc[:])
+			b, _ := json.Marshal(&fileSt)
+			cach.Put([]byte(fid), b)
 			logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 			i++
 		}
@@ -324,6 +315,7 @@ func backupFile(fid, fpath string, index int, lastsize int64, lastfile bool, c c
 
 		conTcp, err := dialTcpServer(minerinfo.Ip)
 		if err != nil {
+			BlackMiners.Add(minerinfo.Peerid)
 			logs.Upfile("err", fmt.Errorf("dial %v err: %v", minerinfo.Ip, err))
 			continue
 		}
