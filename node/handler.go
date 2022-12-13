@@ -174,8 +174,7 @@ func (c *ConMgr) handler(node *Node) error {
 
 			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
 			c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
-			time.Sleep(time.Second * 3)
-			return nil
+
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
