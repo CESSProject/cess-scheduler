@@ -392,7 +392,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 	n.Cache.Put([]byte(fid), b)
 
 	var chunksInfo = make([]chain.BlockInfo, len(chunks))
-	fileSt.Miners = make(map[int]string, len(chunks))
+	fileSt.Miners = make(map[int]string, 0)
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
 		if err != nil {
@@ -402,7 +402,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
 			continue
 		}
-		fileSt.Miners[i] = string(chunksInfo[i].MinerAcc[:])
+		fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(chunksInfo[i].MinerAcc[:])
 		b, _ := json.Marshal(&fileSt)
 		n.Cache.Put([]byte(fid), b)
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
