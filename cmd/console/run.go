@@ -199,7 +199,6 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 	}
 
 	cacheDir := filepath.Join(baseDir, configs.CacheDir)
-	os.RemoveAll(cacheDir)
 	if err := os.MkdirAll(cacheDir, 755); err != nil {
 		return "", "", "", "", "", err
 	}

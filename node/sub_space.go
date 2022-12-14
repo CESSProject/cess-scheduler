@@ -57,7 +57,6 @@ func (n *Node) task_Space(ch chan bool) {
 			runtime.GC()
 			utils.ClearMemBuf()
 		}
-
 		time.Sleep(configs.BlockInterval)
 	}
 }
@@ -176,6 +175,9 @@ func storagefiller(wg *sync.WaitGroup, n *Node) {
 		if count > 10 {
 			break
 		}
+	}
+	for j := 0; j < (configs.Num_Filler_Reserved * 2); j++ {
+		os.Remove(sendFillers[j])
 	}
 }
 
