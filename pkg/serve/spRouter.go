@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 )
@@ -20,12 +19,12 @@ type StorageProgress struct {
 	IsCheck     bool             `json:"is_check"`
 	IsShard     bool             `json:"is_shard"`
 	IsScheduler bool             `json:"is_scheduler"`
-	Backups     []map[int]string `json:"backups, omitempty"`
+	Backups     []map[int]string `json:"backups,omitempty"`
 }
 
 type StorageProgressRouter struct {
 	BaseRouter
-	Cache db.Cacher
+	Cach db.Cacher
 }
 
 type MsgStorageProgress struct {
@@ -33,55 +32,44 @@ type MsgStorageProgress struct {
 }
 
 // AuthRouter Handle
-func (this *StorageProgressRouter) Handle(ctx context.CancelFunc, request IRequest) {
-	fmt.Println("Call AuthRouter Handle")
+func (s *StorageProgressRouter) Handle(ctx context.CancelFunc, request IRequest) {
+	fmt.Println("Call StorageProgressRouter Handle")
 	fmt.Println("recv from client : msgId=", request.GetMsgID())
-	if request.GetMsgID() != Msg_Auth {
+	if request.GetMsgID() != Msg_Progress {
 		fmt.Println("MsgId error")
 		ctx()
 		return
 	}
 
 	remote := request.GetConnection().RemoteAddr().String()
-	val, err := this.Cache.Get([]byte(remote))
+	val, err := s.Cach.Get([]byte(remote))
 	if err != nil {
-		this.Cache.Put([]byte(remote), utils.Int64ToBytes(time.Now().Unix()))
+		s.Cach.Put([]byte(remote), utils.Int64ToBytes(time.Now().Unix()))
 	} else {
-		if time.Since(time.Unix(utils.BytesToInt64(val), 0)).Minutes() < 1 {
+		if time.Since(time.Unix(utils.BytesToInt64(val), 0)).Seconds() < 3 {
 			ctx()
 			return
 		} else {
-			this.Cache.Delete([]byte(remote))
+			s.Cach.Delete([]byte(remote))
 		}
 	}
 
-	var msg MsgAuth
+	var msg MsgStorageProgress
 	err = json.Unmarshal(request.GetData(), &msg)
 	if err != nil {
 		ctx()
 		return
 	}
 
-	puk, err := utils.DecodePublicKeyOfCessAccount(msg.Account)
+	val, err = s.Cach.Get([]byte(msg.RootHash))
 	if err != nil {
-		puk, err = utils.DecodePublicKeyOfSubstrateAccount(msg.Account)
-		if err != nil {
-			ctx()
-			return
-		}
-	}
-
-	ok, err := VerifySign(puk, []byte(msg.Msg), msg.Sign)
-	if err != nil || !ok {
-		ctx()
+		request.GetConnection().SendMsg(Msg_ServerErr, nil)
 		return
 	}
 
-	token := utils.GetRandomcode(configs.TokenLength)
-	err = request.GetConnection().SendMsg(Msg_OK, []byte(token))
+	err = request.GetConnection().SendMsg(Msg_OK, val)
 	if err != nil {
 		ctx()
 		return
 	}
-	Tokens.Add(token)
 }

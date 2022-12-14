@@ -322,15 +322,17 @@ func backupFile(fid, fpath string, index int, lastsize int64, lastfile bool, c c
 
 		token, err := AuthReq(conTcp, c.GetMnemonicSeed())
 		if err != nil {
+			conTcp.Close()
 			logs.Upfile("err", fmt.Errorf("dial %v err: %v", minerinfo.Ip, err))
 			continue
 		}
 
 		err = FileReq(conTcp, token, fid, fpath, lastfile, lastsize)
 		if err != nil {
+			conTcp.Close()
 			continue
 		}
-
+		conTcp.Close()
 		var blockId chain.SliceId
 		var slicehash chain.FileHash
 		var blockId_temp string

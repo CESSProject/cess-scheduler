@@ -253,11 +253,12 @@ func buildLogs(logDir string) (logger.Logger, error) {
 
 func buildServer(name string, port int, chain chain.Chainer, logs logger.Logger, cach db.Cacher, filedir string) serve.IServer {
 	// NewServer
-	s := serve.NewServer(name, "", port)
+	s := serve.NewServer(name, "0.0.0.0", port)
 
 	// Configure Routes
 	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
 	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
 	s.AddRouter(serve.Msg_File, &serve.FileRouter{Chain: chain, Logs: logs, FileDir: filedir, Cach: cach})
+	s.AddRouter(serve.Msg_Progress, &serve.StorageProgressRouter{Cach: cach})
 	return s
 }

@@ -77,6 +77,7 @@ func dialTcpServer(address string) (*net.TCPConn, error) {
 	}
 	conTcp, ok := netCon.(*net.TCPConn)
 	if !ok {
+		netCon.Close()
 		return nil, errors.New("network conversion failed")
 	}
 	return conTcp, nil
