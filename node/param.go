@@ -18,15 +18,17 @@ package node
 
 import (
 	"sync"
+	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/pkg/chain"
 	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 )
 
 type TagInfo struct {
-	T      pbc.FileTagT
-	Sigmas [][]byte `json:"sigmas"`
+	T           pbc.T
+	Phi         []pbc.Sigma `json:"phi"`           //Φ = {σi}
+	SigRootHash []byte      `json:"sig_root_hash"` //BLS
+
 }
 
 type Filler struct {
@@ -35,44 +37,58 @@ type Filler struct {
 	TagPath    string
 }
 
-type Fillermetamap struct {
-	lock        *sync.Mutex
-	Fillermetas map[string][]chain.FillerMetaInfo
+type BlacklistMiner struct {
+	Lock *sync.Mutex
+	List map[uint64]int64
+}
+
+type FileStoreInfo struct {
+	FileId      string         `json:"file_id"`
+	FileState   string         `json:"file_state"`
+	Scheduler   string         `json:"scheduler"`
+	FileSize    int64          `json:"file_size"`
+	IsUpload    bool           `json:"is_upload"`
+	IsCheck     bool           `json:"is_check"`
+	IsShard     bool           `json:"is_shard"`
+	IsScheduler bool           `json:"is_scheduler"`
+	Miners      map[int]string `json:"miners"`
 }
 
 var (
-	C_Filler     chan Filler
-	C_FillerMeta chan chain.FillerMetaInfo
-	FillerMap    *Fillermetamap
+	C_Filler    chan Filler
+	blackMiners *BlacklistMiner
 )
 
 func init() {
 	C_Filler = make(chan Filler, configs.Num_Filler_Reserved)
-	C_FillerMeta = make(chan chain.FillerMetaInfo, configs.Max_Filler_Meta)
-
-	FillerMap = new(Fillermetamap)
-	FillerMap.Fillermetas = make(map[string][]chain.FillerMetaInfo)
-	FillerMap.lock = new(sync.Mutex)
-}
-
-func (this *Fillermetamap) Add(pubkey string, data chain.FillerMetaInfo) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	_, ok := this.Fillermetas[pubkey]
-	if !ok {
-		this.Fillermetas[pubkey] = make([]chain.FillerMetaInfo, 0)
+	blackMiners = &BlacklistMiner{
+		Lock: new(sync.Mutex),
+		List: make(map[uint64]int64, 100),
 	}
-	this.Fillermetas[pubkey] = append(this.Fillermetas[pubkey], data)
 }
 
-func (this *Fillermetamap) GetNum(pubkey string) int {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	return len(this.Fillermetas[pubkey])
+func (b *BlacklistMiner) Add(peerid uint64) {
+	b.Lock.Lock()
+	b.List[peerid] = time.Now().Unix()
+	b.Lock.Unlock()
 }
 
-func (this *Fillermetamap) Delete(pubkey string) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	delete(this.Fillermetas, pubkey)
+func (b *BlacklistMiner) Delete(peerid uint64) {
+	b.Lock.Lock()
+	delete(b.List, peerid)
+	b.Lock.Unlock()
+}
+
+func (b *BlacklistMiner) IsExist(peerid uint64) bool {
+	b.Lock.Lock()
+	defer b.Lock.Unlock()
+	v, ok := b.List[peerid]
+	if !ok {
+		return false
+	}
+	if time.Since(time.Unix(v, 0)).Seconds() > 10 {
+		delete(b.List, peerid)
+		return false
+	}
+	return true
 }

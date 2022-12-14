@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -56,53 +57,83 @@ func NewClient(conn NetConn, dir string, files []string) Client {
 }
 
 func (c *ConMgr) Start(node *Node) {
-	c.conn.HandlerLoop(true)
+	wg := &sync.WaitGroup{}
+	c.conn.HandlerLoop(wg, true)
 	err := c.handler(node)
 	if err != nil {
 		node.Logs.Common("error", err)
 	}
+	wg.Wait()
 	node.Logs.Common("info", fmt.Errorf("Close a conn: %v", c.conn.GetRemoteAddr()))
 }
 
 func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
-	c.conn.HandlerLoop(false)
+	wg := &sync.WaitGroup{}
+	c.conn.HandlerLoop(wg, false)
 	go func() {
-		_ = c.handler(node)
+		err := c.handler(node)
+		if err != nil {
+			node.Logs.Upfile("err", err)
+		}
 	}()
-	err := c.sendFile(fid, filetype, pkey, signmsg, sign)
+	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
+	wg.Wait()
 	return err
 }
 
 func (c *ConMgr) handler(node *Node) error {
 	var (
-		err error
-		fs  *os.File
+		err          error
+		fs           *os.File
+		timeOutTimer *time.Ticker
 	)
 
 	defer func() {
-		err := recover()
-		if err != nil {
-			node.Logs.Pnc("error", utils.RecoverError(err))
-		}
 		c.conn.Close()
 		close(c.waitNotify)
 		if fs != nil {
 			fs.Close()
 		}
+		if timeOutTimer != nil {
+			timeOutTimer.Stop()
+		}
+		if err := recover(); err != nil {
+			node.Logs.Pnc("error", utils.RecoverError(err))
+		}
 	}()
 
 	for !c.conn.IsClose() {
+		if timeOutTimer != nil {
+			select {
+			case <-timeOutTimer.C:
+				return errors.New("Get msg timeout")
+			default:
+			}
+		}
+
 		m, ok := c.conn.GetMsg()
 		if !ok {
-			return errors.New("Getmsg failed")
+			return fmt.Errorf("Getmsg failed")
 		}
 
 		if m == nil {
+			if timeOutTimer == nil {
+				timeOutTimer = time.NewTicker(configs.TCP_Time_WaitMsg)
+			}
 			continue
+		} else {
+			if timeOutTimer != nil {
+				timeOutTimer.Reset(configs.TCP_Time_WaitMsg)
+			}
 		}
 
 		switch m.MsgType {
 		case MsgHead:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
@@ -133,6 +164,17 @@ func (c *ConMgr) handler(node *Node) error {
 			// notify suc
 			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
 
+		case MsgFileSt:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			val, _ := node.Cache.Get([]byte(m.FileHash))
+
+			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
+			c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
+
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
@@ -140,13 +182,23 @@ func (c *ConMgr) handler(node *Node) error {
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File not open")
 			}
-			_, err = fs.Write(m.Bytes)
+			_, err = fs.Write(m.Bytes[:m.FileSize])
 			if err != nil {
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File write failed")
 			}
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 
 		case MsgEnd:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			info, err := fs.Stat()
 			if err != nil {
 				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
@@ -172,39 +224,74 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 		case MsgNotify:
 			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
-			if !(m.Bytes[0] == byte(Status_Ok)) {
-				return errors.New("Notification message failed")
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
 			}
 
 		case MsgClose:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			return errors.New("Close message")
 
 		default:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			return errors.New("Invalid msgType")
 		}
 	}
 	return err
 }
 
-func (c *ConMgr) sendFile(fid string, filetype uint8, pkey, signmsg, sign []byte) error {
+func (c *ConMgr) sendFile(n *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
 	defer func() {
 		c.conn.Close()
 	}()
 
-	var err error
-	var lastmatrk bool
+	var (
+		err          error
+		lastmatrk    bool
+		remoteAddr   string
+		sharingtime  float64
+		averagespeed float64
+		tRecord      time.Time
+	)
+
+	remoteAddr = strings.Split(c.conn.GetRemoteAddr(), ":")[0]
+
 	for i := 0; i < len(c.sendFiles); i++ {
 		if (i + 1) == len(c.sendFiles) {
 			lastmatrk = true
 		}
-		err = c.sendSingleFile(c.sendFiles[i], fid, filetype, lastmatrk, pkey, signmsg, sign)
+		fileHash := utils.GetFileNameWithoutSuffix(c.sendFiles[i])
+		if !strings.Contains(c.sendFiles[i], ".tag") {
+			tRecord = time.Now()
+			n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", fileHash, remoteAddr))
+		}
+		err = c.sendSingleFile(c.sendFiles[i], fileHash, filetype, lastmatrk, pkey, signmsg, sign)
 		if err != nil {
+			if !strings.Contains(c.sendFiles[i], ".tag") {
+				n.Logs.Speed(fmt.Errorf("Transfer Failed filler [%v] to [%v]", fileHash, remoteAddr))
+			}
 			break
+		}
+		if !strings.Contains(c.sendFiles[i], ".tag") {
+			n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [%v]", fileHash, remoteAddr))
+			sharingtime = time.Since(tRecord).Seconds()
+			averagespeed = float64(configs.FillerSize) / sharingtime
+			n.Logs.Speed(fmt.Errorf("[%v] Total time: %.2f seconds, average speed: %.2f bytes/s", fileHash, sharingtime, averagespeed))
 		}
 	}
 	c.conn.SendMsg(buildCloseMsg(Status_Ok))
 	time.Sleep(time.Second)
-	return nil
+	return err
 }
 
 func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, lastmark bool, pkey, signmsg, sign []byte) error {
@@ -230,7 +317,11 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		return fmt.Errorf("Timeout waiting for HeadMsg notification")
 	}
 
-	readBuf := make([]byte, configs.TCP_SendBuffer)
+	readBuf := sendBufPool.Get().([]byte)
+	defer func() {
+		sendBufPool.Put(readBuf)
+	}()
+
 	for !c.conn.IsClose() {
 		n, err := file.Read(readBuf)
 		if err != nil && err != io.EOF {
@@ -239,8 +330,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		if n == 0 {
 			break
 		}
-
-		c.conn.SendMsg(buildFileMsg("", filetype, readBuf[:n]))
+		c.conn.SendMsg(buildFileMsg(fileInfo.Name(), filetype, n, readBuf[:n]))
 	}
 
 	c.conn.SendMsg(buildEndMsg(filetype, fileInfo.Name(), fid, uint64(fileInfo.Size()), lastmark))
@@ -277,31 +367,76 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		err    error
 		txhash string
 	)
-
+	var fileSt = FileStoreInfo{
+		FileId:      fid,
+		FileSize:    fsize,
+		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   n.Confile.GetServiceAddr() + ":" + n.Confile.GetServicePort(),
+		IsUpload:    true,
+		IsCheck:     true,
+		IsShard:     true,
+		IsScheduler: true,
+	}
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
 
-	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	if len(chunks) <= 0 {
+		fileSt.IsScheduler = false
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
+		n.Logs.Upfile("err", fmt.Errorf("[%v] Not found", fid))
+		return
+	}
 
+	b, _ := json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
+
+	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	fileSt.Miners = make(map[int]string, 0)
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
 		if err != nil {
 			time.Sleep(time.Second)
 			continue
 		}
+		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
+			continue
+		}
+		fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(chunksInfo[i].MinerAcc[:])
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 		i++
 	}
 
 	// Submit the file meta information to the chain
+	var tryCount uint8
 	for {
 		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
-		if txhash == "" {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+		if err != nil {
+			tryCount++
+			if tryCount > 3 {
+				fileSt.FileState = chain.ERR_Failed
+				b, _ = json.Marshal(&fileSt)
+				n.Cache.Put([]byte(fid), b)
+				return
+			}
 			time.Sleep(configs.BlockInterval)
+
+			//Judge whether the file has been uploaded
+			fileState, _ := GetFileState(n.Chain, fid)
+
+			// file state
+			if fileState == chain.FILE_STATE_ACTIVE {
+				break
+			}
+			n.Logs.Upfile("err", fmt.Errorf("[%v] Submit filemeta fail:%v, %v", fid, txhash, err))
 			continue
 		}
 		break
 	}
+	fileSt.FileState = chain.FILE_STATE_ACTIVE
+	b, _ = json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
 	return
 }
@@ -328,35 +463,32 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 		return rtnValue, err
 	}
-	blocksize, scansize := CalcFileBlockSizeAndScanSize(fstat.Size())
+	blocksize, _ := CalcFileBlockSizeAndScanSize(fstat.Size())
 	blocknum := fstat.Size() / blocksize
 
 	fileTagPath := filepath.Join(n.TagDir, fname+".tag")
 	_, err = os.Stat(fileTagPath)
 	if err != nil {
 		// calculate file tag info
-		var PoDR2commit pbc.PoDR2Commit
-		var commitResponse pbc.PoDR2CommitResponse
-		PoDR2commit.FilePath = fpath
-		PoDR2commit.BlockSize = blocksize
-		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(pbc.Key_Ssk, string(pbc.Key_SharedParams), scansize)
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] PoDR2ProofCommit: %v", fname, err))
-			return rtnValue, err
-		}
+		var commitResponse pbc.SigGenResponse
+
+		matrix, num := pbc.SplitV2(fpath, configs.SIZE_1MiB)
+		commitResponseCh := pbc.PbcKey.SigGen(matrix, num)
+
 		select {
 		case commitResponse = <-commitResponseCh:
 		}
+
 		if commitResponse.StatueMsg.StatusCode != pbc.Success {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
 			return rtnValue, errors.New("failed")
 		}
+
 		var tag TagInfo
-		tag.T.Name = commitResponse.T.Name
-		tag.T.N = commitResponse.T.N
-		tag.T.U = commitResponse.T.U
-		tag.T.Signature = commitResponse.T.Signature
-		tag.Sigmas = commitResponse.Sigmas
+		tag.T = commitResponse.T
+		tag.Phi = commitResponse.Phi
+		tag.SigRootHash = commitResponse.SigRootHash
+
 		tag_bytes, err := json.Marshal(&tag)
 		if err != nil {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
@@ -392,6 +524,8 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		break
 	}
 
+	n.Logs.Upfile("info", fmt.Errorf("All %d miners found", len(allMinerPubkey)))
+
 	// Disrupt the order of miners
 	utils.RandSlice(allMinerPubkey)
 
@@ -405,6 +539,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	}
 
 	for i := 0; i < len(allMinerPubkey); i++ {
+		n.Logs.Upfile("info", fmt.Errorf("Will storage to: %v", minerinfo.Ip))
 		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
 		if err != nil {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
@@ -418,7 +553,13 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			continue
 		}
 
+		if blackMiners.IsExist(minerinfo.Peerid) {
+			n.Logs.Upfile("err", fmt.Errorf("Black miner: %v", minerinfo.Peerid))
+			continue
+		}
+
 		if minerinfo.Free < uint64(fstat.Size()) {
+			n.Logs.Upfile("err", fmt.Errorf("Insufficient space: %v", minerinfo.Peerid))
 			continue
 		}
 
@@ -475,7 +616,9 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		rtnValue.BlockNum = types.U32(blocknum)
 		break
 	}
+
 	if rtnValue.MinerId == 0 {
+		n.Logs.Upfile("err", fmt.Errorf("This round of storage failed"))
 		return rtnValue, errors.New("failed")
 	}
 	return rtnValue, err

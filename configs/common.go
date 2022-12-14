@@ -56,23 +56,26 @@ const (
 
 const (
 	// Maximum number of connections in the miner's certification space
-	MAX_TCP_CONNECTION uint8 = 3
+	MAX_TCP_CONNECTION uint8 = 1
 	// Tcp client connection interval
 	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
 	// Tcp message interval
 	TCP_Message_Interval = time.Duration(time.Millisecond * 10)
 	// Tcp short message waiting time
-	TCP_Time_WaitNotification = time.Duration(time.Second * 10)
+	TCP_Time_WaitNotification = time.Duration(time.Second * 6)
+	// Tcp short message waiting time
+	TCP_Time_WaitMsg = time.Duration(time.Second * 10)
 	// Tcp short message waiting time
 	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
 	// The slowest tcp transfers bytes per second
-	TCP_Transmission_Slowest = SIZE_1KiB * 10
+	TCP_Transmission_Slowest = SIZE_1KiB * 50
 	// Number of tcp message caches
 	TCP_Message_Send_Buffers = 10
 	TCP_Message_Read_Buffers = 10
 	//
-	TCP_SendBuffer = SIZE_1KiB * 8
-	TCP_ReadBuffer = SIZE_1KiB * 16
+	TCP_SendBuffer = 8192
+	TCP_ReadBuffer = 12000
+	TCP_TagBuffer  = 2012
 	//
 	Tcp_Dial_Timeout = time.Duration(time.Second * 5)
 )

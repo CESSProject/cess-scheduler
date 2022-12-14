@@ -14,31 +14,27 @@
    limitations under the License.
 */
 
-package node
+package pbc
 
-import "sync"
+import (
+	"github.com/Nik-U/pbc"
+)
 
-type Server interface {
-	Start(node *Node)
-}
+func KeyGen() PBCKeyPair {
+	var keyPair PBCKeyPair
 
-type Client interface {
-	SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error
-}
+	params := pbc.GenerateA(160, 512)
 
-type NetConn interface {
-	HandlerLoop(*sync.WaitGroup, bool)
-	GetMsg() (*Message, bool)
-	SendMsg(m *Message)
-	GetRemoteAddr() string
-	Close() error
-	IsClose() bool
-}
+	pairing := params.NewPairing()
+	g := pairing.NewG1().Rand()
 
-type ConMgr struct {
-	conn       NetConn
-	dir        string
-	fileName   string
-	sendFiles  []string
-	waitNotify chan bool
+	privKey := pairing.NewZr().Rand()
+	pubKey := pairing.NewG1().PowZn(g, privKey)
+	keyPair.Spk = pubKey.Bytes()
+	keyPair.Ssk = privKey.Bytes()
+	keyPair.SharedParams = params.String()
+	keyPair.SharedG = g.Bytes()
+	keyPair.ZrLength = pairing.ZrLength()
+
+	return keyPair
 }
