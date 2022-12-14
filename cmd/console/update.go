@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -80,7 +80,9 @@ func updateCmd(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		txhash, err := c.Update(os.Args[2], os.Args[3])
+		country, _, _ := utils.ParseCountryFromIp(os.Args[2])
+
+		txhash, err := c.Update(os.Args[2], os.Args[3], country)
 		if err != nil {
 			if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 				log.Println("[err] Please check your wallet balance.")

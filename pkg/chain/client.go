@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -56,15 +56,15 @@ type Chainer interface {
 	// GetSpacePackageInfo is used to get the space package information of the account
 	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
 	// Register is used by the scheduling service to register
-	Register(stash, ip, port string) (string, error)
+	Register(stash, ip, port, country string) (string, error)
 	// SubmitProofResults is used to submit proof verification results
 	SubmitProofResults(data []ProofResult) (string, error)
 	// SubmitFillerMeta is used to submit the meta information of the filler
 	SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error)
 	// SubmitFileMeta is used to submit the meta information of the file
-	SubmitFileMeta(fid string, fsize uint64, block []BlockInfo) (string, error)
+	SubmitFileMeta(fid string, fsize uint64, backups []Backup) (string, error)
 	// Update is used to update the communication address of the scheduling service
-	Update(ip, port string) (string, error)
+	Update(ip, port, country string) (string, error)
 }
 
 type chainClient struct {

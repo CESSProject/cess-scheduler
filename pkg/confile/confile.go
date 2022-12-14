@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package confile
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -49,6 +50,7 @@ type Confiler interface {
 	GetRpcAddr() string
 	GetServiceAddr() string
 	GetServicePort() string
+	GetServicePortNum() int
 	GetDataDir() string
 	GetCtrlPrk() string
 	GetStashAcc() string
@@ -109,6 +111,18 @@ func (c *confile) Parse(fpath string) error {
 		return errors.New("The configuration file cannot have empty entries")
 	}
 
+	if !utils.IsIPv4(c.ServiceAddr) {
+		return errors.New("Please enter the ipv4 address")
+	}
+
+	extIp, err := utils.GetExternalIp()
+	if err == nil {
+		if extIp != c.ServiceAddr {
+			msg := fmt.Sprintf("It is detected that your public IP address is: %s, Please check whether your configuration is correct.", extIp)
+			return errors.New(msg)
+		}
+	}
+
 	port, err := strconv.Atoi(c.ServicePort)
 	if err != nil {
 		return errors.New("The port number should be between 1025~65535")
@@ -145,6 +159,11 @@ func (c *confile) GetServiceAddr() string {
 
 func (c *confile) GetServicePort() string {
 	return c.ServicePort
+}
+
+func (c *confile) GetServicePortNum() int {
+	portNum, _ := strconv.Atoi(c.ServicePort)
+	return portNum
 }
 
 func (c *confile) GetDataDir() string {

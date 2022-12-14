@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/serve"
+	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +48,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 		node     = node.New()
 	)
 
-	//Building Profile Instances
+	//Build profile instances
 	node.Confile, err = buildConfigFile(cmd)
 	if err != nil {
 		log.Println(err)
@@ -60,8 +62,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Build Data Directory
-	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
+	//Build data directory
+	logDir, cacheDir, node.FileDir, err = buildDir(node.Confile, node.Chain)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -74,12 +76,22 @@ func runCmd(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	//Build Log Instance
+	//Build log instance
 	node.Logs, err = buildLogs(logDir)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
+
+	//Build server instance
+	node.Server = buildServer(
+		"Scheduler Server",
+		node.Confile.GetServicePortNum(),
+		node.Chain,
+		node.Logs,
+		node.Cache,
+		node.FileDir,
+	)
 
 	// run
 	node.Run()
@@ -157,7 +169,9 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 }
 
 func register(cfg confile.Confiler, client chain.Chainer) error {
-	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort())
+	country, _, _ := utils.ParseCountryFromIp(cfg.GetServiceAddr())
+
+	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort(), country)
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 			return fmt.Errorf("[err] Please check your wallet balance")
@@ -173,10 +187,10 @@ func register(cfg confile.Confiler, client chain.Chainer) error {
 	return nil
 }
 
-func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, string, string, string, error) {
+func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, string, error) {
 	ctlAccount, err := client.GetCessAccount()
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", err
 	}
 	baseDir := filepath.Join(cfg.GetDataDir(), ctlAccount, configs.BaseDir)
 
@@ -184,7 +198,7 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 	if err != nil {
 		err = os.MkdirAll(baseDir, os.ModeDir)
 		if err != nil {
-			return "", "", "", "", "", err
+			return "", "", "", err
 		}
 	}
 
@@ -195,34 +209,34 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 		os.Rename(logDir, bkp)
 	}
 	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", err
 	}
 
 	cacheDir := filepath.Join(baseDir, configs.CacheDir)
 	os.RemoveAll(cacheDir)
 	if err := os.MkdirAll(cacheDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", err
 	}
 
 	fillerDir := filepath.Join(baseDir, configs.FillerDir)
 	os.RemoveAll(fillerDir)
 	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", err
 	}
 
 	fileDir := filepath.Join(baseDir, configs.FileDir)
 	os.RemoveAll(fileDir)
 	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", err
 	}
 
 	tagDir := filepath.Join(baseDir, configs.TagDir)
 	os.RemoveAll(tagDir)
 	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", err
 	}
 	log.Println(baseDir)
-	return logDir, cacheDir, fillerDir, fileDir, tagDir, nil
+	return logDir, cacheDir, fileDir, nil
 }
 
 func buildCache(cacheDir string) (db.Cacher, error) {
@@ -235,4 +249,15 @@ func buildLogs(logDir string) (logger.Logger, error) {
 		logs_info[v] = filepath.Join(logDir, v+".log")
 	}
 	return logger.NewLogs(logs_info)
+}
+
+func buildServer(name string, port int, chain chain.Chainer, logs logger.Logger, cach db.Cacher, filedir string) serve.IServer {
+	// NewServer
+	s := serve.NewServer(name, "", port)
+
+	// Configure Routes
+	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
+	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
+	s.AddRouter(serve.Msg_File, &serve.FileRouter{Chain: chain, Logs: logs, FileDir: filedir, Cach: cach})
+	return s
 }

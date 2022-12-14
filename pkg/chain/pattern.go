@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ var (
 )
 
 type FileHash [64]types.U8
-type FileBlockId [68]types.U8
+type SliceId [68]types.U8
 
 // storage miner info
 type MinerInfo struct {
@@ -64,13 +64,11 @@ type Cache_MinerInfo struct {
 
 // file meta info
 type FileMetaInfo struct {
-	Size  types.U64
-	Index types.U32
-	State types.Bytes
-	// Users []types.AccountID
-	// Names []types.Bytes
+	Size       types.U64
+	Index      types.U32
+	State      types.Bytes
 	UserBriefs []UserBrief
-	BlockInfo  []BlockInfo
+	Blockups   []Backup
 }
 
 type UserBrief struct {
@@ -79,14 +77,20 @@ type UserBrief struct {
 	Bucket_name types.Bytes
 }
 
-// file block info
-type BlockInfo struct {
-	MinerId   types.U64
-	BlockSize types.U64
-	BlockNum  types.U32
-	BlockId   FileBlockId
-	MinerIp   Ipv4Type
-	MinerAcc  types.AccountID
+// Backups
+type Backup struct {
+	Backup_index types.U8
+	State        types.Bool
+	Slice_info   []SliceInfo
+}
+
+// SliceInfo
+type SliceInfo struct {
+	Shard_id   SliceId
+	Slice_hash FileHash
+	Shard_size types.U64
+	Miner_ip   Ipv4Type
+	Miner_acc  types.AccountID
 }
 
 // filler meta info
@@ -134,10 +138,10 @@ type Proof struct {
 	FileId         FileHash
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
-	Mu             []types.Bytes
+	Mu             types.Bytes
 	Sigma          types.Bytes
-	Name           types.Bytes
-	U              []types.Bytes
+	U              types.Bytes
+	HashMi         []types.Bytes
 }
 
 // challenge info
@@ -146,7 +150,7 @@ type ChallengeInfo struct {
 	File_type  types.U8
 	Block_list types.Bytes
 	File_id    FileHash
-	Shard_id   FileBlockId
+	Shard_id   SliceId
 	Random     []types.Bytes
 }
 
@@ -166,6 +170,6 @@ type SpacePackage struct {
 type ProofResult struct {
 	PublicKey types.AccountID
 	FileId    FileHash
-	Shard_id  FileBlockId
+	Shard_id  SliceId
 	Result    types.Bool
 }

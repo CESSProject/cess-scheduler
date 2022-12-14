@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 CESS scheduler authors
+   Copyright 2022 CESS (Cumulus Encrypted Storage System) authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -28,6 +28,12 @@ func init() {
 		log.Println("[err] Please run on linux system.")
 		os.Exit(1)
 	}
-	// Allocate all cores to the program
-	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
+	// Allocate 2/3 cores to the program
+	num := runtime.NumCPU()
+	num = num * 2 / 3
+	if num <= 1 {
+		runtime.GOMAXPROCS(1)
+	} else {
+		runtime.GOMAXPROCS(num)
+	}
 }
