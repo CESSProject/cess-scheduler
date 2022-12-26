@@ -53,7 +53,7 @@ const (
 const (
 	// FileBank
 	tx_FileBank_Update             = "FileBank.update"
-	tx_FileBank_Upload             = "FileBank.upload"
+	tx_FileBank_PackDeal           = "FileBank.pack_deal"
 	tx_FileBank_UploadFiller       = "FileBank.upload_filler"
 	tx_FileBank_ClearRecoveredFile = "FileBank.recover_file"
 	// SegmentBook

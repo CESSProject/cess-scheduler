@@ -36,6 +36,7 @@ var (
 
 type FileHash [64]types.U8
 type SliceId [68]types.U8
+type Signature [65]types.U8
 
 // storage miner info
 type MinerInfo struct {
@@ -172,4 +173,10 @@ type ProofResult struct {
 	FileId    FileHash
 	Shard_id  SliceId
 	Result    types.Bool
+}
+
+type SliceSummary struct {
+	Miner_acc types.AccountID
+	Signature Signature
+	Message   types.Bytes
 }

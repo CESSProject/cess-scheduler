@@ -25,7 +25,7 @@ const (
 	// Name is the name of the program
 	Name = "cess-scheduler"
 	// Description is the description of the program
-	Description = "Implementation of Scheduling Service for Consensus Nodes"
+	Description = "Implementation of consensus node scheduling service on CESS platform"
 	// NameSpace is the cached namespace
 	NameSpace = "scheduler"
 )

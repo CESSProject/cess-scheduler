@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client/v4"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -62,7 +63,7 @@ type Chainer interface {
 	// SubmitFillerMeta is used to submit the meta information of the filler
 	SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error)
 	// SubmitFileMeta is used to submit the meta information of the file
-	SubmitFileMeta(fid string, fsize uint64, backups []Backup) (string, error)
+	SubmitFileMeta(fid string, backups [configs.BackupNum][]SliceSummary) (string, error)
 	// Update is used to update the communication address of the scheduling service
 	Update(ip, port, country string) (string, error)
 }

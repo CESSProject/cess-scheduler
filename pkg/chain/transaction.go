@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
@@ -171,7 +172,7 @@ func (c *chainClient) Register(stash, ip, port, country string) (string, error) 
 }
 
 // Update file meta information
-func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, backups []Backup) (string, error) {
+func (c *chainClient) SubmitFileMeta(fid string, backups [configs.BackupNum][]SliceSummary) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -197,9 +198,8 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, backups []Backup)
 
 	call, err := types.NewCall(
 		c.metadata,
-		tx_FileBank_Upload,
+		tx_FileBank_PackDeal,
 		hash,
-		types.U64(fsize),
 		backups,
 	)
 	if err != nil {

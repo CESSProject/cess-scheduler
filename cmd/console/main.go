@@ -47,6 +47,7 @@ func Execute() {
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Printf("\x1b[%dm[err]\x1b[0m %v\n", 41, err)
 		os.Exit(1)
 	}
 }

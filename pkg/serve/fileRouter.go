@@ -54,8 +54,7 @@ type MsgFile struct {
 	RootHash string `json:"roothash"`
 	FileHash string `json:"filehash"`
 	FileSize int64  `json:"filesize"`
-	LastSize int64  `json:"lastsize"`
-	LastFile bool   `json:"lastfile"`
+	Lastfile bool   `json:"lastfile"`
 	Data     []byte `json:"data"`
 }
 
@@ -67,8 +66,7 @@ var sendFileBufPool = &sync.Pool{
 
 // FileRouter Handle
 func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
-	fmt.Println("Call FileRouter Handle")
-	fmt.Println("recv from client : msgId=", request.GetMsgID())
+	fmt.Println("Call FileRouter Handle and msgId=", request.GetMsgID())
 
 	if request.GetMsgID() != Msg_File {
 		fmt.Println("MsgId error")
@@ -123,15 +121,15 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 		return
 	}
 
-	if msg.LastFile {
+	if msg.Lastfile {
 		finfo, err = fs.Stat()
-		if finfo.Size() == msg.LastSize {
+		if finfo.Size() == msg.FileSize {
 			request.GetConnection().SendMsg(Msg_OK_FILE, nil)
 			//
-			appendBuf := make([]byte, configs.SIZE_SLICE-msg.LastSize)
+			appendBuf := make([]byte, configs.SIZE_SLICE-msg.FileSize)
 			fs.Write(appendBuf)
 			fs.Sync()
-			go dataBackupMgt(msg.RootHash, f.FileDir, msg.LastSize, f.Chain, f.Logs, f.Cach)
+			go dataBackupMgt(msg.RootHash, f.FileDir, msg.FileSize, f.Chain, f.Logs, f.Cach)
 			return
 		}
 	}
@@ -163,11 +161,12 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 	if string(fileMeta.State) == chain.FILE_STATE_ACTIVE {
 		return
 	}
-
+	acc, _ := c.GetCessAccount()
 	var fileSt = StorageProgress{
 		FileId:      fid,
-		FileSize:    int64(configs.SIZE_SLICE * len(fileMeta.Blockups[0].Slice_info)),
+		FileSize:    int64(fileMeta.Size),
 		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   acc,
 		IsUpload:    true,
 		IsCheck:     true,
 		IsShard:     true,
@@ -195,7 +194,11 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 		return
 	}
 
-	var backups = make([]chain.Backup, configs.BackupNum)
+	var sliceSum [configs.BackupNum][]chain.SliceSummary
+	for j := uint8(0); j < configs.BackupNum; j++ {
+		sliceSum[j] = make([]chain.SliceSummary, 0)
+	}
+	var backups = make([]chain.SliceSummary, configs.BackupNum)
 	for i := uint8(0); i < configs.BackupNum; i++ {
 		backups[i].Slice_info = make([]chain.SliceInfo, len(chunks))
 	}
@@ -205,16 +208,21 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 	}
 
 	var lastfile = false
+	var fsize int64
 	for bck := uint8(0); bck < configs.BackupNum; bck++ {
 		backups[bck].Backup_index = types.U8(bck)
 		backups[bck].State = types.Bool(true)
 
 		for i := 0; i < len(chunks); {
-			lastfile = false
+
 			if (i + 1) == len(chunks) {
 				lastfile = true
+				fsize = lastsize
+			} else {
+				lastfile = false
+				fsize = configs.SIZE_SLICE
 			}
-			backups[bck].Slice_info[i], err = backupFile(fid, chunks[i], i, lastsize, lastfile, c, logs, cach)
+			backups[bck].Slice_info[i], err = backupFile(fid, chunks[i], i, fsize, lastfile, c, logs, cach)
 			if err != nil {
 				time.Sleep(time.Second)
 				continue
@@ -229,7 +237,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 	// Submit the file meta information to the chain
 	var tryCount uint8
 	for {
-		txhash, err = c.SubmitFileMeta(fid, uint64(len(chunks)*configs.SIZE_SLICE), backups)
+		txhash, err = c.SubmitFileMeta(fid, backups)
 		if err != nil {
 			tryCount++
 			if tryCount > 3 {
@@ -260,7 +268,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(fid, fpath string, index int, lastsize int64, lastfile bool, c chain.Chainer, logs logger.Logger, cach db.Cacher) (chain.SliceInfo, error) {
+func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chain.Chainer, logs logger.Logger, cach db.Cacher) (chain.SliceInfo, error) {
 	var (
 		err            error
 		rtnValue       chain.SliceInfo
@@ -327,7 +335,7 @@ func backupFile(fid, fpath string, index int, lastsize int64, lastfile bool, c c
 			continue
 		}
 
-		err = FileReq(conTcp, token, fid, fpath, lastfile, lastsize)
+		err = FileReq(conTcp, token, fid, fpath, lastfile, fsize)
 		if err != nil {
 			conTcp.Close()
 			continue
@@ -369,8 +377,6 @@ func backupFile(fid, fpath string, index int, lastsize int64, lastfile bool, c c
 		rtnValue.Shard_size = types.U64(fstat.Size())
 		rtnValue.Miner_acc = allMinerPubkey[i]
 		rtnValue.Miner_ip = ipType
-		//rtnValue.MinerId = types.U64(minerinfo.Peerid)
-
 		rtnValue.Slice_hash = slicehash
 		break
 	}
@@ -445,14 +451,13 @@ func AuthReq(conn net.Conn, secret string) (string, error) {
 	return "", fmt.Errorf("Nil head")
 }
 
-func FileReq(conn net.Conn, token, fid string, file string, lastfile bool, lastsize int64) error {
+func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsize int64) error {
 	var (
 		err     error
 		num     int
 		tempBuf []byte
 		msgHead IMessage
 		fs      *os.File
-		finfo   os.FileInfo
 		message = MsgFile{
 			Token:    token,
 			RootHash: fid,
@@ -468,17 +473,14 @@ func FileReq(conn net.Conn, token, fid string, file string, lastfile bool, lasts
 		sendFileBufPool.Put(readBuf)
 	}()
 
-	fs, err = os.Open(file)
+	fs, err = os.Open(fpath)
 	if err != nil {
 		return err
 	}
-	finfo, err = fs.Stat()
-	if err != nil {
-		return err
-	}
-	message.FileHash = filepath.Base(file)
-	message.FileSize = finfo.Size()
-	message.LastFile = lastfile
+
+	message.FileHash = filepath.Base(fpath)
+	message.FileSize = fsize
+	message.Lastfile = lastfile
 
 	for {
 		num, err = fs.Read(readBuf)
@@ -489,8 +491,8 @@ func FileReq(conn net.Conn, token, fid string, file string, lastfile bool, lasts
 			break
 		}
 		num += num
-		if message.LastFile && num >= int(lastsize) {
-			bound := cap(readBuf) + int(lastsize) - num
+		if lastfile && num >= int(fsize) {
+			bound := cap(readBuf) + int(fsize) - num
 			message.Data = readBuf[:bound]
 		} else {
 			message.Data = readBuf[:num]
@@ -523,14 +525,12 @@ func FileReq(conn net.Conn, token, fid string, file string, lastfile bool, lasts
 			break
 		}
 
-		if msgHead.GetMsgID() == Msg_OK {
-			if message.LastFile && num >= int(lastsize) {
-				return nil
-			}
-		}
-
 		if msgHead.GetMsgID() != Msg_OK {
 			return fmt.Errorf("send file error")
+		}
+
+		if lastfile && num >= int(fsize) {
+			return nil
 		}
 	}
 
