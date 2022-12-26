@@ -19,14 +19,11 @@ package serve
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +53,12 @@ type MsgFile struct {
 	FileSize int64  `json:"filesize"`
 	Lastfile bool   `json:"lastfile"`
 	Data     []byte `json:"data"`
+}
+
+type MsgConfirm struct {
+	Token    string `json:"token"`
+	RootHash string `json:"roothash"`
+	FileHash string `json:"filehash"`
 }
 
 var sendFileBufPool = &sync.Pool{
@@ -195,12 +198,8 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 	}
 
 	var sliceSum [configs.BackupNum][]chain.SliceSummary
-	for j := uint8(0); j < configs.BackupNum; j++ {
-		sliceSum[j] = make([]chain.SliceSummary, 0)
-	}
-	var backups = make([]chain.SliceSummary, configs.BackupNum)
 	for i := uint8(0); i < configs.BackupNum; i++ {
-		backups[i].Slice_info = make([]chain.SliceInfo, len(chunks))
+		sliceSum[i] = make([]chain.SliceSummary, 0)
 	}
 	fileSt.Backups = make([]map[int]string, configs.BackupNum)
 	for i := uint8(0); i < configs.BackupNum; i++ {
@@ -210,11 +209,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 	var lastfile = false
 	var fsize int64
 	for bck := uint8(0); bck < configs.BackupNum; bck++ {
-		backups[bck].Backup_index = types.U8(bck)
-		backups[bck].State = types.Bool(true)
-
 		for i := 0; i < len(chunks); {
-
 			if (i + 1) == len(chunks) {
 				lastfile = true
 				fsize = lastsize
@@ -222,22 +217,24 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 				lastfile = false
 				fsize = configs.SIZE_SLICE
 			}
-			backups[bck].Slice_info[i], err = backupFile(fid, chunks[i], i, fsize, lastfile, c, logs, cach)
+			val, err := backupFile(fid, chunks[i], i, fsize, lastfile, c, logs, cach)
 			if err != nil {
 				time.Sleep(time.Second)
 				continue
 			}
-			fileSt.Backups[bck][i], _ = utils.EncodePublicKeyAsCessAccount(backups[bck].Slice_info[i].Miner_acc[:])
+			sliceSum[bck] = append(sliceSum[bck], val)
+			fileSt.Backups[bck][i], _ = utils.EncodePublicKeyAsCessAccount(val.Miner_acc[:])
 			b, _ := json.Marshal(&fileSt)
 			cach.Put([]byte(fid), b)
 			logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 			i++
 		}
 	}
+
 	// Submit the file meta information to the chain
 	var tryCount uint8
 	for {
-		txhash, err = c.SubmitFileMeta(fid, backups)
+		txhash, err = c.PackDeal(fid, sliceSum)
 		if err != nil {
 			tryCount++
 			if tryCount > 3 {
@@ -268,10 +265,10 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chain.Chainer, logs logger.Logger, cach db.Cacher) (chain.SliceInfo, error) {
+func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chain.Chainer, logs logger.Logger, cach db.Cacher) (chain.SliceSummary, error) {
 	var (
 		err            error
-		rtnValue       chain.SliceInfo
+		rtnValue       chain.SliceSummary
 		minerinfo      chain.Cache_MinerInfo
 		allMinerPubkey []types.AccountID
 	)
@@ -340,49 +337,18 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 			conTcp.Close()
 			continue
 		}
-		conTcp.Close()
-		var blockId chain.SliceId
-		var slicehash chain.FileHash
-		var blockId_temp string
-		if index < 10 {
-			blockId_temp = fmt.Sprintf("%v.00%d", fid, uint8(index))
-		} else if index < 99 {
-			blockId_temp = fmt.Sprintf("%v.0%d", fid, uint8(index))
-		} else {
-			blockId_temp = fmt.Sprintf("%v.%d", fid, uint8(index))
-		}
-		if len(blockId_temp) != len(blockId) {
+
+		val, err := ConfirmReq(conTcp, token, fid, filepath.Base(fpath))
+		if err != nil {
+			conTcp.Close()
 			continue
 		}
-		for i := 0; i < len(blockId); i++ {
-			blockId[i] = types.U8(blockId_temp[i])
-		}
-		for i := 0; i < len(slicehash); i++ {
-			slicehash[i] = types.U8(fname[i])
-		}
-		rtnValue.Shard_id = blockId
 
-		var ipType chain.Ipv4Type
-		ipType.Index = types.U8(0)
-		ip_port := strings.Split(minerinfo.Ip, ":")
-		port, _ := strconv.Atoi(ip_port[1])
-		ipType.Port = types.U16(port)
-		if utils.IsIPv4(ip_port[0]) {
-			ips := strings.Split(ip_port[0], ".")
-			for i := 0; i < len(ipType.Value); i++ {
-				temp, _ := strconv.Atoi(ips[i])
-				ipType.Value[i] = types.U8(temp)
-			}
-		}
-		rtnValue.Shard_size = types.U64(fstat.Size())
-		rtnValue.Miner_acc = allMinerPubkey[i]
-		rtnValue.Miner_ip = ipType
-		rtnValue.Slice_hash = slicehash
-		break
+		conTcp.Close()
+
+		return val, nil
 	}
-	if rtnValue.Shard_size == 0 {
-		return rtnValue, errors.New("failed")
-	}
+
 	return rtnValue, err
 }
 
@@ -535,4 +501,60 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 	}
 
 	return err
+}
+
+func ConfirmReq(conn net.Conn, token, fid, slicehash string) (chain.SliceSummary, error) {
+	var (
+		err     error
+		tempBuf []byte
+		msgHead IMessage
+		message = MsgConfirm{
+			Token:    token,
+			RootHash: fid,
+			FileHash: slicehash,
+		}
+		dp       = NewDataPack()
+		headData = make([]byte, dp.GetHeadLen())
+	)
+
+	tempBuf, err = json.Marshal(&message)
+	if err != nil {
+		return chain.SliceSummary{}, err
+	}
+
+	//send  message
+	tempBuf, _ = dp.Pack(NewMsgPackage(Msg_Confirm, tempBuf))
+	_, err = conn.Write(tempBuf)
+	if err != nil {
+		return chain.SliceSummary{}, err
+	}
+
+	//read head
+	_, err = io.ReadFull(conn, headData)
+	if err != nil {
+		return chain.SliceSummary{}, err
+	}
+
+	msgHead, err = dp.Unpack(headData)
+	if err != nil {
+		return chain.SliceSummary{}, err
+	}
+
+	if msgHead.GetMsgID() != Msg_OK || msgHead.GetDataLen() <= 0 {
+		return chain.SliceSummary{}, fmt.Errorf("confirm req error")
+	}
+
+	var buf = make([]byte, msgHead.GetDataLen())
+	var rtnValue chain.SliceSummary
+	//read data
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		return chain.SliceSummary{}, err
+	}
+
+	err = json.Unmarshal(buf, &rtnValue)
+	if err != nil {
+		return chain.SliceSummary{}, err
+	}
+	return rtnValue, nil
 }

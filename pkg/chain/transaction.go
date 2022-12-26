@@ -172,7 +172,7 @@ func (c *chainClient) Register(stash, ip, port, country string) (string, error) 
 }
 
 // Update file meta information
-func (c *chainClient) SubmitFileMeta(fid string, backups [configs.BackupNum][]SliceSummary) (string, error) {
+func (c *chainClient) PackDeal(fid string, sliceSummary [configs.BackupNum][]SliceSummary) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -200,7 +200,7 @@ func (c *chainClient) SubmitFileMeta(fid string, backups [configs.BackupNum][]Sl
 		c.metadata,
 		tx_FileBank_PackDeal,
 		hash,
-		backups,
+		sliceSummary,
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "NewCall")
