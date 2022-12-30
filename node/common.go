@@ -29,7 +29,7 @@ import (
 
 // task_ Common is used to judge whether the balance of
 // your wallet meets the operation requirements.
-func (n *Node) task_Common(ch chan bool) {
+func (n *Node) task_common(ch chan<- bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {

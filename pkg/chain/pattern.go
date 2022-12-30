@@ -36,31 +36,36 @@ var (
 
 type FileHash [64]types.U8
 type SliceId [68]types.U8
+type Random [20]types.U8
 type Signature [65]types.U8
+type Filter [256]types.U64
+type Public [33]types.U8
 
 // storage miner info
 type MinerInfo struct {
-	PeerId      types.U64
-	IncomeAcc   types.AccountID
-	Ip          Ipv4Type
-	Collaterals types.U128
-	State       types.Bytes
-	Power       types.U128
-	Space       types.U128
-	RewardInfo  RewardInfo
+	Beneficiary    types.AccountID
+	Ip             Ipv4Type
+	Collaterals    types.U128
+	Debt           types.U128
+	State          types.Bytes
+	Idle_space     types.U128
+	Service_space  types.U128
+	Autonomy_space types.U128
+	Puk            Public
+	Ias_cert       types.Bytes
+	Bloom_filter   BloomCollect
 }
 
-type RewardInfo struct {
-	Total       types.U128
-	Received    types.U128
-	NotReceived types.U128
+type BloomCollect struct {
+	AutonomyFilter Filter
+	ServiceFilter  Filter
+	IdleFilter     Filter
 }
 
 // cache storage miner
 type Cache_MinerInfo struct {
-	Peerid uint64 `json:"peerid"`
-	Ip     string `json:"ip"`
-	Free   uint64 `json:"free"`
+	Ip   string `json:"ip"`
+	Free uint64 `json:"free"`
 }
 
 // file meta info
@@ -92,17 +97,6 @@ type SliceInfo struct {
 	Shard_size types.U64
 	Miner_ip   Ipv4Type
 	Miner_acc  types.AccountID
-}
-
-// filler meta info
-type FillerMetaInfo struct {
-	Size      types.U64
-	Index     types.U32
-	BlockNum  types.U32
-	BlockSize types.U32
-	ScanSize  types.U32
-	Acc       types.AccountID
-	Hash      FileHash
 }
 
 // scheduler info

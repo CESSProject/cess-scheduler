@@ -20,19 +20,19 @@ package node
 // which can start the cooperation program that unexpectedly exits.
 func (node *Node) CoroutineMgr() {
 	var (
-		channel_1 = make(chan bool, 1)
-		channel_2 = make(chan bool, 1)
+		ch_common     = make(chan bool, 1)
+		ch_minerCache = make(chan bool, 1)
 	)
 
-	go node.task_MinerCache(channel_1)
-	go node.task_Common(channel_2)
+	go node.task_common(ch_common)
+	go node.task_minerCache(ch_minerCache)
 
 	for {
 		select {
-		case <-channel_1:
-			go node.task_MinerCache(channel_1)
-		case <-channel_2:
-			go node.task_Common(channel_2)
+		case <-ch_common:
+			go node.task_common(ch_common)
+		case <-ch_minerCache:
+			go node.task_minerCache(ch_minerCache)
 		}
 	}
 }

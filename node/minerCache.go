@@ -19,7 +19,6 @@ package node
 import (
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -30,7 +29,7 @@ import (
 
 // task_MinerCache obtains the miners' information on the chain
 // and records it to the cache.
-func (node *Node) task_MinerCache(ch chan bool) {
+func (node *Node) task_minerCache(ch chan<- bool) {
 	defer func() {
 		if err := recover(); err != nil {
 			node.Logs.Pnc("error", utils.RecoverError(err))
@@ -44,7 +43,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 		minerInfo  chain.MinerInfo
 	)
 
-	node.Logs.MinerCache("info", errors.New(">>> Start task_MinerCache <<<"))
+	node.Logs.MinerCache("info", errors.New(">>> Start task_minerCache <<<"))
 
 	for {
 		for node.Chain.GetChainStatus() {
@@ -80,7 +79,6 @@ func (node *Node) task_MinerCache(ch chan bool) {
 				}
 
 				// save data
-				minerCache.Peerid = uint64(minerInfo.PeerId)
 				ipv4 = fmt.Sprintf("%d.%d.%d.%d",
 					minerInfo.Ip.Value[0],
 					minerInfo.Ip.Value[1],
@@ -88,7 +86,7 @@ func (node *Node) task_MinerCache(ch chan bool) {
 					minerInfo.Ip.Value[3],
 				)
 				minerCache.Ip = fmt.Sprintf("%v:%d", ipv4, minerInfo.Ip.Port)
-				minerCache.Free = new(big.Int).Sub(new(big.Int).SetBytes(minerInfo.Power.Bytes()), new(big.Int).SetBytes(minerInfo.Space.Bytes())).Uint64()
+				minerCache.Free = minerInfo.Idle_space.Uint64()
 				value, err := json.Marshal(&minerCache)
 				if err != nil {
 					node.Logs.MinerCache("error", fmt.Errorf("[%v] %v", addr, err))

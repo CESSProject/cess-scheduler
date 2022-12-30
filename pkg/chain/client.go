@@ -58,10 +58,6 @@ type Chainer interface {
 	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
 	// Register is used by the scheduling service to register
 	Register(stash, ip, port, country string) (string, error)
-	// SubmitProofResults is used to submit proof verification results
-	SubmitProofResults(data []ProofResult) (string, error)
-	// SubmitFillerMeta is used to submit the meta information of the filler
-	SubmitFillerMeta(miner_acc types.AccountID, info []FillerMetaInfo) (string, error)
 	// PackDeal is used to submit the meta information of the file
 	PackDeal(fid string, backups [configs.BackupNum][]SliceSummary) (string, error)
 	// Update is used to update the communication address of the scheduling service

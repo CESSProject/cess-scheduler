@@ -35,11 +35,6 @@ type Logger interface {
 	Common(string, error)
 	Upfile(string, error)
 	MinerCache(string, error)
-	GenFiller(string, error)
-	FillerMeta(string, error)
-	Verify(string, error)
-	Speed(error)
-	Spc(string, error)
 }
 
 type logs struct {
@@ -134,74 +129,6 @@ func (l *logs) Upfile(level string, err error) {
 func (l *logs) MinerCache(level string, err error) {
 	_, file, line, _ := runtime.Caller(1)
 	v, ok := l.log["minerCache"]
-	if ok {
-		switch level {
-		case "info":
-			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
-		case "error", "err":
-			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
-		case "warn":
-			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
-		}
-	}
-}
-
-func (l *logs) GenFiller(level string, err error) {
-	_, file, line, _ := runtime.Caller(1)
-	v, ok := l.log["genFiller"]
-	if ok {
-		switch level {
-		case "info":
-			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
-		case "error", "err":
-			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
-		case "warn":
-			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
-		}
-	}
-}
-
-func (l *logs) FillerMeta(level string, err error) {
-	_, file, line, _ := runtime.Caller(1)
-	v, ok := l.log["fillerMeta"]
-	if ok {
-		switch level {
-		case "info":
-			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
-		case "error", "err":
-			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
-		case "warn":
-			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
-		}
-	}
-}
-
-func (l *logs) Verify(level string, err error) {
-	_, file, line, _ := runtime.Caller(1)
-	v, ok := l.log["verify"]
-	if ok {
-		switch level {
-		case "info":
-			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
-		case "error", "err":
-			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
-		case "warn":
-			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
-		}
-	}
-}
-
-func (l *logs) Speed(err error) {
-	_, file, line, _ := runtime.Caller(1)
-	v, ok := l.log["speed"]
-	if ok {
-		v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
-	}
-}
-
-func (l *logs) Spc(level string, err error) {
-	_, file, line, _ := runtime.Caller(1)
-	v, ok := l.log["space"]
 	if ok {
 		switch level {
 		case "info":

@@ -318,9 +318,13 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 			continue
 		}
 
+		if BlackMiners.IsExist(minerinfo.Ip) {
+			continue
+		}
+
 		conTcp, err := dialTcpServer(minerinfo.Ip)
 		if err != nil {
-			BlackMiners.Add(minerinfo.Peerid)
+			BlackMiners.Add(minerinfo.Ip)
 			logs.Upfile("err", fmt.Errorf("dial %v err: %v", minerinfo.Ip, err))
 			continue
 		}

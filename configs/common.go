@@ -35,61 +35,17 @@ const (
 	SIZE_SLICE = 512 * SIZE_1MiB
 )
 
-// filler
-const (
-	// FillerSize is the fill size of the uncommissioned data segment
-	FillerSize = 8 * SIZE_1MiB
-	// FillerLineLength is the number of characters in a line
-	FillerLineLength = 4096
-	// BlockSize is the block size when pbc is calculated
-	BlockSize = SIZE_1MiB
-	// ScanBlockSize is the size of the scan and cannot be larger than BlockSize
-	ScanBlockSize = BlockSize / 2
-	// The maximum number of fillermeta submitted in a transaction
-	Max_SubFillerMeta = 8
-	// Number of local filler caches
-	Num_Filler_Reserved = 5
-
-	Max_Filler_Meta = 50
-	//
-	WaitFillerTime = time.Duration(time.Second * 3)
-
-	TCP_MaxPacketSize = SIZE_1KiB * 32
-)
-
 const (
 	// Maximum number of connections in the miner's certification space
 	MAX_TCP_CONNECTION uint8 = 3
-	// Tcp client connection interval
-	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
-	// Tcp message interval
-	TCP_Message_Interval = time.Duration(time.Millisecond * 10)
-	// Tcp short message waiting time
-	TCP_Time_WaitNotification = time.Duration(time.Second * 6)
-	// Tcp short message waiting time
-	TCP_Time_WaitMsg = time.Duration(time.Second * 10)
-	// Tcp short message waiting time
-	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
-	// The slowest tcp transfers bytes per second
-	TCP_Transmission_Slowest = SIZE_1KiB * 50
 	// Number of tcp message caches
-	TCP_Message_Send_Buffers = 10
 	TCP_Message_Read_Buffers = 10
 	//
-	TCP_SendBuffer = 8192
-	TCP_ReadBuffer = 12000
-	TCP_TagBuffer  = 2012
+	TCP_MaxPacketSize = SIZE_1KiB * 32
 	//
 	Tcp_Dial_Timeout = time.Duration(time.Second * 5)
-)
-
-const (
 	// Time out waiting for transaction completion
 	TimeOut_WaitBlock = time.Duration(time.Second * 15)
-	// Submit fillermeta interval
-	SubmitFillermetaInterval = 60
-	// The maximum number of proof results submitted in a transaction
-	Max_SubProofResults = 40
 	// Token length
 	TokenLength = 32
 )
@@ -113,11 +69,6 @@ var (
 		"common",     //General log
 		"upfile",     //Upload file log
 		"panic",      //Panic log
-		"verify",     //Verify proof log
 		"minerCache", //Miner cache log
-		"fillerMeta", //Submit filler meta log
-		"genFiller",  //Generate filler log
-		"speed",      //Record transmission time and speed
-		"space",      //Fills the miner's space log
 	}
 )
