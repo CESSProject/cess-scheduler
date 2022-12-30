@@ -40,9 +40,9 @@ import (
 // FileRouter
 type FileRouter struct {
 	BaseRouter
-	Chain   chain.Chainer
-	Logs    logger.Logger
-	Cach    db.Cacher
+	Chain   chain.IChain
+	Logs    logger.ILog
+	Cach    db.ICache
 	FileDir string
 }
 
@@ -143,7 +143,7 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 }
 
 // file backup management
-func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logger.Logger, cach db.Cacher) {
+func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger.ILog, cach db.ICache) {
 	defer func() {
 		if err := recover(); err != nil {
 			logs.Pnc("error", utils.RecoverError(err))
@@ -265,7 +265,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.Chainer, logs logge
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chain.Chainer, logs logger.Logger, cach db.Cacher) (chain.SliceSummary, error) {
+func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chain.IChain, logs logger.ILog, cach db.ICache) (chain.SliceSummary, error) {
 	var (
 		err            error
 		rtnValue       chain.SliceSummary

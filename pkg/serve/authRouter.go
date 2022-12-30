@@ -29,7 +29,7 @@ import (
 
 type AuthRouter struct {
 	BaseRouter
-	Cache db.Cacher
+	Cache db.ICache
 }
 
 type MsgAuth struct {

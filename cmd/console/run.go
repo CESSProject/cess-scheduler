@@ -45,59 +45,59 @@ func runCmd(cmd *cobra.Command, args []string) {
 		err      error
 		logDir   string
 		cacheDir string
-		node     = node.New()
+		n        = node.New()
 	)
 
 	//Build profile instances
-	node.Confile, err = buildConfigFile(cmd)
+	n.Cfile, err = buildConfigFile(cmd)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	//Build chain instance
-	node.Chain, err = buildChain(node.Confile, configs.TimeOut_WaitBlock)
+	n.Chn, err = buildChain(n.Cfile, configs.TimeOut_WaitBlock)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	//Build data directory
-	logDir, cacheDir, node.FileDir, err = buildDir(node.Confile, node.Chain)
+	logDir, cacheDir, n.FileDir, err = buildDir(n.Cfile, n.Chn)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	//Build cache instance
-	node.Cache, err = buildCache(cacheDir)
+	n.Cach, err = buildCache(cacheDir)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	//Build log instance
-	node.Logs, err = buildLogs(logDir)
+	n.Logs, err = buildLogs(logDir)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 
 	//Build server instance
-	node.Server = buildServer(
+	n.Ser = buildServer(
 		"Scheduler Server",
-		node.Confile.GetServicePortNum(),
-		node.Chain,
-		node.Logs,
-		node.Cache,
-		node.FileDir,
+		n.Cfile.GetServicePortNum(),
+		n.Chn,
+		n.Logs,
+		n.Cach,
+		n.FileDir,
 	)
 
 	// run
-	node.Run()
+	n.Run()
 }
 
-func buildConfigFile(cmd *cobra.Command) (confile.Confiler, error) {
+func buildConfigFile(cmd *cobra.Command) (confile.IConfile, error) {
 	var conFilePath string
 	configpath1, _ := cmd.Flags().GetString("config")
 	configpath2, _ := cmd.Flags().GetString("c")
@@ -114,7 +114,7 @@ func buildConfigFile(cmd *cobra.Command) (confile.Confiler, error) {
 	return cfg, nil
 }
 
-func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, error) {
+func buildChain(cfg confile.IConfile, timeout time.Duration) (chain.IChain, error) {
 	var isReg bool
 	// connecting chain
 	client, err := chain.NewChainClient(cfg.GetRpcAddr(), cfg.GetCtrlPrk(), cfg.GetStashAcc(), timeout)
@@ -168,7 +168,7 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 	return client, nil
 }
 
-func register(cfg confile.Confiler, client chain.Chainer) error {
+func register(cfg confile.IConfile, client chain.IChain) error {
 	country, _, _ := utils.ParseCountryFromIp(cfg.GetServiceAddr())
 
 	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort(), country)
@@ -187,7 +187,7 @@ func register(cfg confile.Confiler, client chain.Chainer) error {
 	return nil
 }
 
-func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, string, error) {
+func buildDir(cfg confile.IConfile, client chain.IChain) (string, string, string, error) {
 	ctlAccount, err := client.GetCessAccount()
 	if err != nil {
 		return "", "", "", err
@@ -196,54 +196,36 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 
 	_, err = os.Stat(baseDir)
 	if err != nil {
-		err = os.MkdirAll(baseDir, os.ModeDir)
+		err = os.MkdirAll(baseDir, configs.DirPermission)
 		if err != nil {
 			return "", "", "", err
 		}
 	}
 
 	logDir := filepath.Join(baseDir, configs.LogDir)
-	_, err = os.Stat(logDir)
-	if err == nil {
-		bkp := logDir + fmt.Sprintf("_%v", time.Now().Unix())
-		os.Rename(logDir, bkp)
-	}
-	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(logDir, configs.DirPermission); err != nil {
 		return "", "", "", err
 	}
 
 	cacheDir := filepath.Join(baseDir, configs.CacheDir)
-	os.RemoveAll(cacheDir)
-	if err := os.MkdirAll(cacheDir, os.ModeDir); err != nil {
-		return "", "", "", err
-	}
-
-	fillerDir := filepath.Join(baseDir, configs.FillerDir)
-	os.RemoveAll(fillerDir)
-	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(cacheDir, configs.DirPermission); err != nil {
 		return "", "", "", err
 	}
 
 	fileDir := filepath.Join(baseDir, configs.FileDir)
-	os.RemoveAll(fileDir)
-	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(fileDir, configs.DirPermission); err != nil {
 		return "", "", "", err
 	}
 
-	tagDir := filepath.Join(baseDir, configs.TagDir)
-	os.RemoveAll(tagDir)
-	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
-		return "", "", "", err
-	}
 	log.Println(baseDir)
 	return logDir, cacheDir, fileDir, nil
 }
 
-func buildCache(cacheDir string) (db.Cacher, error) {
+func buildCache(cacheDir string) (db.ICache, error) {
 	return db.NewCache(cacheDir, 0, 0, configs.NameSpace)
 }
 
-func buildLogs(logDir string) (logger.Logger, error) {
+func buildLogs(logDir string) (logger.ILog, error) {
 	var logs_info = make(map[string]string)
 	for _, v := range configs.LogFiles {
 		logs_info[v] = filepath.Join(logDir, v+".log")
@@ -251,7 +233,7 @@ func buildLogs(logDir string) (logger.Logger, error) {
 	return logger.NewLogs(logs_info)
 }
 
-func buildServer(name string, port int, chain chain.Chainer, logs logger.Logger, cach db.Cacher, filedir string) serve.IServer {
+func buildServer(name string, port int, chain chain.IChain, logs logger.ILog, cach db.ICache, filedir string) serve.IServer {
 	// NewServer
 	s := serve.NewServer(name, "0.0.0.0", port)
 

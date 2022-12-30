@@ -45,7 +45,7 @@ CtrlPrk     = ""
 StashAcc    = ""`
 )
 
-type Confiler interface {
+type IConfile interface {
 	Parse(path string) error
 	GetRpcAddr() string
 	GetServiceAddr() string
@@ -65,7 +65,7 @@ type confile struct {
 	StashAcc    string `name:"StashAcc" toml:"StashAcc" yaml:"StashAcc"`
 }
 
-func NewConfigfile() Confiler {
+func NewConfigfile() IConfile {
 	return &confile{}
 }
 

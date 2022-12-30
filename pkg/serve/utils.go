@@ -48,7 +48,7 @@ func VerifySign(pkey, signmsg, sign []byte) (bool, error) {
 	return verkr.Verify(verkr.SigningContext(signmsg), sign_array), nil
 }
 
-func GetFileState(c chain.Chainer, fileHash string) (string, error) {
+func GetFileState(c chain.IChain, fileHash string) (string, error) {
 	var try_count uint8
 	for try_count <= 3 {
 		fmeta, err := c.GetFileMetaInfo(fileHash)

@@ -41,7 +41,7 @@ type LevelDB struct {
 	db *leveldb.DB
 }
 
-func NewCache(fpath string, memory int, handles int, namespace string) (Cacher, error) {
+func NewCache(fpath string, memory int, handles int, namespace string) (ICache, error) {
 	_, err := os.Stat(fpath)
 	if err != nil {
 		err = os.MkdirAll(fpath, os.ModeDir)
@@ -52,7 +52,7 @@ func NewCache(fpath string, memory int, handles int, namespace string) (Cacher, 
 	return newLevelDB(fpath, memory, handles, namespace)
 }
 
-func newLevelDB(file string, memory int, handles int, namespace string) (Cacher, error) {
+func newLevelDB(file string, memory int, handles int, namespace string) (ICache, error) {
 	options := configureOptions(memory, handles)
 	db, err := leveldb.OpenFile(file, options)
 	if _, corrupted := err.(*errors.ErrCorrupted); corrupted {

@@ -29,11 +29,11 @@ type Scheduler interface {
 }
 
 type Node struct {
-	Server  serve.IServer
-	Confile confile.Confiler
-	Chain   chain.Chainer
-	Logs    logger.Logger
-	Cache   db.Cacher
+	Ser     serve.IServer
+	Cfile   confile.IConfile
+	Chn     chain.IChain
+	Logs    logger.ILog
+	Cach    db.ICache
 	FileDir string
 }
 
@@ -50,5 +50,5 @@ func (n *Node) Run() {
 	go serve.AutoExpirationDelete()
 
 	// Start Service
-	n.Server.Serve()
+	n.Ser.Serve()
 }

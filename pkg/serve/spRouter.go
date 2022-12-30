@@ -40,7 +40,7 @@ type StorageProgress struct {
 
 type StorageProgressRouter struct {
 	BaseRouter
-	Cach db.Cacher
+	Cach db.ICache
 }
 
 type MsgStorageProgress struct {

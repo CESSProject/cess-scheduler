@@ -34,11 +34,9 @@ const (
 	// BaseDir is the base directory where data is stored
 	BaseDir = NameSpace
 	// Data directory
-	LogDir    = "log"
-	CacheDir  = "cache"
-	FileDir   = "file"
-	TagDir    = "tag"
-	FillerDir = "filler"
+	LogDir   = "log"
+	CacheDir = "cache"
+	FileDir  = "file"
 )
 
 const (

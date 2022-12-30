@@ -37,17 +37,19 @@ const (
 
 const (
 	// Maximum number of connections in the miner's certification space
-	MAX_TCP_CONNECTION uint8 = 3
+	MAX_TCP_CONNECTION uint8 = 10
 	// Number of tcp message caches
 	TCP_Message_Read_Buffers = 10
 	//
-	TCP_MaxPacketSize = SIZE_1KiB * 32
+	TCP_MaxPacketSize = SIZE_1MiB + SIZE_1KiB*10
 	//
 	Tcp_Dial_Timeout = time.Duration(time.Second * 5)
 	// Time out waiting for transaction completion
 	TimeOut_WaitBlock = time.Duration(time.Second * 15)
 	// Token length
 	TokenLength = 32
+	//
+	DirPermission = 755
 )
 
 // explanation

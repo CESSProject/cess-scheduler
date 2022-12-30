@@ -27,7 +27,7 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
-type Chainer interface {
+type IChain interface {
 	// Getpublickey returns its own public key
 	GetPublicKey() []byte
 	// GetStashPublicKey returns its stash account public key
@@ -78,7 +78,7 @@ type chainClient struct {
 	timeForBlockOut time.Duration
 }
 
-func NewChainClient(rpcAddr, secret, stash string, t time.Duration) (Chainer, error) {
+func NewChainClient(rpcAddr, secret, stash string, t time.Duration) (IChain, error) {
 	var (
 		err error
 		cli = &chainClient{}

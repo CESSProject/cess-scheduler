@@ -37,7 +37,7 @@ func (n *Node) task_common(ch chan<- bool) {
 		}
 	}()
 
-	n.Logs.Common("info", errors.New(">>> Start task_Common <<<"))
+	n.Logs.Common("info", errors.New(">>> Start task_common <<<"))
 
 	tikBalance := time.NewTicker(time.Minute)
 	defer tikBalance.Stop()
@@ -45,7 +45,7 @@ func (n *Node) task_common(ch chan<- bool) {
 	for {
 		select {
 		case <-tikBalance.C:
-			accountinfo, err := n.Chain.GetAccountInfo(n.Chain.GetPublicKey())
+			accountinfo, err := n.Chn.GetAccountInfo(n.Chn.GetPublicKey())
 			if err == nil {
 				if accountinfo.Data.Free.CmpAbs(new(big.Int).SetUint64(configs.MinimumBalance)) == -1 {
 					n.Logs.Common("info", errors.New("Insufficient balance, program exited"))
