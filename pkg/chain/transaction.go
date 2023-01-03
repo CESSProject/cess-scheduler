@@ -69,10 +69,10 @@ func (c *chainClient) Register(stash, ip, port, country string) (string, error) 
 
 	call, err := types.NewCall(
 		c.metadata,
-		tx_FileMap_Add_schedule,
+		tx_FileMap_RegistrationScheduler,
 		types.NewAccountID(stashPuk),
 		ipType.IPv4,
-		types.Bytes(country),
+		//types.Bytes(country),
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")
@@ -337,7 +337,7 @@ func (c *chainClient) Update(ip, port, country string) (string, error) {
 		c.metadata,
 		tx_FileMap_UpdateScheduler,
 		ipType.IPv4,
-		types.Bytes(country),
+		//types.Bytes(country),
 	)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")

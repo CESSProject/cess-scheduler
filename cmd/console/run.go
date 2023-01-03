@@ -239,8 +239,8 @@ func buildServer(name string, port int, chain chain.IChain, logs logger.ILog, ca
 
 	// Configure Routes
 	s.AddRouter(serve.Msg_Ping, &serve.PingRouter{})
-	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{})
-	s.AddRouter(serve.Msg_File, &serve.FileRouter{Chain: chain, Logs: logs, FileDir: filedir, Cach: cach})
+	s.AddRouter(serve.Msg_Auth, &serve.AuthRouter{Cach: cach})
+	s.AddRouter(serve.Msg_File, &serve.FileRouter{Chain: chain, Logs: logs, Cach: cach, FileDir: filedir})
 	s.AddRouter(serve.Msg_Progress, &serve.StorageProgressRouter{Cach: cach})
 	return s
 }

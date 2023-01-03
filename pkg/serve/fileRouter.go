@@ -56,9 +56,10 @@ type MsgFile struct {
 }
 
 type MsgConfirm struct {
-	Token    string `json:"token"`
-	RootHash string `json:"roothash"`
-	FileHash string `json:"filehash"`
+	Token     string `json:"token"`
+	RootHash  string `json:"roothash"`
+	SliceHash string `json:"slicehash"`
+	ShardId   string `json:"shardId"`
 }
 
 var sendFileBufPool = &sync.Pool{
@@ -85,53 +86,55 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 		return
 	}
 
+	fmt.Println("Msg: ", msg.FileHash, msg.FileSize, msg.Lastfile, msg.RootHash)
+	fmt.Println("Msg len(data): ", len(msg.Data))
 	if !Tokens.Update(msg.Token) {
 		request.GetConnection().SendMsg(Msg_Forbidden, nil)
 		return
 	}
 
 	fpath := filepath.Join(f.FileDir, msg.FileHash)
+	fmt.Println("fpath: ", fpath)
 	finfo, err := os.Stat(fpath)
-	if err != nil {
-		request.GetConnection().SendBuffMsg(Msg_ServerErr, nil)
-		return
-	}
-
-	if finfo.Size() == configs.SIZE_SLICE {
-		hash, _ := utils.CalcPathSHA256(fpath)
-		if hash == msg.FileHash {
-			request.GetConnection().SendBuffMsg(Msg_OK_FILE, nil)
+	if err == nil {
+		if finfo.Size() == configs.SIZE_SLICE {
+			hash, _ := utils.CalcPathSHA256(fpath)
+			if hash == msg.FileHash {
+				request.GetConnection().SendBuffMsg(Msg_OK_FILE, nil)
+				return
+			}
+		} else if finfo.Size() > configs.SIZE_SLICE {
+			request.GetConnection().SendMsg(Msg_ClientErr, nil)
 			return
 		}
-	} else if finfo.Size() > configs.SIZE_SLICE {
-		request.GetConnection().SendMsg(Msg_ClientErr, nil)
-		return
 	}
-
-	fs, err := os.OpenFile(msg.FileHash, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModePerm)
+	fmt.Println("Open file: ", fpath)
+	fs, err := os.OpenFile(fpath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		fmt.Println("OpenFile  error")
 		ctx()
 		return
 	}
-	defer fs.Close()
 
 	fs.Write(msg.Data)
 	err = fs.Sync()
 	if err != nil {
+		fs.Close()
 		fmt.Println("Sync  error")
 		ctx()
 		return
 	}
-
+	fmt.Println("Write file: ", fpath)
 	if msg.Lastfile {
 		finfo, err = fs.Stat()
-		if finfo.Size() == msg.FileSize {
+		fmt.Println("finfo.Size(): ", finfo.Size())
+		if finfo.Size() >= msg.FileSize {
 			request.GetConnection().SendMsg(Msg_OK_FILE, nil)
 			//
 			appendBuf := make([]byte, configs.SIZE_SLICE-msg.FileSize)
 			fs.Write(appendBuf)
 			fs.Sync()
+			fs.Close()
 			go dataBackupMgt(msg.RootHash, f.FileDir, msg.FileSize, f.Chain, f.Logs, f.Cach)
 			return
 		}
@@ -140,6 +143,7 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	fs.Close()
 }
 
 // file backup management
@@ -157,6 +161,8 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 	//Judge whether the file has been uploaded
 	fileMeta, err := c.GetFileMetaInfo(fid)
 	if err != nil {
+		logs.Upfile("err", err)
+		fmt.Println("Get file meta err")
 		return
 	}
 
@@ -180,20 +186,23 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 	b, _ := json.Marshal(&fileSt)
 	cach.Put([]byte(fid), b)
 
-	var chunks = make([]string, len(fileMeta.Blockups[0].Slice_info))
-	for i := 0; i < len(fileMeta.Blockups[0].Slice_info); i++ {
-		_, err = os.Stat(filepath.Join(fdir, string(fileMeta.Blockups[0].Slice_info[i].Slice_hash[:])))
+	var chunks = make([]string, len(fileMeta.Backups[0].Slice_info))
+	for i := 0; i < len(fileMeta.Backups[0].Slice_info); i++ {
+		_, err = os.Stat(filepath.Join(fdir, string(fileMeta.Backups[0].Slice_info[i].Slice_hash[:])))
 		if err != nil {
+			logs.Upfile("err", err)
+			fmt.Println("os.Stat err: ", filepath.Join(fdir, string(fileMeta.Backups[0].Slice_info[i].Slice_hash[:])))
 			fileSt.IsScheduler = false
 			b, _ := json.Marshal(&fileSt)
 			cach.Put([]byte(fid), b)
 			return
 		}
-		chunks[i] = filepath.Join(fdir, string(fileMeta.Blockups[0].Slice_info[i].Slice_hash[:]))
+		chunks[i] = filepath.Join(fdir, string(fileMeta.Backups[0].Slice_info[i].Slice_hash[:]))
 	}
 
 	if len(chunks) <= 0 {
 		logs.Upfile("err", fmt.Errorf("[%v] Not slice found", fid))
+		fmt.Println("len(chunks)==0")
 		return
 	}
 
@@ -227,6 +236,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 			b, _ := json.Marshal(&fileSt)
 			cach.Put([]byte(fid), b)
 			logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
+			fmt.Println("backup suc: ", chunks[i])
 			i++
 		}
 	}
@@ -342,7 +352,7 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 			continue
 		}
 
-		val, err := ConfirmReq(conTcp, token, fid, filepath.Base(fpath))
+		rtnValue, err = ConfirmReq(conTcp, token, fid, filepath.Base(fpath), index)
 		if err != nil {
 			conTcp.Close()
 			continue
@@ -350,7 +360,7 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 
 		conTcp.Close()
 
-		return val, nil
+		return rtnValue, nil
 	}
 
 	return rtnValue, err
@@ -507,19 +517,27 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 	return err
 }
 
-func ConfirmReq(conn net.Conn, token, fid, slicehash string) (chain.SliceSummary, error) {
+func ConfirmReq(conn net.Conn, token, fid, slicehash string, index int) (chain.SliceSummary, error) {
 	var (
 		err     error
 		tempBuf []byte
 		msgHead IMessage
 		message = MsgConfirm{
-			Token:    token,
-			RootHash: fid,
-			FileHash: slicehash,
+			Token:     token,
+			RootHash:  fid,
+			SliceHash: slicehash,
 		}
 		dp       = NewDataPack()
 		headData = make([]byte, dp.GetHeadLen())
 	)
+
+	if index < 10 {
+		message.ShardId = fmt.Sprintf("%v.00%d", fid, uint8(index))
+	} else if index < 100 {
+		message.ShardId = fmt.Sprintf("%v.0%d", fid, uint8(index))
+	} else {
+		message.ShardId = fmt.Sprintf("%v.%d", fid, uint8(index))
+	}
 
 	tempBuf, err = json.Marshal(&message)
 	if err != nil {
@@ -549,13 +567,13 @@ func ConfirmReq(conn net.Conn, token, fid, slicehash string) (chain.SliceSummary
 	}
 
 	var buf = make([]byte, msgHead.GetDataLen())
-	var rtnValue chain.SliceSummary
+
 	//read data
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		return chain.SliceSummary{}, err
 	}
-
+	var rtnValue chain.SliceSummary
 	err = json.Unmarshal(buf, &rtnValue)
 	if err != nil {
 		return chain.SliceSummary{}, err

@@ -74,7 +74,7 @@ type FileMetaInfo struct {
 	Index      types.U32
 	State      types.Bytes
 	UserBriefs []UserBrief
-	Blockups   []Backup
+	Backups    []Backup
 }
 
 type UserBrief struct {
@@ -173,4 +173,10 @@ type SliceSummary struct {
 	Miner_acc types.AccountID
 	Signature Signature
 	Message   types.Bytes
+}
+
+type MessageType struct {
+	ShardId   SliceId  `json:"shardId"`
+	SliceHash FileHash `json:"sliceHash"`
+	MinerIp   string   `json:"minerIp"` //ex:127/0/0/1/15001
 }

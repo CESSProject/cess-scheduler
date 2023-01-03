@@ -29,7 +29,7 @@ import (
 
 type AuthRouter struct {
 	BaseRouter
-	Cache db.ICache
+	Cach db.ICache
 }
 
 type MsgAuth struct {
@@ -40,8 +40,7 @@ type MsgAuth struct {
 
 // AuthRouter Handle
 func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
-	fmt.Println("Call AuthRouter Handle")
-	fmt.Println("recv from client : msgId=", request.GetMsgID())
+	fmt.Println("Call AuthRouter Handle msgId=", request.GetMsgID())
 	if request.GetMsgID() != Msg_Auth {
 		fmt.Println("MsgId error")
 		ctx()
@@ -49,15 +48,15 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	}
 
 	remote := request.GetConnection().RemoteAddr().String()
-	val, err := this.Cache.Get([]byte(remote))
+	val, err := this.Cach.Get([]byte(remote))
 	if err != nil {
-		this.Cache.Put([]byte(remote), utils.Int64ToBytes(time.Now().Unix()))
+		this.Cach.Put([]byte(remote), utils.Int64ToBytes(time.Now().Unix()))
 	} else {
 		if time.Since(time.Unix(utils.BytesToInt64(val), 0)).Minutes() < 1 {
 			ctx()
 			return
 		} else {
-			this.Cache.Delete([]byte(remote))
+			this.Cach.Delete([]byte(remote))
 		}
 	}
 
@@ -90,4 +89,5 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 		return
 	}
 	Tokens.Add(token)
+	fmt.Println("Returm token: ", token)
 }

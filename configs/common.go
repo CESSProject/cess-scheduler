@@ -41,7 +41,7 @@ const (
 	// Number of tcp message caches
 	TCP_Message_Read_Buffers = 10
 	//
-	TCP_MaxPacketSize = SIZE_1MiB + SIZE_1KiB*10
+	TCP_MaxPacketSize = SIZE_1MiB * 2
 	//
 	Tcp_Dial_Timeout = time.Duration(time.Second * 5)
 	// Time out waiting for transaction completion
