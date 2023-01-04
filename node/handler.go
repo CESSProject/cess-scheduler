@@ -83,9 +83,8 @@ func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg,
 
 func (c *ConMgr) handler(node *Node) error {
 	var (
-		err          error
-		fs           *os.File
-		timeOutTimer *time.Ticker
+		err error
+		fs  *os.File
 	)
 
 	defer func() {
@@ -94,37 +93,19 @@ func (c *ConMgr) handler(node *Node) error {
 		if fs != nil {
 			fs.Close()
 		}
-		if timeOutTimer != nil {
-			timeOutTimer.Stop()
-		}
 		if err := recover(); err != nil {
 			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
 
 	for !c.conn.IsClose() {
-		if timeOutTimer != nil {
-			select {
-			case <-timeOutTimer.C:
-				return errors.New("Get msg timeout")
-			default:
-			}
-		}
-
 		m, ok := c.conn.GetMsg()
 		if !ok {
 			return fmt.Errorf("Getmsg failed")
 		}
 
 		if m == nil {
-			if timeOutTimer == nil {
-				timeOutTimer = time.NewTicker(configs.TCP_Time_WaitMsg)
-			}
 			continue
-		} else {
-			if timeOutTimer != nil {
-				timeOutTimer.Reset(configs.TCP_Time_WaitMsg)
-			}
 		}
 
 		switch m.MsgType {
@@ -164,18 +145,18 @@ func (c *ConMgr) handler(node *Node) error {
 			// notify suc
 			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
 
-		case MsgFileSt:
-			switch cap(m.Bytes) {
-			case configs.TCP_ReadBuffer:
-				readBufPool.Put(m.Bytes)
-			default:
-			}
-			val, _ := node.Cache.Get([]byte(m.FileHash))
+		// case MsgFileSt:
+		// 	switch cap(m.Bytes) {
+		// 	case configs.TCP_ReadBuffer:
+		// 		readBufPool.Put(m.Bytes)
+		// 	default:
+		// 	}
+		// 	val, _ := node.Cache.Get([]byte(m.FileHash))
 
-			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
-			c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
-			time.Sleep(time.Second * 3)
-			return nil
+		// 	c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
+		// 	c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
+		// 	time.Sleep(time.Second * 3)
+		// 	return nil
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first

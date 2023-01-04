@@ -90,7 +90,7 @@ func (t *TcpCon) sendMsg(wg *sync.WaitGroup) {
 
 			binary.BigEndian.PutUint32(sendBuf[len(HEAD_FILLER):len(HEAD_FILLER)+4], uint32(len(data)))
 			copy(sendBuf[len(HEAD_FILLER)+4:], data)
-			data = nil
+
 			_, err = t.conn.Write(sendBuf[:len(HEAD_FILLER)+4+len(data)])
 			if err != nil {
 				return
@@ -103,9 +103,10 @@ func (t *TcpCon) sendMsg(wg *sync.WaitGroup) {
 
 func (t *TcpCon) readMsg(wg *sync.WaitGroup, flag bool) {
 	var (
-		err    error
-		n      int
-		header = make([]byte, 4)
+		err      error
+		n        int
+		waittime int64
+		header   = make([]byte, 4)
 	)
 	wg.Add(1)
 	readBuf := readBufPool.Get().([]byte)
@@ -125,8 +126,15 @@ func (t *TcpCon) readMsg(wg *sync.WaitGroup, flag bool) {
 				if err != io.EOF {
 					return
 				}
-				time.Sleep(configs.TCP_Message_Interval)
-				continue
+
+				if err == io.EOF {
+					waittime++
+					if waittime >= 10 {
+						return
+					}
+					time.Sleep(time.Second)
+					continue
+				}
 			}
 
 			if !bytes.Equal(header, HEAD_FILLER) && !bytes.Equal(header, HEAD_FILE) {
@@ -166,7 +174,7 @@ func (t *TcpCon) readMsg(wg *sync.WaitGroup, flag bool) {
 }
 
 func (t *TcpCon) GetMsg() (*Message, bool) {
-	timer := time.NewTimer(configs.TCP_Time_WaitNotification)
+	timer := time.NewTimer(configs.TCP_Time_WaitMsg)
 	defer timer.Stop()
 	select {
 	case m, ok := <-t.recv:

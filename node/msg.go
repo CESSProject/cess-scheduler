@@ -34,7 +34,6 @@ const (
 	MsgClose
 	MsgRecvHead
 	MsgRecvFile
-	MsgFileSt
 )
 
 const (
@@ -164,17 +163,17 @@ func buildCloseMsg(status Status) *Message {
 	return m
 }
 
-func buildFileStMsg(fid string, val []byte) *Message {
-	m := &Message{}
-	m.MsgType = MsgFileSt
-	m.FileType = 0
-	m.FileName = ""
-	m.FileHash = fid
-	m.FileSize = uint64(len(val))
-	m.LastMark = false
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
-	m.Bytes = val
-	return m
-}
+// func buildFileStMsg(fid string, val []byte) *Message {
+// 	m := &Message{}
+// 	m.MsgType = MsgFileSt
+// 	m.FileType = 0
+// 	m.FileName = ""
+// 	m.FileHash = fid
+// 	m.FileSize = uint64(len(val))
+// 	m.LastMark = false
+// 	m.Pubkey = nil
+// 	m.SignMsg = nil
+// 	m.Sign = nil
+// 	m.Bytes = val
+// 	return m
+// }

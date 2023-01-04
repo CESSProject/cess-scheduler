@@ -182,7 +182,7 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 
 	_, err = os.Stat(baseDir)
 	if err != nil {
-		err = os.MkdirAll(baseDir, os.ModeDir)
+		err = os.MkdirAll(baseDir, configs.DirPermission)
 		if err != nil {
 			return "", "", "", "", "", err
 		}
@@ -190,35 +190,29 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 
 	logDir := filepath.Join(baseDir, configs.LogDir)
 	_, err = os.Stat(logDir)
-	if err == nil {
-		bkp := logDir + fmt.Sprintf("_%v", time.Now().Unix())
-		os.Rename(logDir, bkp)
-	}
-	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(logDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	cacheDir := filepath.Join(baseDir, configs.CacheDir)
-	os.RemoveAll(cacheDir)
-	if err := os.MkdirAll(cacheDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(cacheDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	fillerDir := filepath.Join(baseDir, configs.FillerDir)
 	os.RemoveAll(fillerDir)
-	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(fillerDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	fileDir := filepath.Join(baseDir, configs.FileDir)
-	os.RemoveAll(fileDir)
-	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(fileDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	tagDir := filepath.Join(baseDir, configs.TagDir)
 	os.RemoveAll(tagDir)
-	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(tagDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 	log.Println(baseDir)
