@@ -182,9 +182,10 @@ type Event_BuySpace struct {
 }
 
 type Event_FileUpload struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Topics []types.Hash
+	Phase     types.Phase
+	Acc       types.AccountID
+	File_hash FileHash
+	Topics    []types.Hash
 }
 
 type Event_FileUpdate struct {

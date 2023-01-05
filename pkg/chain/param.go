@@ -41,6 +41,7 @@ const (
 	fileMap_SchedulerInfo = "SchedulerMap"
 	fileMap_SchedulerPuk  = "SchedulerPuk"
 	// FileBank
+	fileBank_DealMap          = "DealMap"
 	fileBank_UserSpaceList    = "UserSpaceList"
 	fileBank_PurchasedPackage = "PurchasedPackage"
 	fileBank_UserFilelist     = "UserHoldFileList"

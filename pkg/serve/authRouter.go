@@ -52,7 +52,7 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	if err != nil {
 		this.Cach.Put([]byte(remote), utils.Int64ToBytes(time.Now().Unix()))
 	} else {
-		if time.Since(time.Unix(utils.BytesToInt64(val), 0)).Minutes() < 1 {
+		if time.Since(time.Unix(utils.BytesToInt64(val), 0)).Seconds() < 5 {
 			ctx()
 			return
 		} else {
@@ -64,6 +64,12 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	err = json.Unmarshal(request.GetData(), &msg)
 	if err != nil {
 		ctx()
+		return
+	}
+
+	val, err = this.Cach.Get([]byte(TokenKey_Acc + msg.Account))
+	if err == nil {
+		request.GetConnection().SendMsg(Msg_OK, val)
 		return
 	}
 
@@ -88,6 +94,6 @@ func (this *AuthRouter) Handle(ctx context.CancelFunc, request IRequest) {
 		ctx()
 		return
 	}
-	Tokens.Add(token)
-	fmt.Println("Returm token: ", token)
+	this.Cach.Put([]byte(TokenKey_Acc+msg.Account), []byte(token))
+	this.Cach.Put([]byte(TokenKey_Token+token), nil)
 }

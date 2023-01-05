@@ -49,7 +49,7 @@ const (
 	// Token length
 	TokenLength = 32
 	//
-	DirPermission = 755
+	DirPermission = 0755
 )
 
 // explanation

@@ -32,3 +32,8 @@ const (
 	Msg_Forbidden = 403
 	Msg_ServerErr = 500
 )
+
+const (
+	TokenKey_Token = "token_token:"
+	TokenKey_Acc   = "token_acc:"
+)

@@ -65,7 +65,7 @@ func GetFileState(c chain.IChain, fileHash string) (string, error) {
 	return "", errors.New("GetFileMetaInfo failed")
 }
 
-func dialTcpServer(address string) (*net.TCPConn, error) {
+func DialTcpServer(address string) (*net.TCPConn, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
 		return nil, err

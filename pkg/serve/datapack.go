@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"github.com/CESSProject/cess-scheduler/configs"
 )
@@ -79,7 +78,6 @@ func (dp *DataPack) Unpack(binaryData []byte) (IMessage, error) {
 		return nil, err
 	}
 
-	fmt.Println("msg.DataLen: ", msg.DataLen)
 	// Judge whether the length of dataLen exceeds the maximum packet length
 	if configs.TCP_MaxPacketSize > 0 && msg.DataLen > configs.TCP_MaxPacketSize {
 		return nil, errors.New("too large msg data received")

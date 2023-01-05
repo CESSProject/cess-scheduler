@@ -17,6 +17,7 @@
 package chain
 
 import (
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 	"github.com/pkg/errors"
 )
@@ -40,6 +41,7 @@ type Random [20]types.U8
 type Signature [65]types.U8
 type Filter [256]types.U64
 type Public [33]types.U8
+type TimeTask [64]types.U8
 
 // storage miner info
 type MinerInfo struct {
@@ -70,14 +72,13 @@ type Cache_MinerInfo struct {
 
 // file meta info
 type FileMetaInfo struct {
-	Size       types.U64
-	Index      types.U32
-	State      types.Bytes
-	UserBriefs []UserBrief
-	Backups    []Backup
+	Size              types.U64
+	State             types.Bytes
+	User_details_list []UserDetals
+	Backups           [configs.BackupNum]Backup
 }
 
-type UserBrief struct {
+type UserDetals struct {
 	User        types.AccountID
 	File_name   types.Bytes
 	Bucket_name types.Bytes
@@ -86,7 +87,6 @@ type UserBrief struct {
 // Backups
 type Backup struct {
 	Backup_index types.U8
-	State        types.Bool
 	Slice_info   []SliceInfo
 }
 
@@ -97,6 +97,20 @@ type SliceInfo struct {
 	Shard_size types.U64
 	Miner_ip   Ipv4Type
 	Miner_acc  types.AccountID
+}
+
+// File Deal Info
+type FileDealInfo struct {
+	File_size        types.U64
+	User_details     UserDetals
+	Slices           []FileHash
+	Backups          [configs.BackupNum]Backup
+	Scheduler        types.AccountID
+	Requester        types.AccountID
+	State            types.U8
+	Time_task        TimeTask
+	Survival_block   types.U32
+	Executive_counts types.U8
 }
 
 // scheduler info
@@ -170,13 +184,13 @@ type ProofResult struct {
 }
 
 type SliceSummary struct {
-	Miner_acc types.AccountID
-	Signature Signature
-	Message   types.Bytes
+	Miner_acc types.AccountID `json:"miner_acc"`
+	Signature Signature       `json:"signature"`
+	Message   types.Bytes     `json:"message"`
 }
 
 type MessageType struct {
-	ShardId   SliceId  `json:"shardId"`
-	SliceHash FileHash `json:"sliceHash"`
-	MinerIp   string   `json:"minerIp"` //ex:127/0/0/1/15001
+	ShardId   string `json:"shardId"`
+	SliceHash string `json:"sliceHash"`
+	MinerIp   string `json:"minerIp"` //ex:127/0/0/1/15001
 }

@@ -44,6 +44,8 @@ type IChain interface {
 	GetStorageMinerInfo(pkey []byte) (MinerInfo, error)
 	// Getallstorageminer is used to obtain the AccountID of all miners
 	GetAllStorageMiner() ([]types.AccountID, error)
+	//
+	GetFileDealMap(fid string) (FileDealInfo, error)
 	// GetFileMetaInfo is used to get the meta information of the file
 	GetFileMetaInfo(fid string) (FileMetaInfo, error)
 	// GetAllSchedulerInfo is used to get information about all schedules

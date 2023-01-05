@@ -19,6 +19,7 @@ package serve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -81,14 +82,13 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	var msg MsgFile
 	err := json.Unmarshal(request.GetData(), &msg)
 	if err != nil {
-		fmt.Println("Msg format error")
+		fmt.Println("err: Msg format error")
 		ctx()
 		return
 	}
 
-	fmt.Println("Msg: ", msg.FileHash, msg.FileSize, msg.Lastfile, msg.RootHash)
-	fmt.Println("Msg len(data): ", len(msg.Data))
-	if !Tokens.Update(msg.Token) {
+	ok, _ := f.Cach.Has([]byte(TokenKey_Token + msg.Token))
+	if !ok {
 		request.GetConnection().SendMsg(Msg_Forbidden, nil)
 		return
 	}
@@ -105,6 +105,7 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 			}
 		} else if finfo.Size() > configs.SIZE_SLICE {
 			request.GetConnection().SendMsg(Msg_ClientErr, nil)
+			os.Remove(fpath)
 			return
 		}
 	}
@@ -112,7 +113,6 @@ func (f *FileRouter) Handle(ctx context.CancelFunc, request IRequest) {
 	fs, err := os.OpenFile(fpath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		fmt.Println("OpenFile  error")
-		ctx()
 		return
 	}
 
@@ -159,7 +159,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 	)
 
 	//Judge whether the file has been uploaded
-	fileMeta, err := c.GetFileMetaInfo(fid)
+	fileDealMap, err := c.GetFileDealMap(fid)
 	if err != nil {
 		logs.Upfile("err", err)
 		fmt.Println("Get file meta err")
@@ -167,13 +167,13 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 	}
 
 	// file state
-	if string(fileMeta.State) == chain.FILE_STATE_ACTIVE {
+	if string(fileDealMap.State) == chain.FILE_STATE_ACTIVE {
 		return
 	}
 	acc, _ := c.GetCessAccount()
 	var fileSt = StorageProgress{
 		FileId:      fid,
-		FileSize:    int64(fileMeta.Size),
+		FileSize:    int64(fileDealMap.File_size),
 		FileState:   chain.FILE_STATE_PENDING,
 		Scheduler:   acc,
 		IsUpload:    true,
@@ -186,18 +186,18 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 	b, _ := json.Marshal(&fileSt)
 	cach.Put([]byte(fid), b)
 
-	var chunks = make([]string, len(fileMeta.Backups[0].Slice_info))
-	for i := 0; i < len(fileMeta.Backups[0].Slice_info); i++ {
-		_, err = os.Stat(filepath.Join(fdir, string(fileMeta.Backups[0].Slice_info[i].Slice_hash[:])))
+	var chunks = make([]string, len(fileDealMap.Slices))
+	for i := 0; i < len(fileDealMap.Slices); i++ {
+		_, err = os.Stat(filepath.Join(fdir, string(fileDealMap.Slices[i][:])))
 		if err != nil {
 			logs.Upfile("err", err)
-			fmt.Println("os.Stat err: ", filepath.Join(fdir, string(fileMeta.Backups[0].Slice_info[i].Slice_hash[:])))
+			fmt.Println("os.Stat err: ", filepath.Join(fdir, string(fileDealMap.Slices[i][:])))
 			fileSt.IsScheduler = false
 			b, _ := json.Marshal(&fileSt)
 			cach.Put([]byte(fid), b)
 			return
 		}
-		chunks[i] = filepath.Join(fdir, string(fileMeta.Backups[0].Slice_info[i].Slice_hash[:]))
+		chunks[i] = filepath.Join(fdir, string(fileDealMap.Slices[i][:]))
 	}
 
 	if len(chunks) <= 0 {
@@ -227,8 +227,9 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 				fsize = configs.SIZE_SLICE
 			}
 			val, err := backupFile(fid, chunks[i], i, fsize, lastfile, c, logs, cach)
-			if err != nil {
-				time.Sleep(time.Second)
+			if err != nil || val.Message == nil {
+				fmt.Printf("backupFile failed, and try again... err: %v\n", err)
+				time.Sleep(configs.BlockInterval)
 				continue
 			}
 			sliceSum[bck] = append(sliceSum[bck], val)
@@ -320,21 +321,23 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 		err = json.Unmarshal(minercache, &minerinfo)
 		if err != nil {
 			cach.Delete(allMinerPubkey[i][:])
-			logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
+			logs.Upfile("err", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
 
 		if minerinfo.Free < uint64(fstat.Size()) {
+			logs.Upfile("err", fmt.Errorf("Insufficient space for miners [%v] [%v] [%v]", minerinfo.Ip, minerinfo.Free, fstat.Size()))
 			continue
 		}
 
 		if BlackMiners.IsExist(minerinfo.Ip) {
+			logs.Upfile("err", fmt.Errorf("Miners are on the blacklist [%v]", minerinfo.Ip))
 			continue
 		}
 
-		conTcp, err := dialTcpServer(minerinfo.Ip)
+		conTcp, err := DialTcpServer(minerinfo.Ip)
 		if err != nil {
-			BlackMiners.Add(minerinfo.Ip)
+			//BlackMiners.Add(minerinfo.Ip)
 			logs.Upfile("err", fmt.Errorf("dial %v err: %v", minerinfo.Ip, err))
 			continue
 		}
@@ -342,28 +345,31 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 		token, err := AuthReq(conTcp, c.GetMnemonicSeed())
 		if err != nil {
 			conTcp.Close()
-			logs.Upfile("err", fmt.Errorf("dial %v err: %v", minerinfo.Ip, err))
+			logs.Upfile("err", fmt.Errorf("AuthReq err: [%v] %v", minerinfo.Ip, err))
 			continue
 		}
+
+		fmt.Println("token: ", token)
 
 		err = FileReq(conTcp, token, fid, fpath, lastfile, fsize)
 		if err != nil {
+			logs.Upfile("err", fmt.Errorf("FileReq err: [%v] %v", minerinfo.Ip, err))
 			conTcp.Close()
 			continue
 		}
-
+		fmt.Println("FileReq suc")
 		rtnValue, err = ConfirmReq(conTcp, token, fid, filepath.Base(fpath), index)
 		if err != nil {
+			logs.Upfile("err", fmt.Errorf("ConfirmReq err: [%v] %v", minerinfo.Ip, err))
 			conTcp.Close()
 			continue
 		}
-
+		fmt.Println("ConfirmReq suc: ", string(rtnValue.Message))
 		conTcp.Close()
-
 		return rtnValue, nil
 	}
 
-	return rtnValue, err
+	return rtnValue, errors.New("faile")
 }
 
 func AuthReq(conn net.Conn, secret string) (string, error) {
@@ -435,6 +441,7 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 	var (
 		err     error
 		num     int
+		total   int64
 		tempBuf []byte
 		msgHead IMessage
 		fs      *os.File
@@ -462,6 +469,8 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 	message.FileSize = fsize
 	message.Lastfile = lastfile
 
+	fmt.Println("Message: ", message)
+
 	for {
 		num, err = fs.Read(readBuf)
 		if err != nil && err != io.EOF {
@@ -470,10 +479,9 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 		if num == 0 {
 			break
 		}
-		num += num
-		if lastfile && num >= int(fsize) {
-			bound := cap(readBuf) + int(fsize) - num
-			message.Data = readBuf[:bound]
+		total += int64(num)
+		if lastfile && total >= fsize {
+			message.Data = readBuf[:cap(readBuf)+int(fsize)-int(total)]
 		} else {
 			message.Data = readBuf[:num]
 		}
@@ -509,7 +517,7 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 			return fmt.Errorf("send file error")
 		}
 
-		if lastfile && num >= int(fsize) {
+		if lastfile && total >= fsize {
 			return nil
 		}
 	}
