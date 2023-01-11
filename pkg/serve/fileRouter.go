@@ -166,16 +166,24 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 		return
 	}
 
+	acc_chain, _ := utils.EncodePublicKeyAsCessAccount(fileDealMap.Scheduler[:])
+	acc_local, _ := c.GetCessAccount()
+	if acc_chain != acc_local {
+		logs.Upfile("err", fmt.Errorf("No order assignment received"))
+		fmt.Println("No order assignment received")
+		return
+	}
+
 	// file state
 	if string(fileDealMap.State) == chain.FILE_STATE_ACTIVE {
 		return
 	}
-	acc, _ := c.GetCessAccount()
+
 	var fileSt = StorageProgress{
 		FileId:      fid,
 		FileSize:    int64(fileDealMap.File_size),
 		FileState:   chain.FILE_STATE_PENDING,
-		Scheduler:   acc,
+		Scheduler:   acc_local,
 		IsUpload:    true,
 		IsCheck:     true,
 		IsShard:     true,
@@ -226,7 +234,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 				lastfile = false
 				fsize = configs.SIZE_SLICE
 			}
-			val, err := backupFile(fid, chunks[i], i, fsize, lastfile, c, logs, cach)
+			val, err := backupFile(fid, chunks[i], fsize, lastfile, uint8(i), bck, c, logs, cach)
 			if err != nil || val.Message == nil {
 				fmt.Printf("backupFile failed, and try again... err: %v\n", err)
 				time.Sleep(configs.BlockInterval)
@@ -276,7 +284,7 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
-func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chain.IChain, logs logger.ILog, cach db.ICache) (chain.SliceSummary, error) {
+func backupFile(fid, fpath string, fsize int64, lastfile bool, backupIndex, sliceIndex uint8, c chain.IChain, logs logger.ILog, cach db.ICache) (chain.SliceSummary, error) {
 	var (
 		err            error
 		rtnValue       chain.SliceSummary
@@ -358,7 +366,7 @@ func backupFile(fid, fpath string, index int, fsize int64, lastfile bool, c chai
 			continue
 		}
 		fmt.Println("FileReq suc")
-		rtnValue, err = ConfirmReq(conTcp, token, fid, filepath.Base(fpath), index)
+		rtnValue, err = ConfirmReq(conTcp, token, fid, filepath.Base(fpath), backupIndex, sliceIndex)
 		if err != nil {
 			logs.Upfile("err", fmt.Errorf("ConfirmReq err: [%v] %v", minerinfo.Ip, err))
 			conTcp.Close()
@@ -525,7 +533,7 @@ func FileReq(conn net.Conn, token, fid string, fpath string, lastfile bool, fsiz
 	return err
 }
 
-func ConfirmReq(conn net.Conn, token, fid, slicehash string, index int) (chain.SliceSummary, error) {
+func ConfirmReq(conn net.Conn, token, fid, slicehash string, backupIndex, sliceindex uint8) (chain.SliceSummary, error) {
 	var (
 		err     error
 		tempBuf []byte
@@ -539,12 +547,12 @@ func ConfirmReq(conn net.Conn, token, fid, slicehash string, index int) (chain.S
 		headData = make([]byte, dp.GetHeadLen())
 	)
 
-	if index < 10 {
-		message.ShardId = fmt.Sprintf("%v.00%d", fid, uint8(index))
-	} else if index < 100 {
-		message.ShardId = fmt.Sprintf("%v.0%d", fid, uint8(index))
+	if sliceindex < 10 {
+		message.ShardId = fmt.Sprintf("%v.%d0%d", fid, backupIndex, sliceindex)
+	} else if sliceindex < 100 {
+		message.ShardId = fmt.Sprintf("%v.%d%d", fid, backupIndex, sliceindex)
 	} else {
-		message.ShardId = fmt.Sprintf("%v.%d", fid, uint8(index))
+		return chain.SliceSummary{}, fmt.Errorf("Exceeding the maximum number of blocks")
 	}
 
 	tempBuf, err = json.Marshal(&message)
