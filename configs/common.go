@@ -88,7 +88,7 @@ const (
 	// The maximum number of proof results submitted in a transaction
 	Max_SubProofResults = 40
 	//
-	DirPermission = 755
+	DirPermission = 0755
 )
 
 // explanation

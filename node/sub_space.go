@@ -177,6 +177,9 @@ func storagefiller(wg *sync.WaitGroup, n *Node) {
 			break
 		}
 	}
+	for j := 0; j < (configs.Num_Filler_Reserved * 2); j++ {
+		os.Remove(sendFillers[j])
+	}
 }
 
 func dialTcpServer(address string) (*net.TCPConn, error) {

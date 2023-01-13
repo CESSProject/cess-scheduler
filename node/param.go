@@ -45,6 +45,7 @@ type BlacklistMiner struct {
 type FileStoreInfo struct {
 	FileId      string         `json:"file_id"`
 	FileState   string         `json:"file_state"`
+	Scheduler   string         `json:"scheduler"`
 	FileSize    int64          `json:"file_size"`
 	IsUpload    bool           `json:"is_upload"`
 	IsCheck     bool           `json:"is_check"`
@@ -85,7 +86,7 @@ func (b *BlacklistMiner) IsExist(peerid uint64) bool {
 	if !ok {
 		return false
 	}
-	if time.Since(time.Unix(v, 0)).Hours() > 3 {
+	if time.Since(time.Unix(v, 0)).Seconds() > 10 {
 		delete(b.List, peerid)
 		return false
 	}

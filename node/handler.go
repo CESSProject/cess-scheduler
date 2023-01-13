@@ -145,18 +145,18 @@ func (c *ConMgr) handler(node *Node) error {
 			// notify suc
 			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
 
-		// case MsgFileSt:
-		// 	switch cap(m.Bytes) {
-		// 	case configs.TCP_ReadBuffer:
-		// 		readBufPool.Put(m.Bytes)
-		// 	default:
-		// 	}
-		// 	val, _ := node.Cache.Get([]byte(m.FileHash))
+		case MsgFileSt:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			val, _ := node.Cache.Get([]byte(m.FileHash))
 
-		// 	c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
-		// 	c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
-		// 	time.Sleep(time.Second * 3)
-		// 	return nil
+			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
+			c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
+			time.Sleep(time.Second)
+
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
@@ -353,6 +353,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		FileId:      fid,
 		FileSize:    fsize,
 		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   n.Confile.GetServiceAddr() + ":" + n.Confile.GetServicePort(),
 		IsUpload:    true,
 		IsCheck:     true,
 		IsShard:     true,
@@ -382,7 +383,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
 			continue
 		}
-		fileSt.Miners[i] = string(chunksInfo[i].MinerAcc[:])
+		fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(chunksInfo[i].MinerAcc[:])
 		b, _ := json.Marshal(&fileSt)
 		n.Cache.Put([]byte(fid), b)
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
