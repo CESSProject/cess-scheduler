@@ -199,7 +199,6 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 		_, err = os.Stat(filepath.Join(fdir, string(fileDealMap.Slices[i][:])))
 		if err != nil {
 			logs.Upfile("err", err)
-			fmt.Println("os.Stat err: ", filepath.Join(fdir, string(fileDealMap.Slices[i][:])))
 			fileSt.IsScheduler = false
 			b, _ := json.Marshal(&fileSt)
 			cach.Put([]byte(fid), b)
@@ -210,7 +209,6 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 
 	if len(chunks) <= 0 {
 		logs.Upfile("err", fmt.Errorf("[%v] Not slice found", fid))
-		fmt.Println("len(chunks)==0")
 		return
 	}
 
@@ -234,9 +232,10 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 				lastfile = false
 				fsize = configs.SIZE_SLICE
 			}
-			val, err := backupFile(fid, chunks[i], fsize, lastfile, uint8(i), bck, c, logs, cach)
+
+			val, err := backupFile(fid, chunks[i], fsize, lastfile, bck, uint8(i), c, logs, cach)
 			if err != nil || val.Message == nil {
-				fmt.Printf("backupFile failed, and try again... err: %v\n", err)
+				logs.Upfile("err", fmt.Errorf("[%v] backup failed, try again...", chunks[i]))
 				time.Sleep(configs.BlockInterval)
 				continue
 			}
@@ -245,7 +244,6 @@ func dataBackupMgt(fid, fdir string, lastsize int64, c chain.IChain, logs logger
 			b, _ := json.Marshal(&fileSt)
 			cach.Put([]byte(fid), b)
 			logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
-			fmt.Println("backup suc: ", chunks[i])
 			i++
 		}
 	}
@@ -357,22 +355,20 @@ func backupFile(fid, fpath string, fsize int64, lastfile bool, backupIndex, slic
 			continue
 		}
 
-		fmt.Println("token: ", token)
-
 		err = FileReq(conTcp, token, fid, fpath, lastfile, fsize)
 		if err != nil {
 			logs.Upfile("err", fmt.Errorf("FileReq err: [%v] %v", minerinfo.Ip, err))
 			conTcp.Close()
 			continue
 		}
-		fmt.Println("FileReq suc")
+
 		rtnValue, err = ConfirmReq(conTcp, token, fid, filepath.Base(fpath), backupIndex, sliceIndex)
 		if err != nil {
 			logs.Upfile("err", fmt.Errorf("ConfirmReq err: [%v] %v", minerinfo.Ip, err))
 			conTcp.Close()
 			continue
 		}
-		fmt.Println("ConfirmReq suc: ", string(rtnValue.Message))
+
 		conTcp.Close()
 		return rtnValue, nil
 	}

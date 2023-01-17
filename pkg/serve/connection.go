@@ -19,7 +19,6 @@ package serve
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -68,19 +67,14 @@ func NewConnection(server IServer, conn *net.TCPConn, connID uint32, msgHandler 
 
 // StartWriter is the Goroutine used to write messages back to the client
 func (c *Connection) StartWriter() {
-	fmt.Println("[Writer Goroutine is running]")
-	defer fmt.Println(c.RemoteAddr().String(), "[conn Writer exit!]")
-
 	for {
 		select {
 		case data, ok := <-c.msgBuffChan:
 			if ok {
 				if _, err := c.Conn.Write(data); err != nil {
-					fmt.Println("Send Buff Data error:, ", err, " Conn Writer exit")
 					return
 				}
 			} else {
-				fmt.Println("msgBuffChan is Closed")
 				break
 			}
 		case <-c.ctx.Done():
@@ -91,8 +85,6 @@ func (c *Connection) StartWriter() {
 
 // StartReader is the Goroutine used to read client messages
 func (c *Connection) StartReader() {
-	fmt.Println("[Reader Goroutine is running]")
-	defer fmt.Println(c.RemoteAddr().String(), "[conn Reader exit!]")
 	defer c.Stop()
 
 	for {
@@ -102,13 +94,11 @@ func (c *Connection) StartReader() {
 		default:
 			headData := make([]byte, c.TCPServer.Packet().GetHeadLen())
 			if _, err := io.ReadFull(c.Conn, headData); err != nil {
-				fmt.Println("read msg head error ", err)
 				return
 			}
 
 			msg, err := c.TCPServer.Packet().Unpack(headData)
 			if err != nil {
-				fmt.Println("unpack error ", err)
 				return
 			}
 
@@ -116,7 +106,6 @@ func (c *Connection) StartReader() {
 			if msg.GetDataLen() > 0 {
 				data = make([]byte, msg.GetDataLen())
 				if _, err := io.ReadFull(c.Conn, data); err != nil {
-					fmt.Println("read msg data error ", err)
 					return
 				}
 			}
@@ -178,7 +167,6 @@ func (c *Connection) SendMsg(msgID uint32, data []byte) error {
 	dp := c.TCPServer.Packet()
 	msg, err := dp.Pack(NewMsgPackage(msgID, data))
 	if err != nil {
-		fmt.Println("Pack error msg ID = ", msgID)
 		return errors.New("Pack error msg ")
 	}
 
@@ -200,7 +188,6 @@ func (c *Connection) SendBuffMsg(msgID uint32, data []byte) error {
 	dp := c.TCPServer.Packet()
 	msg, err := dp.Pack(NewMsgPackage(msgID, data))
 	if err != nil {
-		fmt.Println("Pack error msg ID = ", msgID)
 		return errors.New("Pack error msg ")
 	}
 
@@ -225,8 +212,6 @@ func (c *Connection) finalizer() {
 	if c.isClosed == true {
 		return
 	}
-
-	fmt.Println("Conn Stop()...ConnID = ", c.ConnID)
 
 	_ = c.Conn.Close()
 	c.TCPServer.GetConnMgr().Remove(c)

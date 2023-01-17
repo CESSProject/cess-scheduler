@@ -18,7 +18,6 @@ package serve
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
@@ -38,11 +37,8 @@ func NewConnManager() *ConnManager {
 // Add a Connection
 func (connMgr *ConnManager) Add(conn IConnection) {
 	connMgr.connLock.Lock()
-
 	connMgr.connections[conn.GetConnID()] = conn
 	connMgr.connLock.Unlock()
-
-	fmt.Println("connection add to ConnManager successfully: conn num = ", connMgr.Len())
 }
 
 // Remove a Connection
@@ -50,7 +46,6 @@ func (connMgr *ConnManager) Remove(conn IConnection) {
 	connMgr.connLock.Lock()
 	delete(connMgr.connections, conn.GetConnID())
 	connMgr.connLock.Unlock()
-	fmt.Println("connection Remove ConnID=", conn.GetConnID(), " successfully: conn num = ", connMgr.Len())
 }
 
 // Get Get the ID of the Connection
@@ -77,13 +72,10 @@ func (connMgr *ConnManager) Len() int {
 // ClearConn clears and stops all connections
 func (connMgr *ConnManager) ClearConn() {
 	connMgr.connLock.Lock()
-
 	for _, conn := range connMgr.connections {
 		conn.Stop()
 	}
-
 	connMgr.connLock.Unlock()
-	fmt.Println("Clear All Connections successfully: conn num = ", connMgr.Len())
 }
 
 // ClearOneConn stops and clears a connection
@@ -94,9 +86,6 @@ func (connMgr *ConnManager) ClearOneConn(connID uint32) {
 	connections := connMgr.connections
 	if conn, ok := connections[connID]; ok {
 		conn.Stop()
-		fmt.Println("Clear Connections ID:  ", connID, "succeed")
 		return
 	}
-
-	fmt.Println("Clear Connections ID:  ", connID, "err")
 }

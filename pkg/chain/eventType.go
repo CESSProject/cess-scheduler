@@ -122,10 +122,11 @@ type Event_UpdateIasCert struct {
 
 // ------------------------FileBank-------------------------------
 type Event_DeleteFile struct {
-	Phase  types.Phase
-	Acc    types.AccountID
-	Fileid FileHash
-	Topics []types.Hash
+	Phase    types.Phase
+	Operator types.AccountID
+	Owner    types.AccountID
+	FileHash FileHash
+	Topics   []types.Hash
 }
 
 type Event_BuySpace struct {

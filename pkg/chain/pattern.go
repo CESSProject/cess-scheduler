@@ -72,10 +72,11 @@ type Cache_MinerInfo struct {
 
 // file meta info
 type FileMetaInfo struct {
-	Size              types.U64
-	State             types.Bytes
-	User_details_list []UserDetals
-	Backups           [configs.BackupNum]Backup
+	Size       types.U64
+	State      types.Bytes
+	Completion types.U32
+	UserBriefs []UserDetals
+	Backups    [configs.BackupNum]Backup
 }
 
 type UserDetals struct {
