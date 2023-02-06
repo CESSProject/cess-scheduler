@@ -35,6 +35,7 @@ const (
 	MsgRecvHead
 	MsgRecvFile
 	MsgFileSt
+	MsgVersion
 )
 
 const (
@@ -85,10 +86,14 @@ type Notify struct {
 	Status byte
 }
 
-func buildNotifyMsg(fileName string, status Status) *Message {
+func buildNotifyMsg(fileName string, status Status, ver string) *Message {
 	m := &Message{}
 	m.MsgType = MsgNotify
-	m.FileName = fileName
+	if fileName != "" {
+		m.FileName = fileName
+	} else {
+		m.FileName = ver
+	}
 	m.FileHash = ""
 	m.FileSize = 0
 	m.LastMark = false

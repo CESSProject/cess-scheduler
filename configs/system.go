@@ -18,12 +18,11 @@ package configs
 
 import "time"
 
-// type and version
-const Version = "cess-scheduler v0.5.4 dev"
-
 const (
 	// Name is the name of the program
 	Name = "cess-scheduler"
+	// version
+	Version = "v0.5.4"
 	// Description is the description of the program
 	Description = "Implementation of Scheduling Service for Consensus Nodes"
 	// NameSpace is the cached namespace

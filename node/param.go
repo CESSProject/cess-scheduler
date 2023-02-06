@@ -51,7 +51,7 @@ type FileStoreInfo struct {
 	IsCheck     bool           `json:"is_check"`
 	IsShard     bool           `json:"is_shard"`
 	IsScheduler bool           `json:"is_scheduler"`
-	Miners      map[int]string `json:"miners"`
+	Miners      map[int]string `json:"miners,omitempty"`
 }
 
 var (

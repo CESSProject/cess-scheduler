@@ -118,19 +118,19 @@ func (c *ConMgr) handler(node *Node) error {
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Signature error")
 			}
 			//Judge whether the file has been uploaded
 			fileState, err := GetFileState(node.Chain, m.FileHash)
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Get file state error")
 			}
 
 			// file state
 			if fileState == chain.FILE_STATE_ACTIVE {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("File uploaded")
 			}
 
@@ -139,11 +139,11 @@ func (c *ConMgr) handler(node *Node) error {
 			// create file
 			fs, err = os.OpenFile(filepath.Join(c.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return err
 			}
 			// notify suc
-			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok, ""))
 
 		case MsgFileSt:
 			switch cap(m.Bytes) {
@@ -154,7 +154,7 @@ func (c *ConMgr) handler(node *Node) error {
 			val, _ := node.Cache.Get([]byte(m.FileHash))
 
 			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
-			c.conn.SendMsg(buildNotifyMsg("", Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg("", Status_Ok, ""))
 			time.Sleep(time.Second)
 
 		case MsgFile:
@@ -183,15 +183,15 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 			info, err := fs.Stat()
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Invalid file")
 			}
 
 			if info.Size() != int64(m.FileSize) {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
 			}
-			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok, ""))
 
 			// close fs
 			fs.Close()
@@ -219,6 +219,14 @@ func (c *ConMgr) handler(node *Node) error {
 			default:
 			}
 			return errors.New("Close message")
+
+		case MsgVersion:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			c.conn.SendMsg(buildNotifyMsg("", Status_Ok, configs.Version))
 
 		default:
 			switch cap(m.Bytes) {

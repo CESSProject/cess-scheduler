@@ -56,7 +56,7 @@ func versionCommand() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(configs.Version)
+			fmt.Println(configs.Name + " " + configs.Version)
 			os.Exit(0)
 		},
 		DisableFlagsInUseLine: true,
