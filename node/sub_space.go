@@ -35,7 +35,7 @@ import (
 )
 
 // task_Space is used to fill the miner space
-func (n *Node) task_Space(ch chan bool) {
+func (n *Node) task_Space(ch chan<- bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
@@ -43,37 +43,35 @@ func (n *Node) task_Space(ch chan bool) {
 		}
 	}()
 
-	wg := new(sync.WaitGroup)
+	var (
+		err            error
+		allMinerPubkey []types.AccountID
+		wg             = new(sync.WaitGroup)
+	)
 
 	for {
-		if n.Chain.GetChainStatus() {
-			for i := 0; i < int(configs.MAX_TCP_CONNECTION); i++ {
-				wg.Add(1)
-				go storagefiller(wg, n)
-			}
-			wg.Wait()
-			runtime.GC()
-			time.Sleep(time.Second)
-			runtime.GC()
-			utils.ClearMemBuf()
+		// get all miner addresses
+		allMinerPubkey, err = n.Chain.GetAllStorageMiner()
+		if err != nil {
+			n.Logs.Spc("err", err)
+			time.Sleep(time.Second * configs.BlockInterval)
+			continue
 		}
 
+		// disrupt the order of miners
+		utils.RandSlice(allMinerPubkey)
+
+		for i := 0; i < len(allMinerPubkey); i++ {
+			wg.Add(1)
+			go storagefiller(wg, n, allMinerPubkey[i])
+			wg.Wait()
+		}
+		runtime.GC()
 		time.Sleep(configs.BlockInterval)
 	}
 }
 
-func storagefiller(wg *sync.WaitGroup, n *Node) {
-	var (
-		err       error
-		msg       string
-		txhash    string
-		count     uint8
-		minerinfo chain.Cache_MinerInfo
-
-		sendFillers = make([]string, configs.Num_Filler_Reserved*2)
-		fillerMetas = make([]chain.FillerMetaInfo, configs.Num_Filler_Reserved)
-	)
-
+func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
 	defer func() {
 		wg.Done()
 		if err := recover(); err != nil {
@@ -81,104 +79,79 @@ func storagefiller(wg *sync.WaitGroup, n *Node) {
 		}
 	}()
 
-	// get all miner addresses
-	allMinerPubkey, err := n.Chain.GetAllStorageMiner()
-	if err != nil {
-		n.Logs.Spc("err", err)
-		return
-	}
-
-	// disrupt the order of miners
-	utils.RandSlice(allMinerPubkey)
+	var (
+		err         error
+		txhash      string
+		fileHash    string
+		minerinfo   chain.Cache_MinerInfo
+		sendFillers = make([]string, 2)
+		fillerMetas = make([]chain.FillerMetaInfo, 0)
+	)
 
 	// sign message
-	msg = utils.GetRandomcode(16)
+	msg := utils.GetRandomcode(16)
 	kr, _ := cesskeyring.FromURI(n.Chain.GetMnemonicSeed(), cesskeyring.NetSubstrate{})
 	sign, err := kr.Sign(kr.SigningContext([]byte(msg)))
 	if err != nil {
 		n.Logs.Spc("err", err)
 		return
 	}
-	count = 0
-	// iterate over all minerss
-	for i := 0; i < len(allMinerPubkey); i++ {
-		if !n.Chain.GetChainStatus() {
-			return
-		}
 
-		minercache, err := n.Cache.Get(allMinerPubkey[i][:])
-		if err != nil {
-			n.Logs.Spc("err", err)
-			continue
-		}
+	if !n.Chain.GetChainStatus() {
+		return
+	}
 
-		err = json.Unmarshal(minercache, &minerinfo)
-		if err != nil {
-			n.Cache.Delete(allMinerPubkey[i][:])
-			n.Logs.Spc("err", err)
-			continue
-		}
+	minercache, err := n.Cache.Get(pkey[:])
+	if err != nil {
+		return
+	}
 
-		if blackMiners.IsExist(minerinfo.Peerid) {
-			continue
-		}
+	err = json.Unmarshal(minercache, &minerinfo)
+	if err != nil {
+		n.Cache.Delete(pkey[:])
+		return
+	}
 
-		tcpConn, err := dialTcpServer(minerinfo.Ip)
-		if err != nil {
-			blackMiners.Add(minerinfo.Peerid)
-			n.Logs.Spc("err", err)
-			continue
-		}
+	if blackMiners.IsExist(minerinfo.Peerid) {
+		return
+	}
 
-		for j := 0; j < (configs.Num_Filler_Reserved * 2); j += 2 {
-			if sendFillers[j] == "" {
-				var filler = <-C_Filler
-				sendFillers[j] = filler.TagPath
-				sendFillers[j+1] = filler.FillerPath
-			}
-		}
+	tcpConn, err := dialTcpServer(minerinfo.Ip)
+	if err != nil {
+		blackMiners.Add(minerinfo.Peerid)
+		return
+	}
 
+	for i := 0; i < configs.Num_Filler_Reserved; i++ {
+		var filler = <-C_Filler
+		sendFillers[0] = filler.TagPath
+		sendFillers[1] = filler.FillerPath
 		err = NewClient(NewTcp(tcpConn), "", sendFillers).SendFile(n, "", FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
 			blackMiners.Add(minerinfo.Peerid)
 			n.Logs.Spc("err", fmt.Errorf("[C%v] %v", minerinfo.Peerid, err))
+			break
+		}
+		fileHash = filepath.Base(sendFillers[0])
+		fillerMetas = append(fillerMetas, combineFillerMeta(fileHash, pkey[:]))
+	}
+
+	// submit filler meta
+	for len(fillerMetas) > 0 {
+		txhash, err = n.Chain.SubmitFillerMeta(types.NewAccountID(pkey[:]), fillerMetas)
+		if txhash == "" {
+			n.Logs.FillerMeta("err", err)
+			time.Sleep(configs.BlockInterval)
 			continue
 		}
-
-		for j := 1; j < (configs.Num_Filler_Reserved * 2); j += 2 {
-			var fileHas = filepath.Base(sendFillers[j])
-			fillerMetas[(j-1)/2] = combineFillerMeta(fileHas, allMinerPubkey[i][:])
-		}
-
-		// submit filler meta
-		txhash = ""
-		for {
-			txhash, err = n.Chain.SubmitFillerMeta(types.NewAccountID(allMinerPubkey[i][:]), fillerMetas)
-			if txhash == "" {
-				n.Logs.FillerMeta("error", err)
-				time.Sleep(configs.BlockInterval)
-				continue
-			}
-			n.Logs.FillerMeta("info", fmt.Errorf("[C%v] %v", minerinfo.Peerid, txhash))
-			break
-		}
-
-		for j := 0; j < (configs.Num_Filler_Reserved * 2); j++ {
-			os.Remove(sendFillers[j])
-		}
-
-		for j := 0; j < (configs.Num_Filler_Reserved * 2); j += 2 {
-			sendFillers[j] = ""
-			sendFillers[j+1] = ""
-		}
-
-		count++
-		if count > 10 {
-			break
-		}
+		n.Logs.FillerMeta("info", fmt.Errorf("[C%v] %v", minerinfo.Peerid, txhash))
+		break
 	}
-	for j := 0; j < (configs.Num_Filler_Reserved * 2); j++ {
-		os.Remove(sendFillers[j])
+
+	for i := 0; i < len(fillerMetas); i++ {
+		fpath := filepath.Join(n.FillerDir, fmt.Sprintf("%s", string(fillerMetas[i].Hash[:])))
+		os.Remove(fpath)
+		os.Remove(fpath + configs.TagFileExt)
 	}
 }
 
