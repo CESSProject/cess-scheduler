@@ -33,7 +33,6 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/proof"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -459,49 +458,12 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	fileTagPath := filepath.Join(n.TagDir, fname+".tag")
 	_, err = os.Stat(fileTagPath)
 	if err != nil {
-		// calculate file tag info
-		var commitResponse proof.SigGenResponse
-
-		matrix, num := proof.SplitV2(fpath, configs.SIZE_1MiB)
-		commitResponseCh := proof.PbcKey.SigGen(matrix, num)
-
-		select {
-		case commitResponse = <-commitResponseCh:
-		}
-
-		if commitResponse.StatueMsg.StatusCode != proof.Success {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
-			return rtnValue, errors.New("failed")
-		}
-
-		var tag TagInfo
-		tag.T = commitResponse.T
-		tag.Phi = commitResponse.Phi
-		tag.SigRootHash = commitResponse.SigRootHash
-
-		tag_bytes, err := json.Marshal(&tag)
+		// calculate file tag
+		err = n.RequestAndSaveTag(fpath, fileTagPath)
 		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
+			n.Logs.Upfile("err", fmt.Errorf("[%v] %v", fname, err))
 			return rtnValue, err
 		}
-
-		//Save tag information to file
-		ftag, err := os.OpenFile(fileTagPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
-			return rtnValue, err
-		}
-		ftag.Write(tag_bytes)
-
-		//flush to disk
-		err = ftag.Sync()
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
-			ftag.Close()
-			os.Remove(fileTagPath)
-			return rtnValue, err
-		}
-		ftag.Close()
 	}
 
 	// Get the publickey of all miners in the chain

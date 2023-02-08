@@ -71,9 +71,10 @@ func (n *Node) task_GenerateFiller(ch chan<- bool) {
 			}
 
 			// Calculate filler tag
-			err = n.RequestAndSaveTag(fillerpath)
+			err = n.RequestAndSaveTag(fillerpath, fillerpath+configs.TagFileExt)
 			if err != nil {
 				n.Logs.GenFiller("err", err)
+				os.Remove(fillerpath)
 				continue
 			}
 
@@ -135,7 +136,7 @@ func (n *Node) GenerateFiller() (string, error) {
 	return newPath, nil
 }
 
-func (n *Node) RequestAndSaveTag(fpath string) error {
+func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 	var (
 		err        error
 		callTagUrl string
@@ -196,10 +197,9 @@ func (n *Node) RequestAndSaveTag(fpath string) error {
 	tagSave.SigRootHash = sig_root_hash
 
 	// filler tag
-	err = saveTagToFile(fpath+configs.TagFileExt, tagSave)
+	err = saveTagToFile(tagpath, tagSave)
 	if err != nil {
-		os.Remove(fpath)
-		os.Remove(fpath + configs.TagFileExt)
+		os.Remove(tagpath)
 		return err
 	}
 

@@ -157,7 +157,7 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 }
 
 func register(cfg confile.Confiler, client chain.Chainer) error {
-	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort())
+	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), uint16(cfg.GetServicePort()))
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 			return fmt.Errorf("[err] Please check your wallet balance")
