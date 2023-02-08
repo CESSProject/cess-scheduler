@@ -47,6 +47,10 @@ func KeyGen() RSAKeyPair {
 	}
 }
 
+func GetKey() *RSAKeyPair {
+	return key
+}
+
 func SetKey(e int, n *big.Int) {
 	if key.Spk.N == nil {
 		key.Spk.E = e

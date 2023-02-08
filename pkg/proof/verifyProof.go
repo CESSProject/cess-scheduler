@@ -17,30 +17,68 @@
 package proof
 
 import (
-	"github.com/Nik-U/pbc"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"math/big"
+	"sync"
+
+	"github.com/CESSProject/go-merkletree"
 )
 
-func (keyPair PBCKeyPair) VerifyProof(t T, QSlice []QElement, m, sigma Sigma, mht MHTInfo) bool {
-	pairing, _ := pbc.NewPairingFromString(keyPair.SharedParams)
-	g := pairing.NewG1().SetBytes(keyPair.SharedG)
-	v := pairing.NewG1().SetBytes(keyPair.Spk)
-
-	multiply := pairing.NewG1()
+func (keyPair RSAKeyPair) VerifyProof(t T, QSlice []QElement, mu, sigma Sigma, mht MHTInfo, sigRootHash []byte) bool {
+	var mi []merkletree.NodeSerializable
+	var auxiliary []merkletree.NodeSerializable
+	multiply := new(big.Int).SetInt64(1)
+	var lock sync.Mutex
+	var wg sync.WaitGroup
 	for i := 0; i < len(QSlice); i++ {
-		hashMi := pairing.NewG1().SetBytes(mht.HashMi[i])
-		// ∏ H(mi)^νi (i ∈ [1, n])
-		multiply.Mul(multiply, pairing.NewG1().PowZn(hashMi, pairing.NewZr().SetBytes(QSlice[i].V)))
+		wg.Add(1)
+		go func(i int) {
+			hashMi := new(big.Int).SetBytes(mht.HashMi[i])
+			// ∏ H(mi)^νi (i ∈ [1, n])
+			pow := new(big.Int).Exp(hashMi, new(big.Int).SetBytes(QSlice[i].V), keyPair.Spk.N)
+			lock.Lock()
+			multiply.Mul(multiply, pow)
+			lock.Unlock()
+			wg.Done()
+		}(i)
+
+		//for verify MHT root
+		var n merkletree.NodeSerializable
+		n.Hash = mht.HashMi[i]
+		n.Index = QSlice[i].I
+		n.Height = 0
+		mi = append(mi, n)
+	}
+	wg.Wait()
+
+	err := json.Unmarshal(mht.Omega, &auxiliary)
+	if err != nil {
+		panic(err)
 	}
 
-	//u^µ
-	u := pairing.NewG1().SetBytes(t.U)
-	mu := pairing.NewZr().SetBytes(m)
-	uPowMu := pairing.NewG1().PowZn(u, mu)
+	proofNode := append(mi, auxiliary...)
+	for _, v := range proofNode {
+		fmt.Println(hex.EncodeToString(v.Hash))
+	}
 
-	left := pairing.NewGT()
-	right := pairing.NewGT()
-	left.Pair(pairing.NewG1().SetBytes(sigma), g)
-	right.Pair(pairing.NewG1().Mul(multiply, uPowMu), v)
+	root, err := merkletree.NewTreeWithAuxiliaryNode(merkletree.RebuildNodeList(&proofNode), sha256.New)
+	if err != nil {
+		panic(err)
+	}
+	//verify hash root signature
+	if !bytes.Equal(root.Hash, sigRootHash) {
+		fmt.Println("root signature verify fail")
+		return false
+	}
 
-	return left.Equals(right)
+	u := new(big.Int).SetBytes(t.U)
+	mu_bigint := new(big.Int).SetBytes(mu)
+	uPowMu := new(big.Int).Exp(u, mu_bigint, keyPair.Spk.N)
+
+	return new(big.Int).Mod(new(big.Int).Mul(multiply, uPowMu), keyPair.Spk.N).Cmp(new(big.Int).Exp(new(big.Int).SetBytes(sigma), new(big.Int).SetInt64(int64(keyPair.Spk.E)), keyPair.Spk.N)) == 0
+
 }

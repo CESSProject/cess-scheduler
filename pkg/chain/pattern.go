@@ -134,9 +134,11 @@ type Proof struct {
 	FileId         FileHash
 	Miner_pubkey   types.AccountID
 	Challenge_info ChallengeInfo
+	U              types.Bytes
 	Mu             types.Bytes
 	Sigma          types.Bytes
-	U              types.Bytes
+	Omega          types.Bytes
+	SigRootHash    types.Bytes
 	HashMi         []types.Bytes
 }
 
