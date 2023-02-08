@@ -14,15 +14,12 @@
    limitations under the License.
 */
 
-package pbc
+package proof
 
 import (
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"math"
 	"os"
 
 	"github.com/Nik-U/pbc"
@@ -83,50 +80,20 @@ func (keyPair PBCKeyPair) GenProof(QSlice []QElement, t T, Phi []Sigma, Matrix [
 	return responseCh
 }
 
-func Split(filefullpath string, blocksize, filesize int64) ([][]byte, uint64, error) {
-	file, err := os.Open(filefullpath)
+func SplitV2(fpath string, sep int64) (Data [][]byte, N int64, err error) {
+	data, err := os.ReadFile(fpath)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer file.Close()
-
-	if filesize/blocksize == 0 {
-		return nil, 0, errors.New("filesize invalid")
-	}
-	n := uint64(math.Ceil(float64(filesize / blocksize)))
-	if n == 0 {
-		n = 1
-	}
-	// matrix is indexed as m_ij, so the first dimension has n items and the second has s.
-	matrix := make([][]byte, n)
-	for i := uint64(0); i < n; i++ {
-		piece := make([]byte, blocksize)
-		_, err := file.Read(piece)
-		if err != nil {
-			return nil, 0, err
-		}
-		matrix[i] = piece
-	}
-	return matrix, n, nil
-}
-
-func SplitV2(filePath string, sep int64) (Data [][]byte, N int64) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		panic(err)
-	}
-	data, err := io.ReadAll(file)
-	if err != nil {
-		panic(err)
-	}
-	if sep > int64(len(data)) {
+	file_size := int64(len(data))
+	if sep > file_size {
 		Data = append(Data, data)
 		N = 1
 		return
 	}
 
-	N = int64(len(data)) / sep
-	if int64(len(data))%sep != 0 {
+	N = file_size / sep
+	if file_size%sep != 0 {
 		N += 1
 	}
 
@@ -140,5 +107,6 @@ func SplitV2(filePath string, sep int64) (Data [][]byte, N int64) {
 			Data[i] = append(Data[i], make([]byte, l, l)...)
 		}
 	}
+
 	return
 }

@@ -19,7 +19,6 @@ package confile
 import (
 	"os"
 	"path"
-	"strconv"
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
@@ -33,10 +32,12 @@ const (
 	ConfigurationFileTemplateName = "conf_template.toml"
 	ConfigurationFileTemplete     = `# The rpc address of the chain node
 RpcAddr     = ""
-# The IP address of the machine's public network used by the scheduler program
+# The IP address of the machine's public network
 ServiceAddr = ""
 # Port number monitored by the scheduler program
-ServicePort = ""
+ServicePort = 15000
+# Sgx service communication port
+SgxPort     = 80
 # Data storage directory
 DataDir     = ""
 # Phrase or seed of the controller account
@@ -49,7 +50,8 @@ type Confiler interface {
 	Parse(path string) error
 	GetRpcAddr() string
 	GetServiceAddr() string
-	GetServicePort() string
+	GetServicePort() uint32
+	GetSgxPort() uint32
 	GetDataDir() string
 	GetCtrlPrk() string
 	GetStashAcc() string
@@ -58,7 +60,8 @@ type Confiler interface {
 type confile struct {
 	RpcAddr     string `name:"RpcAddr" toml:"RpcAddr" yaml:"RpcAddr"`
 	ServiceAddr string `name:"ServiceAddr" toml:"ServiceAddr" yaml:"ServiceAddr"`
-	ServicePort string `name:"ServicePort" toml:"ServicePort" yaml:"ServicePort"`
+	ServicePort uint32 `name:"ServicePort" toml:"ServicePort" yaml:"ServicePort"`
+	SgxPort     uint32 `name:"SgxPort" toml:"SgxPort" yaml:"SgxPort"`
 	DataDir     string `name:"DataDir" toml:"DataDir" yaml:"DataDir"`
 	CtrlPrk     string `name:"CtrlPrk" toml:"CtrlPrk" yaml:"CtrlPrk"`
 	StashAcc    string `name:"StashAcc" toml:"StashAcc" yaml:"StashAcc"`
@@ -105,20 +108,19 @@ func (c *confile) Parse(fpath string) error {
 
 	if c.DataDir == "" ||
 		c.RpcAddr == "" ||
-		c.ServiceAddr == "" ||
-		c.ServicePort == "" {
+		c.ServiceAddr == "" {
 		return errors.New("The configuration file cannot have empty entries")
 	}
 
-	port, err := strconv.Atoi(c.ServicePort)
-	if err != nil {
-		return errors.New("The port number should be between 1025~65535")
+	if c.ServicePort < 1024 {
+		return errors.Errorf("Prohibit the use of system reserved port: %v", c.ServicePort)
 	}
-	if port < 1024 {
-		return errors.Errorf("Prohibit the use of system reserved port: %v", port)
-	}
-	if port > 65535 {
+	if c.ServicePort > 65535 {
 		return errors.New("The port number cannot exceed 65535")
+	}
+
+	if c.SgxPort == 0 || c.SgxPort > 65535 {
+		return errors.New("Illegal sgx service port")
 	}
 
 	fstat, err = os.Stat(c.DataDir)
@@ -127,12 +129,11 @@ func (c *confile) Parse(fpath string) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		if !fstat.IsDir() {
+			return errors.Errorf("The '%v' is not a directory", c.DataDir)
+		}
 	}
-
-	if !fstat.IsDir() {
-		return errors.Errorf("The '%v' is not a directory", c.DataDir)
-	}
-
 	return nil
 }
 
@@ -144,8 +145,12 @@ func (c *confile) GetServiceAddr() string {
 	return c.ServiceAddr
 }
 
-func (c *confile) GetServicePort() string {
+func (c *confile) GetServicePort() uint32 {
 	return c.ServicePort
+}
+
+func (c *confile) GetSgxPort() uint32 {
+	return c.SgxPort
 }
 
 func (c *confile) GetDataDir() string {

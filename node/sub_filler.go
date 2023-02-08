@@ -17,21 +17,38 @@
 package node
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/pkg/proof"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/pkg/errors"
 )
 
+type PubRSARequest struct {
+	FilePath    string `json:"file_path"`
+	BlockSize   int64  `json:"block_size"`
+	CallbackUrl string `json:"callback_url"`
+}
+
+type StorageTagType struct {
+	T           proof.T
+	Phi         []proof.Sigma `json:"phi"`
+	SigRootHash []byte        `json:"sig_root_hash"`
+}
+
 // task_GenerateFiller is used to generate filler
 // and store it in the channel for standby
-func (n *Node) task_GenerateFiller(ch chan bool) {
+func (n *Node) task_GenerateFiller(ch chan<- bool) {
 	defer func() {
 		ch <- true
 		if err := recover(); err != nil {
@@ -39,88 +56,188 @@ func (n *Node) task_GenerateFiller(ch chan bool) {
 		}
 	}()
 	var (
-		err           error
-		fillerpath    string
-		newFillerPath string
-		fillerHash    string
-		tagPath       string
-		fillerEle     Filler
+		err        error
+		fillerpath string
+		fillerEle  Filler
 	)
 	n.Logs.GenFiller("info", errors.New(">>> Start task_GenerateFiller <<<"))
 	for {
 		for len(C_Filler) < configs.Num_Filler_Reserved {
-			// calc filler path
-			fillerpath = filepath.Join(n.FillerDir, fmt.Sprintf("%v", time.Now().UnixNano()))
-			n.Logs.GenFiller("info", fmt.Errorf("%v", fillerpath))
-			_, err = os.Stat(fillerpath)
-			if err == nil {
-				time.Sleep(time.Second)
-				continue
-			}
-
-			// generate filler
-			err = generateFiller(fillerpath, configs.FillerSize)
+			// Generate filler
+			fillerpath, err = n.GenerateFiller()
 			if err != nil {
-				n.Logs.GenFiller("error", err)
-				os.Remove(fillerpath)
+				n.Logs.GenFiller("err", err)
 				continue
 			}
 
-			// judge filler size
-			fstat, _ := os.Stat(fillerpath)
-			if fstat.Size() != configs.FillerSize {
-				n.Logs.GenFiller("error", fmt.Errorf("filler size err: %v", err))
-				os.Remove(fillerpath)
-				continue
-			}
-
-			// calculate file tag info
-			var commitResponse pbc.SigGenResponse
-			matrix, num := pbc.SplitV2(fillerpath, configs.SIZE_1MiB)
-
-			select {
-			case commitResponse = <-pbc.PbcKey.SigGen(matrix, num):
-			}
-
-			if commitResponse.StatueMsg.StatusCode != pbc.Success {
-				n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fillerpath))
-				os.Remove(fillerpath)
-				continue
-			}
-
-			// calc filler hash
-			fillerHash, err = utils.CalcPathSHA256(fillerpath)
+			// Calculate filler tag
+			err = n.RequestAndSaveTag(fillerpath)
 			if err != nil {
-				os.Remove(fillerpath)
-				continue
-			}
-
-			// rename filler
-			newFillerPath = filepath.Join(n.FillerDir, fillerHash)
-			err = os.Rename(fillerpath, newFillerPath)
-			if err != nil {
-				os.Remove(fillerpath)
-				continue
-			}
-
-			// filler tag
-			tagPath = newFillerPath + ".tag"
-			err = generateFillerTag(tagPath, commitResponse)
-			if err != nil {
-				os.Remove(newFillerPath)
-				os.Remove(tagPath)
+				n.Logs.GenFiller("err", err)
 				continue
 			}
 
 			// save filler metainfo to channel
-			fillerEle.Hash = fillerHash
-			fillerEle.FillerPath = newFillerPath
-			fillerEle.TagPath = tagPath
+			fillerEle.Hash = filepath.Base(fillerpath)
+			fillerEle.FillerPath = fillerpath
+			fillerEle.TagPath = fillerpath + configs.TagFileExt
 			C_Filler <- fillerEle
-			n.Logs.GenFiller("info", fmt.Errorf("Produced a filler: %v", fillerHash))
+			n.Logs.GenFiller("info", fmt.Errorf("Produced a filler: %v", filepath.Base(fillerpath)))
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+func (n *Node) GenerateFiller() (string, error) {
+	var (
+		err        error
+		fpath      string
+		newPath    string
+		fillerHash string
+	)
+
+	for {
+		fpath = filepath.Join(n.FillerDir, fmt.Sprintf("%v", time.Now().UnixNano()))
+		_, err = os.Stat(fpath)
+		if err == nil {
+			time.Sleep(time.Second)
+			continue
+		}
+		break
+	}
+
+	defer os.Remove(fpath)
+
+	// generate filler
+	err = generateFiller(fpath, configs.FillerSize)
+	if err != nil {
+		return fpath, err
+	}
+
+	// judge filler size
+	fstat, _ := os.Stat(fpath)
+	if fstat.Size() != configs.FillerSize {
+		return fpath, errors.New("size error")
+	}
+
+	// calc filler hash
+	fillerHash, err = utils.CalcPathSHA256(fpath)
+	if err != nil {
+		return fpath, err
+	}
+
+	// rename filler
+	newPath = filepath.Join(n.FillerDir, fillerHash)
+	err = os.Rename(fpath, newPath)
+	if err != nil {
+		return fpath, err
+	}
+	return newPath, nil
+}
+
+func (n *Node) RequestAndSaveTag(fpath string) error {
+	var (
+		err        error
+		callTagUrl string
+		tag        PoDR2PubData
+		tagSave    StorageTagType
+	)
+	callTagUrl = fmt.Sprintf("%s:%d%s", configs.Localhost, n.Confile.GetSgxPort(), configs.GetTagRoute)
+	err = getTagReq(fpath, configs.BlockSize, int64(n.Confile.GetServicePort()), callTagUrl, configs.GetTagRoute_Callback, n.Confile.GetServiceAddr())
+	if err != nil {
+		return err
+	}
+	timeout := time.NewTicker(configs.TimeOut_WaitTag)
+	defer timeout.Stop()
+
+	select {
+	case <-timeout.C:
+		return fmt.Errorf("Wait challenge timeout")
+	case tag = <-Ch_Tag:
+	}
+
+	// matrix, num, err := proof.SplitV2(fillerpath, configs.BlockSize)
+	// if err != nil {
+	// 	n.Logs.GenFiller("err", err)
+	// 	continue
+	// }
+
+	u, err := base64.StdEncoding.DecodeString(tag.Result.T.Tag.U)
+	if err != nil {
+		return err
+	}
+
+	name, err := base64.StdEncoding.DecodeString(tag.Result.T.Tag.Name)
+	if err != nil {
+		return err
+	}
+	tagSave.T.Tag.U = u
+	tagSave.T.Tag.Name = name
+	tagSave.T.Tag.N = tag.Result.T.Tag.N
+
+	//tag signature
+	sig, err := hex.DecodeString(tag.Result.T.SigAbove)
+	if err != nil {
+		return err
+	}
+	tagSave.T.SigAbove = sig
+
+	//phi
+	for _, v := range tag.Result.Phi {
+		phi_big, _ := new(big.Int).SetString(v, 10)
+		tagSave.Phi = append(tagSave.Phi, phi_big.Bytes())
+	}
+
+	//sig_root_hash
+	sig_root_hash, err := hex.DecodeString(tag.Result.SigRootHash)
+	if err != nil {
+		return err
+	}
+	tagSave.SigRootHash = sig_root_hash
+
+	// filler tag
+	err = saveTagToFile(fpath+configs.TagFileExt, tagSave)
+	if err != nil {
+		os.Remove(fpath)
+		os.Remove(fpath + configs.TagFileExt)
+		return err
+	}
+
+	//set public key
+	E_bigint, _ := new(big.Int).SetString(tag.Result.Spk.E, 10)
+	N_bigint, _ := new(big.Int).SetString(tag.Result.Spk.N, 10)
+	proof.SetKey(int(E_bigint.Int64()), N_bigint)
+	return nil
+}
+
+func getTagReq(fpath string, blocksize, callbackPort int64, callUrl, callbackRouter, callbackIp string) error {
+	callbackurl := fmt.Sprintf("http://%v:%d%v", callbackIp, callbackPort, callbackRouter)
+	param := PubRSARequest{
+		FilePath:    configs.SgxMappingPath + fpath,
+		BlockSize:   blocksize,
+		CallbackUrl: callbackurl,
+	}
+	data, err := json.Marshal(param)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, callUrl, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+
+	cli := http.Client{
+		Transport: configs.GlobalTransport,
+	}
+
+	_, err = cli.Do(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func generateFiller(fpath string, fsize uint64) error {
@@ -141,25 +258,21 @@ func generateFiller(fpath string, fsize uint64) error {
 	return nil
 }
 
-func generateFillerTag(fpath string, fileTag pbc.SigGenResponse) error {
+func saveTagToFile(fpath string, tag StorageTagType) error {
 	tagFs, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
 	}
 	defer tagFs.Close()
-	tag_data := TagInfo{
-		T:           fileTag.T,
-		Phi:         fileTag.Phi,
-		SigRootHash: fileTag.SigRootHash,
-	}
-	tag_data_b, err := json.Marshal(&tag_data)
+
+	tagData, err := json.Marshal(&tag)
 	if err != nil {
 		return err
 	}
-	tagFs.Write(tag_data_b)
-	err = tagFs.Sync()
+	_, err = tagFs.Write(tagData)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	return tagFs.Sync()
 }

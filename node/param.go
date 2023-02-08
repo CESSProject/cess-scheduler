@@ -21,13 +21,13 @@ import (
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
-	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/pkg/proof"
 )
 
 type TagInfo struct {
-	T           pbc.T
-	Phi         []pbc.Sigma `json:"phi"`           //Φ = {σi}
-	SigRootHash []byte      `json:"sig_root_hash"` //BLS
+	T           proof.T
+	Phi         []proof.Sigma `json:"phi"`           //Φ = {σi}
+	SigRootHash []byte        `json:"sig_root_hash"` //BLS
 
 }
 
@@ -56,11 +56,13 @@ type FileStoreInfo struct {
 
 var (
 	C_Filler    chan Filler
+	Ch_Tag      chan PoDR2PubData
 	blackMiners *BlacklistMiner
 )
 
 func init() {
 	C_Filler = make(chan Filler, configs.Num_Filler_Reserved)
+	Ch_Tag = make(chan PoDR2PubData, 1)
 	blackMiners = &BlacklistMiner{
 		Lock: new(sync.Mutex),
 		List: make(map[uint64]int64, 100),

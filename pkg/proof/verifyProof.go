@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package pbc
+package proof
 
 import (
 	"github.com/Nik-U/pbc"

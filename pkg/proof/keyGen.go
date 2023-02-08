@@ -14,27 +14,42 @@
    limitations under the License.
 */
 
-package pbc
+package proof
 
 import (
-	"github.com/Nik-U/pbc"
+	"crypto/rand"
+	"crypto/rsa"
+	"math/big"
 )
 
-func KeyGen() PBCKeyPair {
-	var keyPair PBCKeyPair
+type RSAKeyPair struct {
+	Spk *rsa.PublicKey
+	Ssk *rsa.PrivateKey
+}
 
-	params := pbc.GenerateA(160, 512)
+var key *RSAKeyPair
 
-	pairing := params.NewPairing()
-	g := pairing.NewG1().Rand()
+func init() {
+	key = &RSAKeyPair{
+		Spk: new(rsa.PublicKey),
+		Ssk: new(rsa.PrivateKey),
+	}
+}
 
-	privKey := pairing.NewZr().Rand()
-	pubKey := pairing.NewG1().PowZn(g, privKey)
-	keyPair.Spk = pubKey.Bytes()
-	keyPair.Ssk = privKey.Bytes()
-	keyPair.SharedParams = params.String()
-	keyPair.SharedG = g.Bytes()
-	keyPair.ZrLength = pairing.ZrLength()
+func KeyGen() RSAKeyPair {
+	ssk, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		panic(err)
+	}
+	return RSAKeyPair{
+		Spk: &ssk.PublicKey,
+		Ssk: ssk,
+	}
+}
 
-	return keyPair
+func SetKey(e int, n *big.Int) {
+	if key.Spk.N == nil {
+		key.Spk.E = e
+		key.Spk.N = n
+	}
 }

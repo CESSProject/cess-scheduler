@@ -33,7 +33,7 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/pbc"
+	"github.com/CESSProject/cess-scheduler/pkg/proof"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -361,7 +361,7 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		FileId:      fid,
 		FileSize:    fsize,
 		FileState:   chain.FILE_STATE_PENDING,
-		Scheduler:   n.Confile.GetServiceAddr() + ":" + n.Confile.GetServicePort(),
+		Scheduler:   fmt.Sprintf("%s:%d", n.Confile.GetServiceAddr(), n.Confile.GetServicePort()),
 		IsUpload:    true,
 		IsCheck:     true,
 		IsShard:     true,
@@ -460,16 +460,16 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	_, err = os.Stat(fileTagPath)
 	if err != nil {
 		// calculate file tag info
-		var commitResponse pbc.SigGenResponse
+		var commitResponse proof.SigGenResponse
 
-		matrix, num := pbc.SplitV2(fpath, configs.SIZE_1MiB)
-		commitResponseCh := pbc.PbcKey.SigGen(matrix, num)
+		matrix, num := proof.SplitV2(fpath, configs.SIZE_1MiB)
+		commitResponseCh := proof.PbcKey.SigGen(matrix, num)
 
 		select {
 		case commitResponse = <-commitResponseCh:
 		}
 
-		if commitResponse.StatueMsg.StatusCode != pbc.Success {
+		if commitResponse.StatueMsg.StatusCode != proof.Success {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
 			return rtnValue, errors.New("failed")
 		}

@@ -16,7 +16,10 @@
 
 package configs
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 // account
 const (
@@ -40,8 +43,8 @@ const (
 	FillerSize = 8 * SIZE_1MiB
 	// FillerLineLength is the number of characters in a line
 	FillerLineLength = 4096
-	// BlockSize is the block size when pbc is calculated
-	BlockSize = SIZE_1MiB
+	// // BlockSize is the block size when pbc is calculated
+	// BlockSize = SIZE_1MiB
 	// ScanBlockSize is the size of the scan and cannot be larger than BlockSize
 	ScanBlockSize = BlockSize / 2
 	// The maximum number of fillermeta submitted in a transaction
@@ -91,6 +94,18 @@ const (
 	DirPermission = 0755
 )
 
+const (
+	TagFileExt           = ".tag"
+	Localhost            = "http://localhost"
+	GetTagRoute          = "/process_data"
+	GetTagRoute_Callback = "/tag"
+	SgxMappingPath       = "/sgx"
+	SgxReportSuc         = 100000
+	BlockSize            = SIZE_1MiB
+	//ChallengeBlocks      = FillerSize / BlockSize
+	TimeOut_WaitTag = time.Duration(time.Second * 30)
+)
+
 // explanation
 const (
 	HELP_common = `Please check with the following help information:
@@ -106,7 +121,8 @@ const (
 
 // log file
 var (
-	LogFiles = []string{
+	GlobalTransport *http.Transport
+	LogFiles        = []string{
 		"common",     //General log
 		"upfile",     //Upload file log
 		"panic",      //Panic log
@@ -118,3 +134,9 @@ var (
 		"space",      //Fills the miner's space log
 	}
 )
+
+func init() {
+	GlobalTransport = &http.Transport{
+		DisableKeepAlives: true,
+	}
+}
