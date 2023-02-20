@@ -148,8 +148,8 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 		tag        PoDR2PubData
 		tagSave    StorageTagType
 	)
-	callTagUrl = fmt.Sprintf("%s:%d%s", configs.Localhost, configs.SgxCallBackPort, configs.GetTagRoute)
-	err = getTagReq(fpath, configs.BlockSize, int64(n.Confile.GetSgxPort()), callTagUrl, configs.GetTagRoute_Callback, n.Confile.GetServiceAddr())
+	callTagUrl = fmt.Sprintf("%s:%d%s", configs.Localhost, n.Confile.GetSgxPort(), configs.GetTagRoute)
+	err = getTagReq(fpath, configs.BlockSize, int64(configs.SgxCallBackPort), callTagUrl, configs.GetTagRoute_Callback, n.Confile.GetServiceAddr())
 	if err != nil {
 		return err
 	}
