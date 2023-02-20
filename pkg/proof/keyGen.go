@@ -19,7 +19,11 @@ package proof
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"math/big"
+
+	"github.com/CESSProject/cess-scheduler/configs"
+	"github.com/CESSProject/cess-scheduler/pkg/db"
 )
 
 type RSAKeyPair struct {
@@ -47,13 +51,38 @@ func KeyGen() RSAKeyPair {
 	}
 }
 
-func GetKey() *RSAKeyPair {
-	return key
+func GetKey(d db.Cacher) (*RSAKeyPair, error) {
+	if key.Spk.N == nil || key.Spk.E == 0 {
+		SetKey(d)
+	}
+	if key.Spk.N == nil || key.Spk.E == 0 {
+		return nil, errors.New("key is nil")
+	}
+	return key, nil
 }
 
-func SetKey(e int, n *big.Int) {
-	if key.Spk.N == nil {
-		key.Spk.E = e
-		key.Spk.N = n
+func SetKey(cace db.Cacher) error {
+	if cace == nil {
+		return errors.New("cace is nil")
 	}
+	if key.Spk.N == nil || key.Spk.E == 0 {
+		val, err := cace.Get([]byte(configs.SigKey_E))
+		if err != nil {
+			return err
+		}
+		E_bigint, ok := new(big.Int).SetString(string(val), 10)
+		if !ok {
+			return errors.New("Set string to E")
+		}
+		val, err = cace.Get([]byte(configs.SigKey_N))
+		if err != nil {
+			return err
+		}
+		key.Spk.N, ok = new(big.Int).SetString(string(val), 10)
+		if !ok {
+			return errors.New("Set string to N")
+		}
+		key.Spk.E = int(E_bigint.Int64())
+	}
+	return nil
 }

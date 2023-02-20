@@ -17,20 +17,13 @@
 package proof
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
 	"math/big"
 	"sync"
-
-	"github.com/CESSProject/go-merkletree"
 )
 
 func (keyPair RSAKeyPair) VerifyProof(t T, QSlice []QElement, mu, sigma Sigma, mht MHTInfo, sigRootHash []byte) bool {
-	var mi []merkletree.NodeSerializable
-	var auxiliary []merkletree.NodeSerializable
+	// var mi []merkletree.NodeSerializable
+	// var auxiliary []merkletree.NodeSerializable
 	multiply := new(big.Int).SetInt64(1)
 	var lock sync.Mutex
 	var wg sync.WaitGroup
@@ -46,39 +39,38 @@ func (keyPair RSAKeyPair) VerifyProof(t T, QSlice []QElement, mu, sigma Sigma, m
 			wg.Done()
 		}(i)
 
-		//for verify MHT root
-		var n merkletree.NodeSerializable
-		n.Hash = mht.HashMi[i]
-		n.Index = QSlice[i].I
-		n.Height = 0
-		mi = append(mi, n)
+		// //for verify MHT root
+		// var n merkletree.NodeSerializable
+		// n.Hash = mht.HashMi[i]
+		// n.Index = QSlice[i].I
+		// n.Height = 0
+		// mi = append(mi, n)
 	}
 	wg.Wait()
 
-	err := json.Unmarshal(mht.Omega, &auxiliary)
-	if err != nil {
-		panic(err)
-	}
+	// err := json.Unmarshal(mht.Omega, &auxiliary)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	proofNode := append(mi, auxiliary...)
-	for _, v := range proofNode {
-		fmt.Println(hex.EncodeToString(v.Hash))
-	}
+	// proofNode := append(mi, auxiliary...)
+	// for _, v := range proofNode {
+	// 	fmt.Println(hex.EncodeToString(v.Hash))
+	// }
 
-	root, err := merkletree.NewTreeWithAuxiliaryNode(merkletree.RebuildNodeList(&proofNode), sha256.New)
-	if err != nil {
-		panic(err)
-	}
-	//verify hash root signature
-	if !bytes.Equal(root.Hash, sigRootHash) {
-		fmt.Println("root signature verify fail")
-		return false
-	}
+	// root, err := merkletree.NewTreeWithAuxiliaryNode(merkletree.RebuildNodeList(&proofNode), sha256.New)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// //verify hash root signature
+	// if !bytes.Equal(root.Hash, sigRootHash) {
+	// 	fmt.Println("root signature verify fail")
+	// 	return false
+	// }
 
 	u := new(big.Int).SetBytes(t.U)
 	mu_bigint := new(big.Int).SetBytes(mu)
 	uPowMu := new(big.Int).Exp(u, mu_bigint, keyPair.Spk.N)
-
 	return new(big.Int).Mod(new(big.Int).Mul(multiply, uPowMu), keyPair.Spk.N).Cmp(new(big.Int).Exp(new(big.Int).SetBytes(sigma), new(big.Int).SetInt64(int64(keyPair.Spk.E)), keyPair.Spk.N)) == 0
 
 }

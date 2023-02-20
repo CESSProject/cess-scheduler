@@ -30,6 +30,7 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/proof"
 	"github.com/spf13/cobra"
 )
 
@@ -73,6 +74,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 		log.Println(err)
 		os.Exit(1)
 	}
+
+	proof.SetKey(node.Cache)
 
 	//Build Log Instance
 	node.Logs, err = buildLogs(logDir)

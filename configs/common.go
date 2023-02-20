@@ -100,10 +100,13 @@ const (
 	GetTagRoute          = "/process_data"
 	GetTagRoute_Callback = "/tag"
 	SgxMappingPath       = "/sgx"
+	SigKey_E             = "SigKey_E"
+	SigKey_N             = "SigKey_N"
+	SgxCallBackPort      = 15001
 	SgxReportSuc         = 100000
-	BlockSize            = SIZE_1MiB
+	BlockSize            = SIZE_1KiB * 2
 	//ChallengeBlocks      = FillerSize / BlockSize
-	TimeOut_WaitTag = time.Duration(time.Second * 30)
+	TimeOut_WaitTag = time.Duration(time.Minute * 5)
 )
 
 // explanation

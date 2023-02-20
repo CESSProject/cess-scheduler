@@ -58,6 +58,8 @@ func (n *Node) Run() {
 		remote string
 	)
 
+	n.StartCallback()
+
 	// Start the subtask manager
 	go n.CoroutineMgr()
 

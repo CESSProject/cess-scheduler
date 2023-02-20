@@ -54,7 +54,7 @@ func (n *Node) task_Space(ch chan<- bool) {
 		allMinerPubkey, err = n.Chain.GetAllStorageMiner()
 		if err != nil {
 			n.Logs.Spc("err", err)
-			time.Sleep(time.Second * configs.BlockInterval)
+			time.Sleep(configs.BlockInterval)
 			continue
 		}
 
@@ -112,9 +112,9 @@ func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
 		return
 	}
 
-	if blackMiners.IsExist(minerinfo.Peerid) {
-		return
-	}
+	// if blackMiners.IsExist(minerinfo.Peerid) {
+	// 	return
+	// }
 
 	tcpConn, err := dialTcpServer(minerinfo.Ip)
 	if err != nil {
@@ -140,11 +140,11 @@ func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
 	for len(fillerMetas) > 0 {
 		txhash, err = n.Chain.SubmitFillerMeta(types.NewAccountID(pkey[:]), fillerMetas)
 		if txhash == "" {
-			n.Logs.FillerMeta("err", err)
+			n.Logs.Spc("err", err)
 			time.Sleep(configs.BlockInterval)
 			continue
 		}
-		n.Logs.FillerMeta("info", fmt.Errorf("[C%v] %v", minerinfo.Peerid, txhash))
+		n.Logs.Spc("info", fmt.Errorf("[C%v] %v", minerinfo.Peerid, txhash))
 		break
 	}
 

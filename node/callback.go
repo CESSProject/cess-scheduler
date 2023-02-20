@@ -21,6 +21,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -36,9 +37,9 @@ func (n *Node) StartCallback() {
 		n.CallBack.Use(cors.New(config))
 		// Add route
 		n.AddRoute()
-		log.Printf("[START] Callback listening on port %d\n", n.Confile.GetSgxPort())
+		log.Printf("[START] Callback listening on port %d\n", configs.SgxCallBackPort)
 		// Run
-		n.CallBack.Run(":" + fmt.Sprintf("%d", n.Confile.GetSgxPort()))
+		n.CallBack.Run(":" + fmt.Sprintf("%d", configs.SgxCallBackPort))
 	}()
 	time.Sleep(time.Second)
 }

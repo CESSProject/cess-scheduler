@@ -183,3 +183,17 @@ func buildFileStMsg(fid string, val []byte) *Message {
 	m.Bytes = val
 	return m
 }
+
+func buildVersionMsg(ver string) *Message {
+	m := &Message{}
+	m.MsgType = MsgVersion
+	m.FileName = ver
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = []byte{byte(Status_Ok)}
+	return m
+}

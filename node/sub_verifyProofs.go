@@ -40,47 +40,58 @@ func (n *Node) task_ValidateProof(ch chan<- bool) {
 	var (
 		err           error
 		proofs        []chain.Proof
+		key           *proof.RSAKeyPair
 		verifyResults = make([]chain.ProofResult, 0)
 	)
 
 	n.Logs.Verify("info", errors.New(">>> Start task_ValidateProof <<<"))
 
+	for key == nil {
+		key, _ = proof.GetKey(n.Cache)
+		time.Sleep(time.Second)
+	}
+
 	for {
-		for n.Chain.GetChainStatus() {
-			// Get proofs from chain
-			proofs, err = n.Chain.GetProofs()
-			if err != nil {
-				if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
-					n.Logs.Verify("err", err)
-					time.Sleep(time.Second * configs.BlockInterval)
-				} else {
-					time.Sleep(time.Minute)
-				}
-				continue
+		// if n.Chain.GetChainStatus() {
+		// 	time.Sleep(time.Minute)
+		// 	continue
+		// }
+		// Get proofs from chain
+		proofs, err = n.Chain.GetProofs()
+		if err != nil {
+			if err.Error() != chain.ERR_RPC_EMPTY_VALUE.Error() {
+				n.Logs.Verify("err", err)
+				time.Sleep(configs.BlockInterval)
+			} else {
+				time.Sleep(time.Minute)
 			}
-
-			n.Logs.Verify("info", fmt.Errorf("There are %d proofs", len(proofs)))
-
-			for i := 0; i < len(proofs); i++ {
-				// Proof results reach the maximum number of submissions
-				if len(verifyResults) >= configs.Max_SubProofResults {
-					n.submitProofResult(verifyResults)
-					verifyResults = make([]chain.ProofResult, 0)
-				}
-				verifyResults = append(verifyResults, n.verifyProof(proofs[i]))
-			}
-
-			// submit proof results
-			n.submitProofResult(verifyResults)
-			time.Sleep(time.Second * configs.BlockInterval)
+			continue
 		}
+
+		n.Logs.Verify("info", fmt.Errorf("There are %d proofs", len(proofs)))
+
+		for i := 0; i < len(proofs); i++ {
+			// Proof results reach the maximum number of submissions
+			if len(verifyResults) >= configs.Max_SubProofResults {
+				n.Logs.Verify("info", fmt.Errorf("Submit %d proofs", len(verifyResults)))
+				n.submitProofResult(verifyResults)
+				verifyResults = make([]chain.ProofResult, 0)
+			}
+			res := n.verifyProof(key, proofs[i])
+			verifyResults = append(verifyResults, res)
+		}
+
+		// submit proof results
+		n.submitProofResult(verifyResults)
+		verifyResults = make([]chain.ProofResult, 0)
 		time.Sleep(configs.BlockInterval)
 	}
 }
 
-func (n *Node) verifyProof(prf chain.Proof) chain.ProofResult {
+func (n *Node) verifyProof(key *proof.RSAKeyPair, prf chain.Proof) chain.ProofResult {
 	var (
 		err    error
+		qSlice []proof.QElement
 		result chain.ProofResult
 		t      proof.T
 		mht    proof.MHTInfo
@@ -89,28 +100,30 @@ func (n *Node) verifyProof(prf chain.Proof) chain.ProofResult {
 	result.PublicKey = prf.Miner_pubkey
 	result.FileId = prf.Challenge_info.File_id
 	result.Shard_id = prf.Challenge_info.Shard_id
+	if len(prf.U) == 0 || len(prf.Sigma) == 0 || len(prf.Omega) == 0 {
+		result.Result = types.Bool(false)
+	} else {
+		// Organizational random number structure
+		qSlice, err = proof.PoDR2ChallengeGenerateFromChain(
+			prf.Challenge_info.Block_list,
+			prf.Challenge_info.Random,
+		)
+		if err != nil {
+			n.Logs.Verify("err", fmt.Errorf("qslice: %v", err))
+			result.Result = types.Bool(true)
+			return result
+		}
 
-	// Organizational random number structure
-	qSlice, err := proof.PoDR2ChallengeGenerateFromChain(
-		prf.Challenge_info.Block_list,
-		prf.Challenge_info.Random,
-	)
-	if err != nil {
-		n.Logs.Verify("err", fmt.Errorf("qslice: %v", err))
-		result.Result = types.Bool(true)
-		return result
+		t.U = prf.U
+		mht.HashMi = make([][]byte, len(prf.HashMi))
+		for j := 0; j < len(prf.HashMi); j++ {
+			mht.HashMi[j] = make([]byte, 0)
+			mht.HashMi[j] = append(mht.HashMi[j], prf.HashMi[j]...)
+		}
+		mht.Omega = prf.Omega
+		result.Result = types.Bool(key.VerifyProof(t, qSlice, prf.Mu, prf.Sigma, mht, prf.SigRootHash))
 	}
-
-	t.U = prf.U
-	mht.HashMi = make([][]byte, len(prf.HashMi))
-	for j := 0; j < len(prf.HashMi); j++ {
-		mht.HashMi[j] = make([]byte, 0)
-		mht.HashMi[j] = append(mht.HashMi[j], prf.HashMi[j]...)
-	}
-	mht.Omega = prf.Omega
-
 	// validate proof
-	result.Result = types.Bool(proof.GetKey().VerifyProof(t, qSlice, prf.Mu, prf.Sigma, mht, prf.SigRootHash))
 	return result
 }
 

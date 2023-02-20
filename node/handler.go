@@ -225,7 +225,7 @@ func (c *ConMgr) handler(node *Node) error {
 				readBufPool.Put(m.Bytes)
 			default:
 			}
-			c.conn.SendMsg(buildNotifyMsg("", Status_Ok, configs.Version))
+			c.conn.SendMsg(buildVersionMsg(configs.Version))
 
 		default:
 			switch cap(m.Bytes) {
@@ -518,14 +518,22 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		dialer := net.Dialer{Timeout: configs.Tcp_Dial_Timeout}
 		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
+			netCon.Close()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
+
 		conTcp, ok := netCon.(*net.TCPConn)
 		if !ok {
+			netCon.Close()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, tcpAddr.String()))
 			continue
 		}
+		defer func() {
+			if conTcp != nil {
+				conTcp.Close()
+			}
+		}()
 		srv := NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
 		err = srv.SendFile(n, fid, FileType_file, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {

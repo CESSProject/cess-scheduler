@@ -44,6 +44,8 @@ type StorageTagType struct {
 	T           proof.T
 	Phi         []proof.Sigma `json:"phi"`
 	SigRootHash []byte        `json:"sig_root_hash"`
+	E           string        `json:"e"`
+	N           string        `json:"n"`
 }
 
 // task_GenerateFiller is used to generate filler
@@ -63,6 +65,7 @@ func (n *Node) task_GenerateFiller(ch chan<- bool) {
 	n.Logs.GenFiller("info", errors.New(">>> Start task_GenerateFiller <<<"))
 	for {
 		for len(C_Filler) < configs.Num_Filler_Reserved {
+			n.Logs.GenFiller("info", fmt.Errorf("A filler will be generated..."))
 			// Generate filler
 			fillerpath, err = n.GenerateFiller()
 			if err != nil {
@@ -70,6 +73,7 @@ func (n *Node) task_GenerateFiller(ch chan<- bool) {
 				continue
 			}
 
+			n.Logs.GenFiller("info", fmt.Errorf("A filler is generated: %v", filepath.Base(fillerpath)))
 			// Calculate filler tag
 			err = n.RequestAndSaveTag(fillerpath, fillerpath+configs.TagFileExt)
 			if err != nil {
@@ -78,6 +82,7 @@ func (n *Node) task_GenerateFiller(ch chan<- bool) {
 				continue
 			}
 
+			n.Logs.GenFiller("info", fmt.Errorf("Calculate the tag of the filler: %v", filepath.Base(fillerpath)+configs.TagFileExt))
 			// save filler metainfo to channel
 			fillerEle.Hash = filepath.Base(fillerpath)
 			fillerEle.FillerPath = fillerpath
@@ -143,8 +148,8 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 		tag        PoDR2PubData
 		tagSave    StorageTagType
 	)
-	callTagUrl = fmt.Sprintf("%s:%d%s", configs.Localhost, n.Confile.GetSgxPort(), configs.GetTagRoute)
-	err = getTagReq(fpath, configs.BlockSize, int64(n.Confile.GetServicePort()), callTagUrl, configs.GetTagRoute_Callback, n.Confile.GetServiceAddr())
+	callTagUrl = fmt.Sprintf("%s:%d%s", configs.Localhost, configs.SgxCallBackPort, configs.GetTagRoute)
+	err = getTagReq(fpath, configs.BlockSize, int64(n.Confile.GetSgxPort()), callTagUrl, configs.GetTagRoute_Callback, n.Confile.GetServiceAddr())
 	if err != nil {
 		return err
 	}
@@ -153,7 +158,7 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 
 	select {
 	case <-timeout.C:
-		return fmt.Errorf("Wait challenge timeout")
+		return fmt.Errorf("Timeout waiting for calculation tag")
 	case tag = <-Ch_Tag:
 	}
 
@@ -196,6 +201,9 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 	}
 	tagSave.SigRootHash = sig_root_hash
 
+	tagSave.E = tag.Result.Spk.E
+	tagSave.N = tag.Result.Spk.N
+
 	// filler tag
 	err = saveTagToFile(tagpath, tagSave)
 	if err != nil {
@@ -204,9 +212,12 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 	}
 
 	//set public key
-	E_bigint, _ := new(big.Int).SetString(tag.Result.Spk.E, 10)
-	N_bigint, _ := new(big.Int).SetString(tag.Result.Spk.N, 10)
-	proof.SetKey(int(E_bigint.Int64()), N_bigint)
+	_, err = proof.GetKey(n.Cache)
+	if err != nil {
+		n.Cache.Put([]byte(configs.SigKey_E), []byte(tag.Result.Spk.E))
+		n.Cache.Put([]byte(configs.SigKey_N), []byte(tag.Result.Spk.N))
+		proof.SetKey(n.Cache)
+	}
 	return nil
 }
 
