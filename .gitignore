@@ -21,7 +21,7 @@
 
 ## Binaries for programs and plugins
 main
-scheduler
+sche*
 *.exe
 *.dll
 *.so

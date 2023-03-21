@@ -22,17 +22,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/chain"
-	"github.com/CESSProject/cess-scheduler/pkg/pbc"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	cesskeyring "github.com/CESSProject/go-keyring"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
@@ -56,20 +57,32 @@ func NewClient(conn NetConn, dir string, files []string) Client {
 }
 
 func (c *ConMgr) Start(node *Node) {
-	c.conn.HandlerLoop(true)
+	wg := &sync.WaitGroup{}
+	c.conn.HandlerLoop(wg, true)
 	err := c.handler(node)
 	if err != nil {
 		node.Logs.Common("error", err)
 	}
+	wg.Wait()
 	node.Logs.Common("info", fmt.Errorf("Close a conn: %v", c.conn.GetRemoteAddr()))
 }
 
+func (c *ConMgr) SetFiles(files []string) {
+	c.sendFiles = files
+}
+
 func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
-	c.conn.HandlerLoop(false)
+	wg := &sync.WaitGroup{}
+	c.conn.HandlerLoop(wg, false)
 	go func() {
-		_ = c.handler(node)
+		err := c.handler(node)
+		if err != nil {
+			node.Logs.Spc("err", err)
+		}
 	}()
-	err := c.sendFile(fid, filetype, pkey, signmsg, sign)
+	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
+	wg.Wait()
+	node.Logs.Spc("info", fmt.Errorf("Connection closed"))
 	return err
 }
 
@@ -80,21 +93,20 @@ func (c *ConMgr) handler(node *Node) error {
 	)
 
 	defer func() {
-		err := recover()
-		if err != nil {
-			node.Logs.Pnc("error", utils.RecoverError(err))
-		}
 		c.conn.Close()
 		close(c.waitNotify)
 		if fs != nil {
 			fs.Close()
+		}
+		if err := recover(); err != nil {
+			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
 
 	for !c.conn.IsClose() {
 		m, ok := c.conn.GetMsg()
 		if !ok {
-			return errors.New("Getmsg failed")
+			return fmt.Errorf("Get msg failed and handler exit")
 		}
 
 		if m == nil {
@@ -103,22 +115,27 @@ func (c *ConMgr) handler(node *Node) error {
 
 		switch m.MsgType {
 		case MsgHead:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Signature error")
 			}
 			//Judge whether the file has been uploaded
 			fileState, err := GetFileState(node.Chain, m.FileHash)
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Get file state error")
 			}
 
 			// file state
 			if fileState == chain.FILE_STATE_ACTIVE {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("File uploaded")
 			}
 
@@ -127,11 +144,23 @@ func (c *ConMgr) handler(node *Node) error {
 			// create file
 			fs, err = os.OpenFile(filepath.Join(c.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return err
 			}
 			// notify suc
-			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok, ""))
+
+		case MsgFileSt:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			val, _ := node.Cache.Get([]byte(m.FileHash))
+
+			c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
+			c.conn.SendMsg(buildNotifyMsg("", Status_Ok, ""))
+			time.Sleep(time.Second)
 
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
@@ -140,24 +169,34 @@ func (c *ConMgr) handler(node *Node) error {
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File not open")
 			}
-			_, err = fs.Write(m.Bytes)
+			_, err = fs.Write(m.Bytes[:m.FileSize])
 			if err != nil {
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File write failed")
 			}
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 
 		case MsgEnd:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			info, err := fs.Stat()
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Invalid file")
 			}
 
 			if info.Size() != int64(m.FileSize) {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
 			}
-			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok, ""))
 
 			// close fs
 			fs.Close()
@@ -172,39 +211,82 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 		case MsgNotify:
 			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
-			if !(m.Bytes[0] == byte(Status_Ok)) {
-				return errors.New("Notification message failed")
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
 			}
 
 		case MsgClose:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			return errors.New("Close message")
 
+		case MsgVersion:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			c.conn.SendMsg(buildVersionMsg(configs.Version))
+
 		default:
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
 			return errors.New("Invalid msgType")
 		}
 	}
 	return err
 }
 
-func (c *ConMgr) sendFile(fid string, filetype uint8, pkey, signmsg, sign []byte) error {
+func (c *ConMgr) sendFile(n *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
 	defer func() {
 		c.conn.Close()
 	}()
 
-	var err error
-	var lastmatrk bool
+	var (
+		err          error
+		lastmatrk    bool
+		remoteAddr   string
+		sharingtime  float64
+		averagespeed float64
+		tRecord      time.Time
+	)
+
+	remoteAddr = strings.Split(c.conn.GetRemoteAddr(), ":")[0]
+
 	for i := 0; i < len(c.sendFiles); i++ {
 		if (i + 1) == len(c.sendFiles) {
 			lastmatrk = true
 		}
-		err = c.sendSingleFile(c.sendFiles[i], fid, filetype, lastmatrk, pkey, signmsg, sign)
+		fileHash := utils.GetFileNameWithoutSuffix(c.sendFiles[i])
+		if !strings.Contains(c.sendFiles[i], ".tag") {
+			tRecord = time.Now()
+			n.Logs.Speed(fmt.Errorf("Start transfer filler [%v] to [%v]", fileHash, remoteAddr))
+		}
+		err = c.sendSingleFile(c.sendFiles[i], fileHash, filetype, lastmatrk, pkey, signmsg, sign)
 		if err != nil {
+			if !strings.Contains(c.sendFiles[i], ".tag") {
+				n.Logs.Speed(fmt.Errorf("Transfer Failed filler [%v] to [%v]", fileHash, remoteAddr))
+			}
 			break
+		}
+		if !strings.Contains(c.sendFiles[i], ".tag") {
+			n.Logs.Speed(fmt.Errorf("Transfer completed filler [%v] to [%v]", fileHash, remoteAddr))
+			sharingtime = time.Since(tRecord).Seconds()
+			averagespeed = float64(configs.FillerSize) / sharingtime
+			n.Logs.Speed(fmt.Errorf("[%v] Total time: %.2f seconds, average speed: %.2f bytes/s", fileHash, sharingtime, averagespeed))
 		}
 	}
 	c.conn.SendMsg(buildCloseMsg(Status_Ok))
 	time.Sleep(time.Second)
-	return nil
+	return err
 }
 
 func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, lastmark bool, pkey, signmsg, sign []byte) error {
@@ -217,6 +299,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 
 	fileInfo, _ := file.Stat()
 
+	log.Println("Send head msg, filename = ", fileInfo.Name())
 	c.conn.SendMsg(buildHeadMsg(fileInfo.Name(), fid, filetype, lastmark, pkey, signmsg, sign))
 
 	timerHead := time.NewTimer(configs.TCP_Time_WaitNotification)
@@ -230,7 +313,11 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		return fmt.Errorf("Timeout waiting for HeadMsg notification")
 	}
 
-	readBuf := make([]byte, configs.TCP_SendBuffer)
+	readBuf := sendBufPool.Get().([]byte)
+	defer func() {
+		sendBufPool.Put(readBuf)
+	}()
+
 	for !c.conn.IsClose() {
 		n, err := file.Read(readBuf)
 		if err != nil && err != io.EOF {
@@ -239,8 +326,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 		if n == 0 {
 			break
 		}
-
-		c.conn.SendMsg(buildFileMsg("", filetype, readBuf[:n]))
+		c.conn.SendMsg(buildFileMsg(fileInfo.Name(), filetype, n, readBuf[:n]))
 	}
 
 	c.conn.SendMsg(buildEndMsg(filetype, fileInfo.Name(), fid, uint64(fileInfo.Size()), lastmark))
@@ -277,31 +363,76 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 		err    error
 		txhash string
 	)
-
+	var fileSt = FileStoreInfo{
+		FileId:      fid,
+		FileSize:    fsize,
+		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   fmt.Sprintf("%s:%d", n.Confile.GetServiceAddr(), n.Confile.GetServicePort()),
+		IsUpload:    true,
+		IsCheck:     true,
+		IsShard:     true,
+		IsScheduler: true,
+	}
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
 
-	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	if len(chunks) <= 0 {
+		fileSt.IsScheduler = false
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
+		n.Logs.Upfile("err", fmt.Errorf("[%v] Not found", fid))
+		return
+	}
 
+	b, _ := json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
+
+	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	fileSt.Miners = make(map[int]string, len(chunks))
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
 		if err != nil {
 			time.Sleep(time.Second)
 			continue
 		}
+		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
+			continue
+		}
+		fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(chunksInfo[i].MinerAcc[:])
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 		i++
 	}
 
 	// Submit the file meta information to the chain
+	var tryCount uint8
 	for {
 		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
-		if txhash == "" {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+		if err != nil {
+			tryCount++
+			if tryCount > 3 {
+				fileSt.FileState = chain.ERR_Failed
+				b, _ = json.Marshal(&fileSt)
+				n.Cache.Put([]byte(fid), b)
+				return
+			}
 			time.Sleep(configs.BlockInterval)
+
+			//Judge whether the file has been uploaded
+			fileState, _ := GetFileState(n.Chain, fid)
+
+			// file state
+			if fileState == chain.FILE_STATE_ACTIVE {
+				break
+			}
+			n.Logs.Upfile("err", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
 			continue
 		}
 		break
 	}
+	fileSt.FileState = chain.FILE_STATE_ACTIVE
+	b, _ = json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
 	return
 }
@@ -328,58 +459,18 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 		return rtnValue, err
 	}
-	blocksize, scansize := CalcFileBlockSizeAndScanSize(fstat.Size())
+	blocksize, _ := CalcFileBlockSizeAndScanSize(fstat.Size())
 	blocknum := fstat.Size() / blocksize
 
 	fileTagPath := filepath.Join(n.TagDir, fname+".tag")
 	_, err = os.Stat(fileTagPath)
 	if err != nil {
-		// calculate file tag info
-		var PoDR2commit pbc.PoDR2Commit
-		var commitResponse pbc.PoDR2CommitResponse
-		PoDR2commit.FilePath = fpath
-		PoDR2commit.BlockSize = blocksize
-		commitResponseCh, err := PoDR2commit.PoDR2ProofCommit(pbc.Key_Ssk, string(pbc.Key_SharedParams), scansize)
+		// calculate file tag
+		err = n.RequestAndSaveTag(fpath, fileTagPath)
 		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] PoDR2ProofCommit: %v", fname, err))
+			n.Logs.Upfile("err", fmt.Errorf("[%v] %v", fname, err))
 			return rtnValue, err
 		}
-		select {
-		case commitResponse = <-commitResponseCh:
-		}
-		if commitResponse.StatueMsg.StatusCode != pbc.Success {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] Failed to calculate the file tag", fname))
-			return rtnValue, errors.New("failed")
-		}
-		var tag TagInfo
-		tag.T.Name = commitResponse.T.Name
-		tag.T.N = commitResponse.T.N
-		tag.T.U = commitResponse.T.U
-		tag.T.Signature = commitResponse.T.Signature
-		tag.Sigmas = commitResponse.Sigmas
-		tag_bytes, err := json.Marshal(&tag)
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
-			return rtnValue, err
-		}
-
-		//Save tag information to file
-		ftag, err := os.OpenFile(fileTagPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
-			return rtnValue, err
-		}
-		ftag.Write(tag_bytes)
-
-		//flush to disk
-		err = ftag.Sync()
-		if err != nil {
-			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
-			ftag.Close()
-			os.Remove(fileTagPath)
-			return rtnValue, err
-		}
-		ftag.Close()
 	}
 
 	// Get the publickey of all miners in the chain
@@ -418,6 +509,10 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			continue
 		}
 
+		// if blackMiners.IsExist(minerinfo.Peerid) {
+		// 	continue
+		// }
+
 		if minerinfo.Free < uint64(fstat.Size()) {
 			continue
 		}
@@ -427,23 +522,35 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
+
 		dialer := net.Dialer{Timeout: configs.Tcp_Dial_Timeout}
+
+		workLock.Lock()
+
 		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
+			workLock.Unlock()
+			netCon.Close()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
+
 		conTcp, ok := netCon.(*net.TCPConn)
 		if !ok {
+			workLock.Unlock()
+			netCon.Close()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, tcpAddr.String()))
 			continue
 		}
+
 		srv := NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
 		err = srv.SendFile(n, fid, FileType_file, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
+			workLock.Unlock()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
+		workLock.Unlock()
 		var blockId chain.FileBlockId
 		if len(fname) < len(blockId) {
 			fname += ".000"

@@ -27,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (c *chainClient) Register(stash, ip, port string) (string, error) {
+func (c *chainClient) Register(stash, ip string, port uint16) (string, error) {
 	var (
 		txhash      string
 		accountInfo types.AccountInfo
@@ -56,8 +56,7 @@ func (c *chainClient) Register(stash, ip, port string) (string, error) {
 			temp, _ := strconv.Atoi(ips[i])
 			ipType.IPv4.Value[i] = types.U8(temp)
 		}
-		temp, _ := strconv.Atoi(port)
-		ipType.IPv4.Port = types.U16(temp)
+		ipType.IPv4.Port = types.U16(port)
 	} else {
 		return txhash, errors.New("unsupported ip format")
 	}
@@ -469,25 +468,6 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 
 	// Do the transfer and track the actual status
 	sub, err := c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
-	if err != nil {
-		var tryCount = 0
-		if !strings.Contains(err.Error(), "Priority is too low") {
-			return txhash, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
-		}
-		for tryCount < 20 {
-			o.Nonce = types.NewUCompactFromUInt(uint64(accountInfo.Nonce + types.NewU32(1)))
-			// Sign the transaction
-			err = ext.Sign(c.keyring, o)
-			if err != nil {
-				return txhash, errors.Wrap(err, "[Sign]")
-			}
-			sub, err = c.api.RPC.Author.SubmitAndWatchExtrinsic(ext)
-			if err == nil {
-				break
-			}
-			tryCount++
-		}
-	}
 	if err != nil {
 		return txhash, errors.Wrap(err, "[SubmitAndWatchExtrinsic]")
 	}

@@ -16,7 +16,10 @@
 
 package configs
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 // account
 const (
@@ -40,8 +43,8 @@ const (
 	FillerSize = 8 * SIZE_1MiB
 	// FillerLineLength is the number of characters in a line
 	FillerLineLength = 4096
-	// BlockSize is the block size when pbc is calculated
-	BlockSize = SIZE_1MiB
+	// // BlockSize is the block size when pbc is calculated
+	// BlockSize = SIZE_1MiB
 	// ScanBlockSize is the size of the scan and cannot be larger than BlockSize
 	ScanBlockSize = BlockSize / 2
 	// The maximum number of fillermeta submitted in a transaction
@@ -56,23 +59,26 @@ const (
 
 const (
 	// Maximum number of connections in the miner's certification space
-	MAX_TCP_CONNECTION uint8 = 3
+	MAX_TCP_CONNECTION uint8 = 1
 	// Tcp client connection interval
 	TCP_Connection_Interval = time.Duration(time.Millisecond * 100)
 	// Tcp message interval
 	TCP_Message_Interval = time.Duration(time.Millisecond * 10)
 	// Tcp short message waiting time
-	TCP_Time_WaitNotification = time.Duration(time.Second * 10)
+	TCP_Time_WaitNotification = time.Duration(time.Second * 6)
+	// Tcp short message waiting time
+	TCP_Time_WaitMsg = time.Duration(time.Second * 10)
 	// Tcp short message waiting time
 	TCP_FillerMessage_WaitingTime = time.Duration(time.Second * 150)
 	// The slowest tcp transfers bytes per second
-	TCP_Transmission_Slowest = SIZE_1KiB * 10
+	TCP_Transmission_Slowest = SIZE_1KiB * 50
 	// Number of tcp message caches
 	TCP_Message_Send_Buffers = 10
 	TCP_Message_Read_Buffers = 10
 	//
-	TCP_SendBuffer = SIZE_1KiB * 8
-	TCP_ReadBuffer = SIZE_1KiB * 16
+	TCP_SendBuffer = 8192
+	TCP_ReadBuffer = 12000
+	TCP_TagBuffer  = 2012
 	//
 	Tcp_Dial_Timeout = time.Duration(time.Second * 5)
 )
@@ -84,6 +90,23 @@ const (
 	SubmitFillermetaInterval = 60
 	// The maximum number of proof results submitted in a transaction
 	Max_SubProofResults = 40
+	//
+	DirPermission = 0755
+)
+
+const (
+	TagFileExt           = ".tag"
+	Localhost            = "http://localhost"
+	GetTagRoute          = "/process_data"
+	GetTagRoute_Callback = "/tag"
+	SgxMappingPath       = "/sgx"
+	SigKey_E             = "SigKey_E"
+	SigKey_N             = "SigKey_N"
+	SgxCallBackPort      = 15001
+	SgxReportSuc         = 100000
+	BlockSize            = SIZE_1KiB * 2
+	//ChallengeBlocks      = FillerSize / BlockSize
+	TimeOut_WaitTag = time.Duration(time.Minute * 4)
 )
 
 // explanation
@@ -101,7 +124,8 @@ const (
 
 // log file
 var (
-	LogFiles = []string{
+	GlobalTransport *http.Transport
+	LogFiles        = []string{
 		"common",     //General log
 		"upfile",     //Upload file log
 		"panic",      //Panic log
@@ -113,3 +137,9 @@ var (
 		"space",      //Fills the miner's space log
 	}
 )
+
+func init() {
+	GlobalTransport = &http.Transport{
+		DisableKeepAlives: true,
+	}
+}

@@ -30,6 +30,7 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/CESSProject/cess-scheduler/pkg/proof"
 	"github.com/spf13/cobra"
 )
 
@@ -73,6 +74,8 @@ func runCmd(cmd *cobra.Command, args []string) {
 		log.Println(err)
 		os.Exit(1)
 	}
+
+	proof.SetKey(node.Cache)
 
 	//Build Log Instance
 	node.Logs, err = buildLogs(logDir)
@@ -157,7 +160,7 @@ func buildChain(cfg confile.Confiler, timeout time.Duration) (chain.Chainer, err
 }
 
 func register(cfg confile.Confiler, client chain.Chainer) error {
-	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), cfg.GetServicePort())
+	txhash, err := client.Register(cfg.GetStashAcc(), cfg.GetServiceAddr(), uint16(cfg.GetServicePort()))
 	if err != nil {
 		if err.Error() == chain.ERR_RPC_EMPTY_VALUE.Error() {
 			return fmt.Errorf("[err] Please check your wallet balance")
@@ -170,6 +173,9 @@ func register(cfg confile.Confiler, client chain.Chainer) error {
 			return err
 		}
 	}
+	ctlAccount, _ := client.GetCessAccount()
+	baseDir := filepath.Join(cfg.GetDataDir(), ctlAccount, configs.BaseDir)
+	os.RemoveAll(baseDir)
 	return nil
 }
 
@@ -182,7 +188,7 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 
 	_, err = os.Stat(baseDir)
 	if err != nil {
-		err = os.MkdirAll(baseDir, os.ModeDir)
+		err = os.MkdirAll(baseDir, configs.DirPermission)
 		if err != nil {
 			return "", "", "", "", "", err
 		}
@@ -190,35 +196,29 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 
 	logDir := filepath.Join(baseDir, configs.LogDir)
 	_, err = os.Stat(logDir)
-	if err == nil {
-		bkp := logDir + fmt.Sprintf("_%v", time.Now().Unix())
-		os.Rename(logDir, bkp)
-	}
-	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(logDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	cacheDir := filepath.Join(baseDir, configs.CacheDir)
-	os.RemoveAll(cacheDir)
-	if err := os.MkdirAll(cacheDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(cacheDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	fillerDir := filepath.Join(baseDir, configs.FillerDir)
 	os.RemoveAll(fillerDir)
-	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(fillerDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	fileDir := filepath.Join(baseDir, configs.FileDir)
-	os.RemoveAll(fileDir)
-	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(fileDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 
 	tagDir := filepath.Join(baseDir, configs.TagDir)
 	os.RemoveAll(tagDir)
-	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(tagDir, configs.DirPermission); err != nil {
 		return "", "", "", "", "", err
 	}
 	log.Println(baseDir)

@@ -28,6 +28,12 @@ func init() {
 		log.Println("[err] Please run on linux system.")
 		os.Exit(1)
 	}
-	// Allocate all cores to the program
-	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
+	// Allocate 2/3 cores to the program
+	num := runtime.NumCPU()
+	num = num * 2 / 3
+	if num <= 1 {
+		runtime.GOMAXPROCS(1)
+	} else {
+		runtime.GOMAXPROCS(num)
+	}
 }

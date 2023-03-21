@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/natefinch/lumberjack"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -56,7 +57,7 @@ func NewLogs(logfiles map[string]string) (Logger, error) {
 		dir := getFilePath(fpath)
 		_, err := os.Stat(dir)
 		if err != nil {
-			err = os.MkdirAll(dir, os.ModeDir)
+			err = os.MkdirAll(dir, configs.DirPermission)
 			if err != nil {
 				return nil, errors.Errorf("%v,%v", dir, err)
 			}
@@ -153,10 +154,8 @@ func (l *logs) GenFiller(level string, err error) {
 		switch level {
 		case "info":
 			v.Sugar().Infof("[%v:%d] %v", filepath.Base(file), line, err)
-		case "error", "err":
+		case "err", "error":
 			v.Sugar().Errorf("[%v:%d] %v", filepath.Base(file), line, err)
-		case "warn":
-			v.Sugar().Warnf("[%v:%d] %v", filepath.Base(file), line, err)
 		}
 	}
 }

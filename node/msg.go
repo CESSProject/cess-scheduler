@@ -16,6 +16,12 @@
 
 package node
 
+import (
+	"sync"
+
+	"github.com/CESSProject/cess-scheduler/configs"
+)
+
 type MsgType byte
 type Status byte
 
@@ -28,6 +34,8 @@ const (
 	MsgClose
 	MsgRecvHead
 	MsgRecvFile
+	MsgFileSt
+	MsgVersion
 )
 
 const (
@@ -39,6 +47,26 @@ const (
 const (
 	Status_Ok Status = iota
 	Status_Err
+)
+
+var (
+	sendBufPool = &sync.Pool{
+		New: func() any {
+			return make([]byte, configs.TCP_SendBuffer)
+		},
+	}
+
+	readBufPool = &sync.Pool{
+		New: func() any {
+			return make([]byte, configs.TCP_ReadBuffer)
+		},
+	}
+
+	tagBufPool = &sync.Pool{
+		New: func() any {
+			return make([]byte, configs.TCP_TagBuffer)
+		},
+	}
 )
 
 type Message struct {
@@ -58,10 +86,14 @@ type Notify struct {
 	Status byte
 }
 
-func buildNotifyMsg(fileName string, status Status) *Message {
+func buildNotifyMsg(fileName string, status Status, ver string) *Message {
 	m := &Message{}
 	m.MsgType = MsgNotify
-	m.FileName = fileName
+	if fileName != "" {
+		m.FileName = fileName
+	} else {
+		m.FileName = ver
+	}
 	m.FileHash = ""
 	m.FileSize = 0
 	m.LastMark = false
@@ -69,21 +101,6 @@ func buildNotifyMsg(fileName string, status Status) *Message {
 	m.SignMsg = nil
 	m.Sign = nil
 	m.Bytes = []byte{byte(status)}
-	return m
-}
-
-func buildNotifyFillerMsg(fileName string, status Status) *Message {
-	m := &Message{}
-	m.MsgType = MsgNotify
-	m.FileName = ""
-	m.FileHash = ""
-	m.FileSize = 0
-	m.LastMark = false
-	m.Pubkey = nil
-	m.SignMsg = nil
-	m.Sign = nil
-	m.Bytes = []byte{byte(status)}
-	m.Bytes = append(m.Bytes, []byte(fileName)...)
 	return m
 }
 
@@ -102,18 +119,22 @@ func buildHeadMsg(filename, fid string, filetype uint8, lastmark bool, pkey, sig
 	return m
 }
 
-func buildFileMsg(fileName string, filetype uint8, buf []byte) *Message {
+func buildFileMsg(fileName string, filetype uint8, buflen int, buf []byte) *Message {
 	m := &Message{}
 	m.MsgType = MsgFile
 	m.FileType = filetype
 	m.FileName = fileName
 	m.FileHash = ""
-	m.FileSize = 0
+	m.FileSize = uint64(buflen)
 	m.LastMark = false
 	m.Pubkey = nil
 	m.SignMsg = nil
 	m.Sign = nil
-	m.Bytes = make([]byte, len(buf))
+	if filetype == FileType_filler && buflen == configs.TCP_TagBuffer {
+		m.Bytes = tagBufPool.Get().([]byte)
+	} else {
+		m.Bytes = sendBufPool.Get().([]byte)
+	}
 	copy(m.Bytes, buf)
 	return m
 }
@@ -145,5 +166,34 @@ func buildCloseMsg(status Status) *Message {
 	m.SignMsg = nil
 	m.Sign = nil
 	m.Bytes = []byte{byte(status)}
+	return m
+}
+
+func buildFileStMsg(fid string, val []byte) *Message {
+	m := &Message{}
+	m.MsgType = MsgFileSt
+	m.FileType = 0
+	m.FileName = ""
+	m.FileHash = fid
+	m.FileSize = uint64(len(val))
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = val
+	return m
+}
+
+func buildVersionMsg(ver string) *Message {
+	m := &Message{}
+	m.MsgType = MsgVersion
+	m.FileName = ver
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = []byte{byte(Status_Ok)}
 	return m
 }

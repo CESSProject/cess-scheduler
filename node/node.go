@@ -30,6 +30,7 @@ import (
 	"github.com/CESSProject/cess-scheduler/pkg/confile"
 	"github.com/CESSProject/cess-scheduler/pkg/db"
 	"github.com/CESSProject/cess-scheduler/pkg/logger"
+	"github.com/gin-gonic/gin"
 )
 
 type Scheduler interface {
@@ -41,6 +42,7 @@ type Node struct {
 	Chain     chain.Chainer
 	Logs      logger.Logger
 	Cache     db.Cacher
+	CallBack  *gin.Engine
 	FileDir   string
 	TagDir    string
 	FillerDir string
@@ -56,11 +58,13 @@ func (n *Node) Run() {
 		remote string
 	)
 
+	n.StartCallback()
+
 	// Start the subtask manager
 	go n.CoroutineMgr()
 
 	// Get an address of TCP end point
-	tcpAddr, err := net.ResolveTCPAddr("tcp", ":"+n.Confile.GetServicePort())
+	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", n.Confile.GetServicePort()))
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
