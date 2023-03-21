@@ -24,6 +24,7 @@ import (
 
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/centrifuge/go-substrate-rpc-client/v4/types/codec"
 	"github.com/pkg/errors"
 )
 
@@ -61,10 +62,14 @@ func (c *chainClient) Register(stash, ip string, port uint16) (string, error) {
 		return txhash, errors.New("unsupported ip format")
 	}
 
+	acc, _ := types.NewAccountID(stashPuk)
+	if err != nil {
+		return txhash, errors.Wrap(err, "NewAccountID")
+	}
 	call, err := types.NewCall(
 		c.metadata,
 		TX_TEEWORKER_REGISTER,
-		types.NewAccountID(stashPuk),
+		*acc,
 		ipType.IPv4,
 	)
 	if err != nil {
@@ -142,8 +147,8 @@ func (c *chainClient) Register(stash, ip string, port uint16) (string, error) {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := CessEventRecords{}
-				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				events := EventRecords{}
+				txhash, _ = codec.EncodeToHex(status.AsInBlock)
 				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "GetStorageRaw")
@@ -271,7 +276,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := CessEventRecords{}
+				events := EventRecords{}
 				txhash = hex.EncodeToString(status.AsInBlock[:])
 				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
@@ -385,8 +390,8 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := CessEventRecords{}
-				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				events := EventRecords{}
+				txhash, _ = codec.EncodeToHex(status.AsInBlock)
 				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "GetStorageRaw")
@@ -479,8 +484,8 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := CessEventRecords{}
-				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				events := EventRecords{}
+				txhash, _ = codec.EncodeToHex(status.AsInBlock)
 				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "[GetStorageRaw]")
@@ -610,8 +615,8 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 		select {
 		case status := <-sub.Chan():
 			if status.IsInBlock {
-				events := CessEventRecords{}
-				txhash, _ = types.EncodeToHex(status.AsInBlock)
+				events := EventRecords{}
+				txhash, _ = codec.EncodeToHex(status.AsInBlock)
 				h, err := c.api.RPC.State.GetStorageRaw(c.keyEvents, status.AsInBlock)
 				if err != nil {
 					return txhash, errors.Wrap(err, "[GetStorageRaw]")

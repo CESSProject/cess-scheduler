@@ -19,6 +19,7 @@ package chain
 import (
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/centrifuge/go-substrate-rpc-client/v4/types/codec"
 	"github.com/pkg/errors"
 )
 
@@ -130,7 +131,7 @@ func (c *chainClient) GetFileMetaInfo(fid string) (FileMetaInfo, error) {
 		hash[i] = types.U8(fid[i])
 	}
 
-	b, err := types.Encode(hash)
+	b, err := codec.Encode(hash)
 	if err != nil {
 		return data, errors.Wrap(err, "[Encode]")
 	}
@@ -225,8 +226,11 @@ func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 		return data, ERR_RPC_CONNECTION
 	}
 	c.SetChainState(true)
-
-	b, err := types.Encode(types.NewAccountID(pkey))
+	acc, err := types.NewAccountID(pkey)
+	if err != nil {
+		return data, errors.Wrap(err, "[NewAccountID]")
+	}
+	b, err := codec.Encode(*acc)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}

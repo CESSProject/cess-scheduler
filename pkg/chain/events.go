@@ -302,14 +302,14 @@ type Event_LeaseExpireIn24Hours struct {
 type Event_RegistrationScheduler struct {
 	Phase  types.Phase
 	Acc    types.AccountID
-	Ip     Ipv4Type_Query
+	Ip     Ipv4Type
 	Topics []types.Hash
 }
 
 type Event_UpdateScheduler struct {
 	Phase    types.Phase
 	Acc      types.AccountID
-	Endpoint Ipv4Type_Query
+	Endpoint Ipv4Type
 	Topics   []types.Hash
 }
 
@@ -317,14 +317,14 @@ type Event_UpdateScheduler struct {
 type Event_OssRegister struct {
 	Phase    types.Phase
 	Acc      types.AccountID
-	Endpoint Ipv4Type_Query
+	Endpoint Ipv4Type
 	Topics   []types.Hash
 }
 
 type Event_OssUpdate struct {
 	Phase        types.Phase
 	Acc          types.AccountID
-	New_endpoint Ipv4Type_Query
+	New_endpoint Ipv4Type
 	Topics       []types.Hash
 }
 
@@ -358,7 +358,7 @@ type Event_Balances_Withdraw struct {
 //*******************************************************
 
 // Events
-type CessEventRecords struct {
+type EventRecords struct {
 	// AUDIT
 	SegmentBook_PPBNoOnTimeSubmit     []Event_PPBNoOnTimeSubmit
 	SegmentBook_PPDNoOnTimeSubmit     []Event_PPDNoOnTimeSubmit
@@ -411,9 +411,5 @@ type CessEventRecords struct {
 	Oss_OssRegister []Event_OssRegister
 	Oss_OssUpdate   []Event_OssUpdate
 	// System
-	ElectionProviderMultiPhase_UnsignedPhaseStarted []Event_UnsignedPhaseStarted
-	ElectionProviderMultiPhase_SignedPhaseStarted   []Event_SignedPhaseStarted
-	ElectionProviderMultiPhase_SolutionStored       []Event_SolutionStored
-	Balances_Withdraw                               []Event_Balances_Withdraw
 	types.EventRecords
 }
