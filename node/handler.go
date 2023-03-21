@@ -614,7 +614,8 @@ func combineFillerMeta(fileHash string, pubkey []byte) chain.FillerMetaInfo {
 	}
 	metainfo.Hash = hash
 	metainfo.Size = configs.FillerSize
-	metainfo.Acc = types.NewAccountID(pubkey)
+	acc, _ := types.NewAccountID(pubkey)
+	metainfo.Acc = *acc
 
 	blocknum := uint64(math.Ceil(float64(configs.FillerSize / configs.BlockSize)))
 	if blocknum == 0 {

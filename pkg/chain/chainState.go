@@ -19,6 +19,7 @@ package chain
 import (
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
+	"github.com/centrifuge/go-substrate-rpc-client/v4/types/codec"
 	"github.com/pkg/errors"
 )
 
@@ -62,8 +63,8 @@ func (c *chainClient) GetStorageMinerInfo(pkey []byte) (MinerInfo, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_Sminer,
-		sminer_MinerItems,
+		SMINER,
+		MINERITEMS,
 		pkey,
 	)
 	if err != nil {
@@ -92,8 +93,8 @@ func (c *chainClient) GetAllStorageMiner() ([]types.AccountID, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_Sminer,
-		sminer_AllMinerItems,
+		SMINER,
+		ALLMINER,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
@@ -130,15 +131,15 @@ func (c *chainClient) GetFileMetaInfo(fid string) (FileMetaInfo, error) {
 		hash[i] = types.U8(fid[i])
 	}
 
-	b, err := types.Encode(hash)
+	b, err := codec.Encode(hash)
 	if err != nil {
 		return data, errors.Wrap(err, "[Encode]")
 	}
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_FileBank,
-		fileMap_FileMetaInfo,
+		FILEBANK,
+		FILE,
 		b,
 	)
 	if err != nil {
@@ -167,8 +168,8 @@ func (c *chainClient) GetAllSchedulerInfo() ([]SchedulerInfo, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_FileMap,
-		fileMap_SchedulerInfo,
+		TEEWORKER,
+		SCHEDULERMAP,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "[CreateStorageKey]")
@@ -195,8 +196,8 @@ func (c *chainClient) GetProofs() ([]Proof, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_SegmentBook,
-		segmentBook_UnVerifyProof,
+		AUDIT,
+		UNVERIFYPROOF,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -217,40 +218,6 @@ func (c *chainClient) GetCessAccount() (string, error) {
 	return utils.EncodePublicKeyAsCessAccount(c.keyring.PublicKey)
 }
 
-func (c *chainClient) GetSpacePackageInfo(pkey []byte) (SpacePackage, error) {
-	var data SpacePackage
-
-	if !c.IsChainClientOk() {
-		c.SetChainState(false)
-		return data, ERR_RPC_CONNECTION
-	}
-	c.SetChainState(true)
-
-	b, err := types.Encode(pkey)
-	if err != nil {
-		return data, errors.Wrap(err, "[EncodeToBytes]")
-	}
-
-	key, err := types.CreateStorageKey(
-		c.metadata,
-		state_FileBank,
-		fileBank_PurchasedPackage,
-		b,
-	)
-	if err != nil {
-		return data, errors.Wrap(err, "[CreateStorageKey]")
-	}
-
-	ok, err := c.api.RPC.State.GetStorageLatest(key, &data)
-	if err != nil {
-		return data, errors.Wrap(err, "[GetStorageLatest]")
-	}
-	if !ok {
-		return data, ERR_RPC_EMPTY_VALUE
-	}
-	return data, nil
-}
-
 func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 	var data types.AccountInfo
 
@@ -259,16 +226,19 @@ func (c *chainClient) GetAccountInfo(pkey []byte) (types.AccountInfo, error) {
 		return data, ERR_RPC_CONNECTION
 	}
 	c.SetChainState(true)
-
-	b, err := types.Encode(types.NewAccountID(pkey))
+	acc, err := types.NewAccountID(pkey)
+	if err != nil {
+		return data, errors.Wrap(err, "[NewAccountID]")
+	}
+	b, err := codec.Encode(*acc)
 	if err != nil {
 		return data, errors.Wrap(err, "[EncodeToBytes]")
 	}
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_System,
-		system_Account,
+		SYSTEM,
+		ACCOUNT,
 		b,
 	)
 	if err != nil {

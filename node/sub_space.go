@@ -165,7 +165,7 @@ func storagefiller(ch chan bool, n *Node, pkey types.AccountID, fillers []string
 
 	// submit filler meta
 	for len(fillerMetas) > 0 {
-		txhash, err = n.Chain.SubmitFillerMeta(types.NewAccountID(pkey[:]), fillerMetas)
+		txhash, err = n.Chain.SubmitFillerMeta(pkey, fillerMetas)
 		if txhash == "" {
 			n.Logs.Spc("err", fmt.Errorf("[SubmitFillerMeta] %v", err))
 			time.Sleep(configs.BlockInterval)
