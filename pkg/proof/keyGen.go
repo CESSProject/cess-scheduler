@@ -53,10 +53,7 @@ func KeyGen() RSAKeyPair {
 
 func GetKey(d db.Cacher) (*RSAKeyPair, error) {
 	if key.Spk.N == nil || key.Spk.E == 0 {
-		SetKey(d)
-	}
-	if key.Spk.N == nil || key.Spk.E == 0 {
-		return nil, errors.New("key is nil")
+		return key, SetKey(d)
 	}
 	return key, nil
 }

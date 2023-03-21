@@ -24,6 +24,7 @@ type Server interface {
 
 type Client interface {
 	SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error
+	SetFiles(files []string)
 }
 
 type NetConn interface {

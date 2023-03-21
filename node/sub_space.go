@@ -22,8 +22,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -45,15 +44,19 @@ func (n *Node) task_Space(ch chan<- bool) {
 
 	var (
 		err            error
+		result         bool
 		allMinerPubkey []types.AccountID
-		wg             = new(sync.WaitGroup)
+		chal           = make(chan bool)
+		fillers        = make([]string, 0)
 	)
+
+	n.Logs.Spc("info", errors.New(">>> Start task_Space <<<"))
 
 	for {
 		// get all miner addresses
 		allMinerPubkey, err = n.Chain.GetAllStorageMiner()
 		if err != nil {
-			n.Logs.Spc("err", err)
+			n.Logs.Spc("err", fmt.Errorf("[GetAllStorageMiner] %v", err))
 			time.Sleep(configs.BlockInterval)
 			continue
 		}
@@ -62,18 +65,24 @@ func (n *Node) task_Space(ch chan<- bool) {
 		utils.RandSlice(allMinerPubkey)
 
 		for i := 0; i < len(allMinerPubkey); i++ {
-			wg.Add(1)
-			go storagefiller(wg, n, allMinerPubkey[i])
-			wg.Wait()
+			if len(fillers) == 0 {
+				var filler = <-C_Filler
+				fillers = append(fillers, filler.TagPath)
+				fillers = append(fillers, filler.FillerPath)
+				n.Logs.Spc("info", fmt.Errorf("Consumed a filler: %v", filepath.Base(filler.FillerPath)))
+			}
+			go storagefiller(chal, n, allMinerPubkey[i], fillers)
+			result = <-chal
+			if result {
+				fillers = make([]string, 0)
+			}
 		}
-		runtime.GC()
 		time.Sleep(configs.BlockInterval)
 	}
 }
 
-func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
+func storagefiller(ch chan bool, n *Node, pkey types.AccountID, fillers []string) {
 	defer func() {
-		wg.Done()
 		if err := recover(); err != nil {
 			n.Logs.Pnc("error", utils.RecoverError(err))
 		}
@@ -84,7 +93,6 @@ func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
 		txhash      string
 		fileHash    string
 		minerinfo   chain.Cache_MinerInfo
-		sendFillers = make([]string, 2)
 		fillerMetas = make([]chain.FillerMetaInfo, 0)
 	)
 
@@ -94,21 +102,25 @@ func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
 	sign, err := kr.Sign(kr.SigningContext([]byte(msg)))
 	if err != nil {
 		n.Logs.Spc("err", err)
+		ch <- false
 		return
 	}
 
 	if !n.Chain.GetChainStatus() {
+		ch <- false
 		return
 	}
 
 	minercache, err := n.Cache.Get(pkey[:])
 	if err != nil {
+		ch <- false
 		return
 	}
 
 	err = json.Unmarshal(minercache, &minerinfo)
 	if err != nil {
 		n.Cache.Delete(pkey[:])
+		ch <- false
 		return
 	}
 
@@ -116,43 +128,58 @@ func storagefiller(wg *sync.WaitGroup, n *Node, pkey types.AccountID) {
 	// 	return
 	// }
 
+	workLock.Lock()
+	defer func() {
+		workLock.Unlock()
+		n.Logs.Spc("info", errors.New("workLock.Unlock"))
+	}()
+	n.Logs.Spc("info", errors.New("workLock.Lock"))
+
 	tcpConn, err := dialTcpServer(minerinfo.Ip)
 	if err != nil {
 		blackMiners.Add(minerinfo.Peerid)
+		ch <- false
 		return
 	}
 
-	for i := 0; i < configs.Num_Filler_Reserved; i++ {
-		var filler = <-C_Filler
-		sendFillers[0] = filler.TagPath
-		sendFillers[1] = filler.FillerPath
-		err = NewClient(NewTcp(tcpConn), "", sendFillers).SendFile(n, "", FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
-		if err != nil {
-			blackMiners.Add(minerinfo.Peerid)
-			n.Logs.Spc("err", fmt.Errorf("[C%v] %v", minerinfo.Peerid, err))
-			break
-		}
-		fileHash = filepath.Base(sendFillers[0])
-		fillerMetas = append(fillerMetas, combineFillerMeta(fileHash, pkey[:]))
+	cli := NewClient(NewTcp(tcpConn), "", nil)
+
+	//for i := 0; i < configs.Num_Filler_Reserved; i++ {
+	cli.SetFiles(fillers)
+	n.Logs.Spc("info", fmt.Errorf("[SetFiles] %v", fillers))
+
+	err = cli.SendFile(n, "", FileType_filler, n.Chain.GetPublicKey(), []byte(msg), sign[:])
+	if err != nil {
+		ch <- false
+		blackMiners.Add(minerinfo.Peerid)
+		n.Logs.Spc("err", fmt.Errorf("[SendFile] %v", err))
+		return
 	}
+
+	n.Logs.Spc("info", fmt.Errorf("[SendFile] suc"))
+
+	fileHash = strings.TrimSuffix(filepath.Base(fillers[0]), configs.TagFileExt)
+	fillerMetas = append(fillerMetas, combineFillerMeta(fileHash, pkey[:]))
+	n.Logs.Spc("info", fmt.Errorf("filler hash: %v", fileHash))
+	//}
 
 	// submit filler meta
 	for len(fillerMetas) > 0 {
 		txhash, err = n.Chain.SubmitFillerMeta(types.NewAccountID(pkey[:]), fillerMetas)
 		if txhash == "" {
-			n.Logs.Spc("err", err)
+			n.Logs.Spc("err", fmt.Errorf("[SubmitFillerMeta] %v", err))
 			time.Sleep(configs.BlockInterval)
 			continue
 		}
-		n.Logs.Spc("info", fmt.Errorf("[C%v] %v", minerinfo.Peerid, txhash))
+		for i := 0; i < len(fillerMetas); i++ {
+			fpath := filepath.Join(n.FillerDir, fmt.Sprintf("%s", string(fillerMetas[i].Hash[:])))
+			os.Remove(fpath)
+			os.Remove(fpath + configs.TagFileExt)
+		}
+		n.Logs.Spc("info", fmt.Errorf("[SubmitFillerMeta] %v", txhash))
 		break
 	}
-
-	for i := 0; i < len(fillerMetas); i++ {
-		fpath := filepath.Join(n.FillerDir, fmt.Sprintf("%s", string(fillerMetas[i].Hash[:])))
-		os.Remove(fpath)
-		os.Remove(fpath + configs.TagFileExt)
-	}
+	ch <- true
 }
 
 func dialTcpServer(address string) (*net.TCPConn, error) {
@@ -167,6 +194,7 @@ func dialTcpServer(address string) (*net.TCPConn, error) {
 	}
 	conTcp, ok := netCon.(*net.TCPConn)
 	if !ok {
+		netCon.Close()
 		return nil, errors.New("network conversion failed")
 	}
 	return conTcp, nil

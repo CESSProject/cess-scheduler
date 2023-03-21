@@ -106,7 +106,7 @@ const (
 	SgxReportSuc         = 100000
 	BlockSize            = SIZE_1KiB * 2
 	//ChallengeBlocks      = FillerSize / BlockSize
-	TimeOut_WaitTag = time.Duration(time.Minute * 5)
+	TimeOut_WaitTag = time.Duration(time.Minute * 4)
 )
 
 // explanation

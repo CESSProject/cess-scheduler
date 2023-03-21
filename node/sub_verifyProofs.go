@@ -39,6 +39,7 @@ func (n *Node) task_ValidateProof(ch chan<- bool) {
 
 	var (
 		err           error
+		tStart        time.Time
 		proofs        []chain.Proof
 		key           *proof.RSAKeyPair
 		verifyResults = make([]chain.ProofResult, 0)
@@ -46,16 +47,17 @@ func (n *Node) task_ValidateProof(ch chan<- bool) {
 
 	n.Logs.Verify("info", errors.New(">>> Start task_ValidateProof <<<"))
 
-	for key == nil {
-		key, _ = proof.GetKey(n.Cache)
-		time.Sleep(time.Second)
+	for {
+		key, err = proof.GetKey(n.Cache)
+		if err != nil {
+			n.Logs.Verify("err", err)
+			time.Sleep(time.Minute)
+			continue
+		}
+		break
 	}
 
 	for {
-		// if n.Chain.GetChainStatus() {
-		// 	time.Sleep(time.Minute)
-		// 	continue
-		// }
 		// Get proofs from chain
 		proofs, err = n.Chain.GetProofs()
 		if err != nil {
@@ -69,21 +71,26 @@ func (n *Node) task_ValidateProof(ch chan<- bool) {
 		}
 
 		n.Logs.Verify("info", fmt.Errorf("There are %d proofs", len(proofs)))
-
-		for i := 0; i < len(proofs); i++ {
-			// Proof results reach the maximum number of submissions
-			if len(verifyResults) >= configs.Max_SubProofResults {
-				n.Logs.Verify("info", fmt.Errorf("Submit %d proofs", len(verifyResults)))
-				n.submitProofResult(verifyResults)
-				verifyResults = make([]chain.ProofResult, 0)
+		if len(proofs) > 0 {
+			workLock.Lock()
+			for i := 0; i < len(proofs); i++ {
+				// Proof results reach the maximum number of submissions
+				if len(verifyResults) >= configs.Max_SubProofResults {
+					n.Logs.Verify("info", fmt.Errorf("Submit %d proofs", len(verifyResults)))
+					n.submitProofResult(verifyResults)
+					verifyResults = make([]chain.ProofResult, 0)
+				}
+				tStart = time.Now()
+				res := n.verifyProof(key, proofs[i])
+				n.Logs.Verify("info", fmt.Errorf("Verify proof time: %d", time.Since(tStart).Microseconds()))
+				verifyResults = append(verifyResults, res)
 			}
-			res := n.verifyProof(key, proofs[i])
-			verifyResults = append(verifyResults, res)
-		}
+			workLock.Unlock()
 
-		// submit proof results
-		n.submitProofResult(verifyResults)
-		verifyResults = make([]chain.ProofResult, 0)
+			// submit proof results
+			n.submitProofResult(verifyResults)
+			verifyResults = make([]chain.ProofResult, 0)
+		}
 		time.Sleep(configs.BlockInterval)
 	}
 }
@@ -96,6 +103,11 @@ func (n *Node) verifyProof(key *proof.RSAKeyPair, prf chain.Proof) chain.ProofRe
 		t      proof.T
 		mht    proof.MHTInfo
 	)
+
+	defer func() {
+		n.Logs.Verify("info", fmt.Errorf("fileid: %v", string(prf.Challenge_info.File_id[:])))
+		n.Logs.Verify("info", fmt.Errorf("result: %v", result.Result))
+	}()
 
 	result.PublicKey = prf.Miner_pubkey
 	result.FileId = prf.Challenge_info.File_id
@@ -121,7 +133,11 @@ func (n *Node) verifyProof(key *proof.RSAKeyPair, prf chain.Proof) chain.ProofRe
 			mht.HashMi[j] = append(mht.HashMi[j], prf.HashMi[j]...)
 		}
 		mht.Omega = prf.Omega
+
+		fmt.Println("Will verify: ", string(result.FileId[:]))
 		result.Result = types.Bool(key.VerifyProof(t, qSlice, prf.Mu, prf.Sigma, mht, prf.SigRootHash))
+		fmt.Println("verify result: ", string(result.FileId[:]), " ", result.Result)
+		fmt.Println()
 	}
 	// validate proof
 	return result

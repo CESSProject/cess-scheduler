@@ -58,6 +58,7 @@ var (
 	C_Filler    chan Filler
 	Ch_Tag      chan PoDR2PubData
 	blackMiners *BlacklistMiner
+	workLock    *sync.Mutex
 )
 
 func init() {
@@ -67,6 +68,7 @@ func init() {
 		Lock: new(sync.Mutex),
 		List: make(map[uint64]int64, 100),
 	}
+	workLock = new(sync.Mutex)
 }
 
 func (b *BlacklistMiner) Add(peerid uint64) {

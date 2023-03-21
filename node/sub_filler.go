@@ -74,6 +74,8 @@ func (n *Node) task_GenerateFiller(ch chan<- bool) {
 			}
 
 			n.Logs.GenFiller("info", fmt.Errorf("A filler is generated: %v", filepath.Base(fillerpath)))
+
+			fmt.Println("Will gen a filler: ", filepath.Base(fillerpath))
 			// Calculate filler tag
 			err = n.RequestAndSaveTag(fillerpath, fillerpath+configs.TagFileExt)
 			if err != nil {
@@ -81,6 +83,8 @@ func (n *Node) task_GenerateFiller(ch chan<- bool) {
 				os.Remove(fillerpath)
 				continue
 			}
+			fmt.Println("Gen Filler suc: ", filepath.Base(fillerpath))
+			fmt.Println()
 
 			n.Logs.GenFiller("info", fmt.Errorf("Calculate the tag of the filler: %v", filepath.Base(fillerpath)+configs.TagFileExt))
 			// save filler metainfo to channel
@@ -148,6 +152,9 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 		tag        PoDR2PubData
 		tagSave    StorageTagType
 	)
+	workLock.Lock()
+	defer workLock.Unlock()
+
 	callTagUrl = fmt.Sprintf("%s:%d%s", configs.Localhost, n.Confile.GetSgxPort(), configs.GetTagRoute)
 	err = getTagReq(fpath, configs.BlockSize, int64(configs.SgxCallBackPort), callTagUrl, configs.GetTagRoute_Callback, n.Confile.GetServiceAddr())
 	if err != nil {
@@ -162,12 +169,6 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 	case tag = <-Ch_Tag:
 	}
 
-	// matrix, num, err := proof.SplitV2(fillerpath, configs.BlockSize)
-	// if err != nil {
-	// 	n.Logs.GenFiller("err", err)
-	// 	continue
-	// }
-
 	u, err := base64.StdEncoding.DecodeString(tag.Result.T.Tag.U)
 	if err != nil {
 		return err
@@ -177,6 +178,7 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 	if err != nil {
 		return err
 	}
+
 	tagSave.T.Tag.U = u
 	tagSave.T.Tag.Name = name
 	tagSave.T.Tag.N = tag.Result.T.Tag.N
@@ -218,6 +220,15 @@ func (n *Node) RequestAndSaveTag(fpath, tagpath string) error {
 		n.Cache.Put([]byte(configs.SigKey_N), []byte(tag.Result.Spk.N))
 		proof.SetKey(n.Cache)
 	}
+	fmt.Println("T.Tag.U: ", u)
+	fmt.Println("T.Tag.Name: ", name)
+	fmt.Println("T.Tag.N: ", tag.Result.T.Tag.N)
+	fmt.Println("T.SigAbove: ", sig)
+	fmt.Println("T.SigRootHash: ", sig_root_hash)
+	E_bigint, _ := new(big.Int).SetString(tagSave.E, 10)
+	N_bigint, _ := new(big.Int).SetString(tagSave.N, 10)
+	fmt.Println("key.Spk.E: ", int(E_bigint.Int64()))
+	fmt.Println("key.Spk.N: ", N_bigint)
 	return nil
 }
 

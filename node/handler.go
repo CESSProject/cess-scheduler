@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"os"
@@ -66,6 +67,10 @@ func (c *ConMgr) Start(node *Node) {
 	node.Logs.Common("info", fmt.Errorf("Close a conn: %v", c.conn.GetRemoteAddr()))
 }
 
+func (c *ConMgr) SetFiles(files []string) {
+	c.sendFiles = files
+}
+
 func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg, sign []byte) error {
 	wg := &sync.WaitGroup{}
 	c.conn.HandlerLoop(wg, false)
@@ -77,6 +82,7 @@ func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg,
 	}()
 	err := c.sendFile(node, fid, filetype, pkey, signmsg, sign)
 	wg.Wait()
+	node.Logs.Spc("info", fmt.Errorf("Connection closed"))
 	return err
 }
 
@@ -100,7 +106,7 @@ func (c *ConMgr) handler(node *Node) error {
 	for !c.conn.IsClose() {
 		m, ok := c.conn.GetMsg()
 		if !ok {
-			return fmt.Errorf("Getmsg failed")
+			return fmt.Errorf("Get msg failed and handler exit")
 		}
 
 		if m == nil {
@@ -293,6 +299,7 @@ func (c *ConMgr) sendSingleFile(filePath string, fid string, filetype uint8, las
 
 	fileInfo, _ := file.Stat()
 
+	log.Println("Send head msg, filename = ", fileInfo.Name())
 	c.conn.SendMsg(buildHeadMsg(fileInfo.Name(), fid, filetype, lastmark, pkey, signmsg, sign))
 
 	timerHead := time.NewTimer(configs.TCP_Time_WaitNotification)
@@ -502,9 +509,9 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			continue
 		}
 
-		if blackMiners.IsExist(minerinfo.Peerid) {
-			continue
-		}
+		// if blackMiners.IsExist(minerinfo.Peerid) {
+		// 	continue
+		// }
 
 		if minerinfo.Free < uint64(fstat.Size()) {
 			continue
@@ -515,9 +522,14 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
+
 		dialer := net.Dialer{Timeout: configs.Tcp_Dial_Timeout}
+
+		workLock.Lock()
+
 		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
+			workLock.Unlock()
 			netCon.Close()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
@@ -525,21 +537,20 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 
 		conTcp, ok := netCon.(*net.TCPConn)
 		if !ok {
+			workLock.Unlock()
 			netCon.Close()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, tcpAddr.String()))
 			continue
 		}
-		defer func() {
-			if conTcp != nil {
-				conTcp.Close()
-			}
-		}()
+
 		srv := NewClient(NewTcp(conTcp), "", []string{fpath, fileTagPath})
 		err = srv.SendFile(n, fid, FileType_file, n.Chain.GetPublicKey(), []byte(msg), sign[:])
 		if err != nil {
+			workLock.Unlock()
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}
+		workLock.Unlock()
 		var blockId chain.FileBlockId
 		if len(fname) < len(blockId) {
 			fname += ".000"

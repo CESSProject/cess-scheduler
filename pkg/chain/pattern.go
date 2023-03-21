@@ -146,7 +146,7 @@ type Proof struct {
 type ChallengeInfo struct {
 	File_size  types.U64
 	File_type  types.U8
-	Block_list types.Bytes
+	Block_list []types.U32
 	File_id    FileHash
 	Shard_id   FileBlockId
 	Random     []types.Bytes
