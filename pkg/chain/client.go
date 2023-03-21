@@ -53,8 +53,6 @@ type Chainer interface {
 	GetCessAccount() (string, error)
 	// GetAccountInfo is used to get account information
 	GetAccountInfo(pkey []byte) (types.AccountInfo, error)
-	// GetSpacePackageInfo is used to get the space package information of the account
-	GetSpacePackageInfo(pkey []byte) (SpacePackage, error)
 	// Register is used by the scheduling service to register
 	Register(stash, ip string, port uint16) (string, error)
 	// SubmitProofResults is used to submit proof verification results
@@ -104,8 +102,8 @@ func NewChainClient(rpcAddr, secret, stash string, t time.Duration) (Chainer, er
 	}
 	cli.keyEvents, err = types.CreateStorageKey(
 		cli.metadata,
-		state_System,
-		system_Events,
+		SYSTEM,
+		EVENTS,
 		nil,
 	)
 	if err != nil {

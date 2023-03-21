@@ -63,7 +63,7 @@ func (c *chainClient) Register(stash, ip string, port uint16) (string, error) {
 
 	call, err := types.NewCall(
 		c.metadata,
-		tx_FileMap_Add_schedule,
+		TX_TEEWORKER_REGISTER,
 		types.NewAccountID(stashPuk),
 		ipType.IPv4,
 	)
@@ -78,8 +78,8 @@ func (c *chainClient) Register(stash, ip string, port uint16) (string, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_System,
-		system_Account,
+		SYSTEM,
+		ACCOUNT,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -151,7 +151,7 @@ func (c *chainClient) Register(stash, ip string, port uint16) (string, error) {
 
 				types.EventRecordsRaw(*h).DecodeEventRecords(c.metadata, &events)
 
-				if len(events.FileMap_RegistrationScheduler) > 0 {
+				if len(events.TeeWorker_RegistrationScheduler) > 0 {
 					return txhash, nil
 				}
 				return txhash, errors.New(ERR_Failed)
@@ -191,7 +191,7 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 
 	call, err := types.NewCall(
 		c.metadata,
-		tx_FileBank_Upload,
+		TX_FILEBANK_UPLOAD,
 		hash,
 		types.U64(fsize),
 		block,
@@ -207,8 +207,8 @@ func (c *chainClient) SubmitFileMeta(fid string, fsize uint64, block []BlockInfo
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_System,
-		system_Account,
+		SYSTEM,
+		ACCOUNT,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -309,7 +309,7 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 	}
 	c.SetChainState(true)
 
-	call, err := types.NewCall(c.metadata, tx_FileBank_UploadFiller, miner_acc, info)
+	call, err := types.NewCall(c.metadata, TX_FILEBANK_UPLOADFILLER, miner_acc, info)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")
 	}
@@ -321,8 +321,8 @@ func (c *chainClient) SubmitFillerMeta(miner_acc types.AccountID, info []FillerM
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_System,
-		system_Account,
+		SYSTEM,
+		ACCOUNT,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -422,7 +422,7 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 	}
 	c.SetChainState(true)
 
-	call, err := types.NewCall(c.metadata, tx_SegmentBook_VerifyProof, data)
+	call, err := types.NewCall(c.metadata, TX_AUDIT_VERIFYPROOF, data)
 	if err != nil {
 		return txhash, errors.Wrap(err, "[NewCall]")
 	}
@@ -434,8 +434,8 @@ func (c *chainClient) SubmitProofResults(data []ProofResult) (string, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_System,
-		system_Account,
+		SYSTEM,
+		ACCOUNT,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -533,7 +533,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 
 	call, err := types.NewCall(
 		c.metadata,
-		tx_FileMap_UpdateScheduler,
+		TX_TEEWORKER_UPDATE,
 		ipType.IPv4,
 	)
 	if err != nil {
@@ -547,8 +547,8 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 
 	key, err := types.CreateStorageKey(
 		c.metadata,
-		state_System,
-		system_Account,
+		SYSTEM,
+		ACCOUNT,
 		c.keyring.PublicKey,
 	)
 	if err != nil {
@@ -619,7 +619,7 @@ func (c *chainClient) Update(ip, port string) (string, error) {
 
 				types.EventRecordsRaw(*h).DecodeEventRecords(c.metadata, &events)
 
-				if len(events.FileMap_UpdateScheduler) > 0 {
+				if len(events.TeeWorker_UpdateScheduler) > 0 {
 					return txhash, nil
 				}
 				return txhash, errors.New(ERR_Failed)

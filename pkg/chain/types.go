@@ -21,6 +21,68 @@ import (
 	"github.com/pkg/errors"
 )
 
+// DOT is "." character
+const DOT = "."
+
+// Pallets
+const (
+	// FILEBANK is a module about data metadata, bucket info, etc.
+	FILEBANK = "FileBank"
+	// TEEWOEKER is a module about TEE
+	TEEWORKER = "TeeWorker"
+	// SMINER is a module about storage miners
+	SMINER = "Sminer"
+	// AUDIT is a module on data challenges
+	AUDIT = "Audit"
+	// SYSTEM is a module about the system
+	SYSTEM = "System"
+)
+
+// Chain state
+const (
+	// SMINER
+	ALLMINER   = "AllMiner"
+	MINERITEMS = "MinerItems"
+
+	// TEEWORKER
+	SCHEDULERMAP = "SchedulerMap"
+
+	// FileBank
+	FILE = "File"
+
+	// AUDIT
+	UNVERIFYPROOF = "UnVerifyProof"
+
+	// SYSTEM
+	ACCOUNT = "Account"
+	EVENTS  = "Events"
+)
+
+// cess chain Transaction name
+const (
+	// FileBank
+	TX_FILEBANK_UPLOAD       = FILEBANK + DOT + "upload"
+	TX_FILEBANK_UPLOADFILLER = FILEBANK + DOT + "upload_filler"
+
+	// AUDIT
+	TX_AUDIT_VERIFYPROOF = AUDIT + DOT + "verify_proof"
+
+	// TEEWORKER
+	TX_TEEWORKER_UPDATE   = TEEWORKER + DOT + "update_scheduler"
+	TX_TEEWORKER_REGISTER = TEEWORKER + DOT + "registration_scheduler"
+)
+
+const (
+	FILE_STATE_ACTIVE  = "active"
+	FILE_STATE_PENDING = "pending"
+)
+
+const (
+	MINER_STATE_POSITIVE = "positive"
+	MINER_STATE_FROZEN   = "frozen"
+	MINER_STATE_EXIT     = "exit"
+)
+
 const (
 	ERR_Failed = "Failed"
 	//ERR_Timeout = "Timeout"
