@@ -39,6 +39,7 @@ const (
 	FileDir   = "file"
 	TagDir    = "tag"
 	FillerDir = "filler"
+	TraceDir  = "trace"
 )
 
 const (

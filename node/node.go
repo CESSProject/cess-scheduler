@@ -44,6 +44,7 @@ type Node struct {
 	FileDir   string
 	TagDir    string
 	FillerDir string
+	TraceDir  string
 }
 
 // New is used to build a node instance

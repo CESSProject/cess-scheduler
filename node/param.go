@@ -32,6 +32,10 @@ type Filler struct {
 	TagPath    string
 }
 
+const (
+	BlackPrefix = "black:"
+)
+
 var (
 	C_Filler chan Filler
 )

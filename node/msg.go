@@ -34,6 +34,8 @@ const (
 	MsgClose
 	MsgRecvHead
 	MsgRecvFile
+	MsgFileSt
+	MsgVersion
 )
 
 const (
@@ -45,6 +47,7 @@ const (
 const (
 	Status_Ok Status = iota
 	Status_Err
+	Status_Exists
 )
 
 var (
@@ -84,10 +87,14 @@ type Notify struct {
 	Status byte
 }
 
-func buildNotifyMsg(fileName string, status Status) *Message {
+func buildNotifyMsg(fileName string, status Status, ver string) *Message {
 	m := &Message{}
 	m.MsgType = MsgNotify
-	m.FileName = fileName
+	if fileName != "" {
+		m.FileName = fileName
+	} else {
+		m.FileName = ver
+	}
 	m.FileHash = ""
 	m.FileSize = 0
 	m.LastMark = false
@@ -160,5 +167,34 @@ func buildCloseMsg(status Status) *Message {
 	m.SignMsg = nil
 	m.Sign = nil
 	m.Bytes = []byte{byte(status)}
+	return m
+}
+
+func buildFileStMsg(fid string, val []byte) *Message {
+	m := &Message{}
+	m.MsgType = MsgFileSt
+	m.FileType = 0
+	m.FileName = ""
+	m.FileHash = fid
+	m.FileSize = uint64(len(val))
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = val
+	return m
+}
+
+func buildVersionMsg(ver string) *Message {
+	m := &Message{}
+	m.MsgType = MsgVersion
+	m.FileName = ver
+	m.FileHash = ""
+	m.FileSize = 0
+	m.LastMark = false
+	m.Pubkey = nil
+	m.SignMsg = nil
+	m.Sign = nil
+	m.Bytes = []byte{byte(Status_Ok)}
 	return m
 }

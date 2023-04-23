@@ -87,6 +87,7 @@ const (
 	SubmitFillermetaInterval = 60
 	// The maximum number of proof results submitted in a transaction
 	Max_SubProofResults = 40
+	DirMode             = 0644
 )
 
 // explanation

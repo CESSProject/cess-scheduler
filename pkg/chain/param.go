@@ -66,6 +66,8 @@ const (
 const (
 	FILE_STATE_ACTIVE  = "active"
 	FILE_STATE_PENDING = "pending"
+
+	FILE_STATE_TXFAILED = "tx_failed"
 )
 
 const (

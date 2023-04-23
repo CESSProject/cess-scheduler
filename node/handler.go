@@ -39,6 +39,24 @@ import (
 	"github.com/centrifuge/go-substrate-rpc-client/v4/types"
 )
 
+type FileStoreInfo struct {
+	FileId      string         `json:"file_id"`
+	FileState   string         `json:"file_state"`
+	Scheduler   string         `json:"scheduler"`
+	FileSize    int64          `json:"file_size"`
+	IsUpload    bool           `json:"is_upload"`
+	IsCheck     bool           `json:"is_check"`
+	IsShard     bool           `json:"is_shard"`
+	IsScheduler bool           `json:"is_scheduler"`
+	Miners      map[int]string `json:"miners,omitempty"`
+}
+
+type RecordFileInfo struct {
+	FileId   string   `json:"file_id"`
+	FileSize uint64   `json:"file_size"`
+	Chunks   []string `json:"chunks"`
+}
+
 func NewServer(conn NetConn, dir string) Server {
 	return &ConMgr{
 		conn:       conn,
@@ -80,9 +98,9 @@ func (c *ConMgr) SendFile(node *Node, fid string, filetype uint8, pkey, signmsg,
 
 func (c *ConMgr) handler(node *Node) error {
 	var (
-		err          error
-		fs           *os.File
-		timeOutTimer *time.Timer
+		err        error
+		remoteaddr string
+		fs         *os.File
 	)
 
 	defer func() {
@@ -91,40 +109,25 @@ func (c *ConMgr) handler(node *Node) error {
 		if fs != nil {
 			fs.Close()
 		}
-		if timeOutTimer != nil {
-			timeOutTimer.Stop()
-		}
 		if err := recover(); err != nil {
 			node.Logs.Pnc("error", utils.RecoverError(err))
 		}
 	}()
 
+	remoteaddr = c.conn.GetRemoteAddr()
 	for !c.conn.IsClose() {
-		if timeOutTimer != nil {
-			select {
-			case <-timeOutTimer.C:
-				return errors.New("Get msg timeout")
-			default:
-			}
-		}
-
 		m, ok := c.conn.GetMsg()
 		if !ok {
-			return errors.New("Getmsg failed")
+			return fmt.Errorf("Get msg failed and handler exit")
 		}
 
 		if m == nil {
-			timeOutTimer = time.NewTimer(configs.TCP_Time_WaitMsg)
 			continue
-		} else {
-			if timeOutTimer != nil {
-				timeOutTimer.Stop()
-			}
-			timeOutTimer = nil
 		}
 
 		switch m.MsgType {
 		case MsgHead:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg type: %v", remoteaddr, MsgHead))
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
 				readBufPool.Put(m.Bytes)
@@ -133,42 +136,82 @@ func (c *ConMgr) handler(node *Node) error {
 			// Verify signature
 			ok, err = VerifySign(m.Pubkey, m.SignMsg, m.Sign)
 			if err != nil || !ok {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				node.Logs.Upfile("err", fmt.Errorf("[%v] VerifySign err", remoteaddr))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Signature error")
 			}
-			//Judge whether the file has been uploaded
-			fileState, err := GetFileState(node.Chain, m.FileHash)
-			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
-				return errors.New("Get file state error")
-			}
 
-			// file state
-			if fileState == chain.FILE_STATE_ACTIVE {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
-				return errors.New("File uploaded")
-			}
+			// //Judge whether the file has been uploaded
+			// fileState, err := GetFileState(node.Chain, m.FileHash)
+			// if err != nil {
+			// 	node.Logs.Upfile("info", fmt.Errorf("[%v] GetFileState err", remoteaddr))
+			// 	c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
+			// 	return errors.New("Get file state error")
+			// }
 
-			c.fileName = m.FileName
+			// // file state
+			// if fileState == chain.FILE_STATE_ACTIVE {
+			// 	c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
+			// 	return errors.New("File uploaded")
+			// }
+
+			if m.FileSize >= 0 {
+				c.fileName = m.FileName
+				fstat, err := os.Stat(filepath.Join(c.dir, c.fileName))
+				if err == nil {
+					if fstat.Size() == int64(m.FileSize) {
+						node.Logs.Upfile("err", fmt.Errorf("[%v] File already exist [%s]", remoteaddr, c.fileName))
+						c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Exists, ""))
+						continue
+					}
+				}
+			}
 
 			// create file
 			fs, err = os.OpenFile(filepath.Join(c.dir, m.FileName), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				node.Logs.Upfile("err", fmt.Errorf("[%v] OpenFile err: [%s]", remoteaddr, err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return err
 			}
 			// notify suc
-			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok, ""))
+			node.Logs.Upfile("info", fmt.Errorf("[%v] MsgHead return suc", remoteaddr))
+
+		case MsgFileSt:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg type: %v, filehash: %v", remoteaddr, MsgFileSt, m.FileHash))
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			val, err := node.Cache.Get([]byte(m.FileHash))
+			if err != nil {
+				node.Logs.Upfile("err", fmt.Errorf("[%v] MsgFileSt return err: %v", remoteaddr, err))
+				c.conn.SendMsg(buildFileStMsg(m.FileHash, nil))
+			} else {
+				node.Logs.Upfile("info", fmt.Errorf("[%v] MsgFileSt return suc", remoteaddr))
+				c.conn.SendMsg(buildFileStMsg(m.FileHash, val))
+			}
+			time.Sleep(time.Second)
 
 		case MsgFile:
 			// If fs=nil, it means that the file has not been created.
 			// You need to request MsgHead message first
 			if fs == nil {
+				node.Logs.Upfile("err", fmt.Errorf("[%v] MsgFile fs==nil ", remoteaddr))
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File not open")
 			}
+
+			if m.FileSize == 0 {
+				node.Logs.Upfile("err", fmt.Errorf("[%v] MsgFile m.FileSize==0", remoteaddr))
+				c.conn.SendMsg(buildCloseMsg(Status_Err))
+				return errors.New("File write failed")
+			}
 			_, err = fs.Write(m.Bytes[:m.FileSize])
 			if err != nil {
+				node.Logs.Upfile("err", fmt.Errorf("[%v] MsgFile fs==nil ", remoteaddr))
 				c.conn.SendMsg(buildCloseMsg(Status_Err))
 				return errors.New("File write failed")
 			}
@@ -177,7 +220,9 @@ func (c *ConMgr) handler(node *Node) error {
 				readBufPool.Put(m.Bytes)
 			default:
 			}
+
 		case MsgEnd:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg type: %v", remoteaddr, MsgEnd))
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
 				readBufPool.Put(m.Bytes)
@@ -185,15 +230,18 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 			info, err := fs.Stat()
 			if err != nil {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				node.Logs.Upfile("err", fmt.Errorf("[%v] MsgEnd fs.Stat err: %v", remoteaddr, err))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return errors.New("Invalid file")
 			}
 
 			if info.Size() != int64(m.FileSize) {
-				c.conn.SendMsg(buildNotifyMsg("", Status_Err))
+				node.Logs.Upfile("err", fmt.Errorf("[%v] info.Size(%d) != m.FileSize(%d)", remoteaddr, info.Size(), m.FileSize))
+				c.conn.SendMsg(buildNotifyMsg("", Status_Err, ""))
 				return fmt.Errorf("file.size %v rece size %v \n", info.Size(), m.FileSize)
 			}
-			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok))
+			c.conn.SendMsg(buildNotifyMsg(c.fileName, Status_Ok, ""))
+			node.Logs.Upfile("info", fmt.Errorf("[%v] MsgEnd return suc", remoteaddr))
 
 			// close fs
 			fs.Close()
@@ -203,18 +251,58 @@ func (c *ConMgr) handler(node *Node) error {
 			if m.LastMark {
 				allChunksPath, _ := filepath.Glob(c.dir + "/" + m.FileHash + "*")
 				filesize := binary.BigEndian.Uint64(m.SignMsg)
-				// backup file to miner
-				go node.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
+				node.Logs.Upfile("info", fmt.Errorf("[%v] MsgEnd recv all chunks: %v", remoteaddr, allChunksPath))
+
+				var fileSt = FileStoreInfo{
+					FileId:      m.FileHash,
+					FileSize:    int64(filesize),
+					FileState:   chain.FILE_STATE_PENDING,
+					Scheduler:   fmt.Sprintf("%s:%s", node.Confile.GetServiceAddr(), node.Confile.GetServicePort()),
+					IsUpload:    true,
+					IsCheck:     true,
+					IsShard:     true,
+					IsScheduler: true,
+				}
+
+				b, err := json.Marshal(&fileSt)
+				if err != nil {
+					node.Logs.Upfile("err", fmt.Errorf("[%v] Marshal err: %v", m.FileHash, err.Error()))
+				} else {
+					node.Cache.Put([]byte(m.FileHash), b)
+				}
+
+				var record RecordFileInfo
+				record.FileId = m.FileHash
+				record.FileSize = filesize
+				record.Chunks = allChunksPath
+				b, err = json.Marshal(&record)
+				if err != nil {
+					node.Logs.Upfile("err", fmt.Errorf("[%v] MsgEnd record chunks: %v, Marshal err: %v", remoteaddr, allChunksPath, err))
+					go node.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
+				} else {
+					f, err := os.Create(filepath.Join(node.TraceDir, m.FileHash))
+					if err != nil {
+						node.Logs.Upfile("err", fmt.Errorf("[%v] MsgEnd record chunks: %v, Create err: %v", remoteaddr, allChunksPath, err))
+						go node.FileBackupManagement(m.FileHash, int64(filesize), allChunksPath)
+					} else {
+						f.Write(b)
+						f.Sync()
+						f.Close()
+					}
+				}
 			}
+
 		case MsgNotify:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg type: %v", remoteaddr, MsgNotify))
+			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
 				readBufPool.Put(m.Bytes)
 			default:
 			}
-			c.waitNotify <- m.Bytes[0] == byte(Status_Ok)
 
 		case MsgClose:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg type: %v", remoteaddr, MsgClose))
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
 				readBufPool.Put(m.Bytes)
@@ -222,7 +310,17 @@ func (c *ConMgr) handler(node *Node) error {
 			}
 			return errors.New("Close message")
 
+		case MsgVersion:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg type: %v", remoteaddr, MsgVersion))
+			switch cap(m.Bytes) {
+			case configs.TCP_ReadBuffer:
+				readBufPool.Put(m.Bytes)
+			default:
+			}
+			c.conn.SendMsg(buildVersionMsg(configs.Version))
+
 		default:
+			node.Logs.Upfile("info", fmt.Errorf("[%v] Recv msg Invalid type: %v", remoteaddr, m.MsgType))
 			switch cap(m.Bytes) {
 			case configs.TCP_ReadBuffer:
 				readBufPool.Put(m.Bytes)
@@ -354,14 +452,46 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
 
-	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	var fileSt = FileStoreInfo{
+		FileId:      fid,
+		FileSize:    fsize,
+		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   fmt.Sprintf("%s:%s", n.Confile.GetServiceAddr(), n.Confile.GetServicePort()),
+		IsUpload:    true,
+		IsCheck:     true,
+		IsShard:     true,
+		IsScheduler: true,
+	}
 
+	if len(chunks) <= 0 {
+		fileSt.IsScheduler = false
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
+		n.Logs.Upfile("err", fmt.Errorf("[%v] Not found", fid))
+		return
+	}
+
+	b, err := json.Marshal(&fileSt)
+	if err != nil {
+		n.Logs.Upfile("err", fmt.Errorf("[%v] Marshal err: %v", fid, err.Error()))
+	} else {
+		n.Cache.Put([]byte(fid), b)
+	}
+
+	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	fileSt.Miners = make(map[int]string, len(chunks))
 	for i := 0; i < len(chunks); {
 		chunksInfo[i], err = n.backupFile(fid, chunks[i])
 		if err != nil {
 			time.Sleep(time.Second)
 			continue
 		}
+		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
+			continue
+		}
+		fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(chunksInfo[i].MinerAcc[:])
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
 		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
 		i++
 	}
@@ -369,21 +499,95 @@ func (n *Node) FileBackupManagement(fid string, fsize int64, chunks []string) {
 	// Submit the file meta information to the chain
 	for {
 		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
-		if txhash == "" {
+		if err != nil && txhash == "" {
 			n.Logs.Upfile("error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
 			time.Sleep(configs.BlockInterval)
 			continue
 		}
 		break
 	}
+	fileSt.FileState = chain.FILE_STATE_ACTIVE
+	b, _ = json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
 	n.Logs.Upfile("info", fmt.Errorf("[%v] Submit filemeta [%v]", fid, txhash))
 	return
+}
+
+// file backup management
+func (n *Node) TrackFileBackupManagement(fid string, fsize int64, chunks []string) error {
+	defer func() {
+		if err := recover(); err != nil {
+			n.Logs.Pnc("error", utils.RecoverError(err))
+		}
+	}()
+	var (
+		err    error
+		txhash string
+	)
+
+	n.Logs.Upfile("info", fmt.Errorf("[%v] Start the file backup management", fid))
+
+	var fileSt = FileStoreInfo{
+		FileId:      fid,
+		FileSize:    fsize,
+		FileState:   chain.FILE_STATE_PENDING,
+		Scheduler:   fmt.Sprintf("%s:%s", n.Confile.GetServiceAddr(), n.Confile.GetServicePort()),
+		IsUpload:    true,
+		IsCheck:     true,
+		IsShard:     true,
+		IsScheduler: true,
+	}
+
+	var chunksInfo = make([]chain.BlockInfo, len(chunks))
+	fileSt.Miners = make(map[int]string, len(chunks))
+	for i := 0; i < len(chunks); {
+		chunksInfo[i], err = n.backupFile(fid, chunks[i])
+		if err != nil {
+			time.Sleep(time.Second)
+			continue
+		}
+		if chunksInfo[i].MinerId == types.U64(0) || chunksInfo[i].BlockSize == types.U64(0) {
+			continue
+		}
+		fileSt.Miners[i], _ = utils.EncodePublicKeyAsCessAccount(chunksInfo[i].MinerAcc[:])
+		b, _ := json.Marshal(&fileSt)
+		n.Cache.Put([]byte(fid), b)
+		n.Logs.Upfile("info", fmt.Errorf("[%v] backup suc", chunks[i]))
+		i++
+	}
+
+	// Submit the file meta information to the chain
+	var tryCount uint8
+	for {
+		if tryCount > 5 {
+			return fmt.Errorf("SubmitFileMeta failed")
+		}
+		txhash, err = n.Chain.SubmitFileMeta(fid, uint64(fsize), chunksInfo)
+		if err != nil {
+			if txhash != "" {
+				fileSt.FileState = chain.FILE_STATE_TXFAILED
+				break
+			}
+			tryCount++
+			n.Logs.Upfile("error", fmt.Errorf("[%v] Submit filemeta fail: %v", fid, err))
+			time.Sleep(configs.BlockInterval)
+			continue
+		}
+		fileSt.FileState = chain.FILE_STATE_ACTIVE
+		break
+	}
+
+	b, _ := json.Marshal(&fileSt)
+	n.Cache.Put([]byte(fid), b)
+	n.Logs.Upfile("info", fmt.Errorf("[%v] Submit filemeta txhash: [%v]", fid, txhash))
+	return err
 }
 
 // processingfile is used to process all copies of the file and the corresponding tag information
 func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 	var (
 		err            error
+		ok             bool
 		msg            string
 		rtnValue       chain.BlockInfo
 		minerinfo      chain.Cache_MinerInfo
@@ -492,6 +696,11 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 			continue
 		}
 
+		ok, _ = n.Cache.Has([]byte(fmt.Sprintf("%s%d", BlackPrefix, minerinfo.Peerid)))
+		if ok {
+			continue
+		}
+
 		if minerinfo.Free < uint64(fstat.Size()) {
 			continue
 		}
@@ -504,6 +713,7 @@ func (n *Node) backupFile(fid, fpath string) (chain.BlockInfo, error) {
 		dialer := net.Dialer{Timeout: configs.Tcp_Dial_Timeout}
 		netCon, err := dialer.Dial("tcp", tcpAddr.String())
 		if err != nil {
+			n.Cache.Put([]byte(fmt.Sprintf("%s%d", BlackPrefix, minerinfo.Peerid)), []byte(fmt.Sprintf("%d", time.Now().Unix())))
 			n.Logs.Upfile("error", fmt.Errorf("[%v] %v", fname, err))
 			continue
 		}

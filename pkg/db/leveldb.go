@@ -18,7 +18,9 @@ package db
 
 import (
 	"os"
+	"sync"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -39,12 +41,13 @@ const (
 type LevelDB struct {
 	fn string
 	db *leveldb.DB
+	l  *sync.RWMutex
 }
 
 func NewCache(fpath string, memory int, handles int, namespace string) (Cacher, error) {
 	_, err := os.Stat(fpath)
 	if err != nil {
-		err = os.MkdirAll(fpath, os.ModeDir)
+		err = os.MkdirAll(fpath, configs.DirMode)
 		if err != nil {
 			return nil, err
 		}
@@ -65,6 +68,7 @@ func newLevelDB(file string, memory int, handles int, namespace string) (Cacher,
 	ldb := &LevelDB{
 		fn: file,
 		db: db,
+		l:  new(sync.RWMutex),
 	}
 	return ldb, nil
 }
@@ -90,14 +94,20 @@ func configureOptions(cache int, handles int) *opt.Options {
 }
 
 func (db *LevelDB) Close() error {
+	db.l.Lock()
+	defer db.l.Unlock()
 	return db.db.Close()
 }
 
 func (db *LevelDB) Has(key []byte) (bool, error) {
+	db.l.RLock()
+	defer db.l.RUnlock()
 	return db.db.Has(key, nil)
 }
 
 func (db *LevelDB) Get(key []byte) ([]byte, error) {
+	db.l.RLock()
+	defer db.l.RUnlock()
 	dat, err := db.db.Get(key, nil)
 	if err != nil {
 		return nil, err
@@ -106,10 +116,14 @@ func (db *LevelDB) Get(key []byte) ([]byte, error) {
 }
 
 func (db *LevelDB) Put(key []byte, value []byte) error {
+	db.l.Lock()
+	defer db.l.Unlock()
 	return db.db.Put(key, value, nil)
 }
 
 func (db *LevelDB) Delete(key []byte) error {
+	db.l.Lock()
+	defer db.l.Unlock()
 	return db.db.Delete(key, nil)
 }
 

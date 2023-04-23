@@ -61,7 +61,7 @@ func runCmd(cmd *cobra.Command, args []string) {
 	}
 
 	//Build Data Directory
-	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, err = buildDir(node.Confile, node.Chain)
+	logDir, cacheDir, node.FillerDir, node.FileDir, node.TagDir, node.TraceDir, err = buildDir(node.Confile, node.Chain)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -173,18 +173,18 @@ func register(cfg confile.Confiler, client chain.Chainer) error {
 	return nil
 }
 
-func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, string, string, string, error) {
+func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, string, string, string, string, error) {
 	ctlAccount, err := client.GetCessAccount()
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", "", "", err
 	}
 	baseDir := filepath.Join(cfg.GetDataDir(), ctlAccount, configs.BaseDir)
 
 	_, err = os.Stat(baseDir)
 	if err != nil {
-		err = os.MkdirAll(baseDir, os.ModeDir)
+		err = os.MkdirAll(baseDir, configs.DirMode)
 		if err != nil {
-			return "", "", "", "", "", err
+			return "", "", "", "", "", "", err
 		}
 	}
 
@@ -194,35 +194,37 @@ func buildDir(cfg confile.Confiler, client chain.Chainer) (string, string, strin
 		bkp := logDir + fmt.Sprintf("_%v", time.Now().Unix())
 		os.Rename(logDir, bkp)
 	}
-	if err := os.MkdirAll(logDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+	if err := os.MkdirAll(logDir, configs.DirMode); err != nil {
+		return "", "", "", "", "", "", err
 	}
 
 	cacheDir := filepath.Join(baseDir, configs.CacheDir)
-	os.RemoveAll(cacheDir)
-	if err := os.MkdirAll(cacheDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+	if err := os.MkdirAll(cacheDir, configs.DirMode); err != nil {
+		return "", "", "", "", "", "", err
 	}
 
 	fillerDir := filepath.Join(baseDir, configs.FillerDir)
 	os.RemoveAll(fillerDir)
-	if err := os.MkdirAll(fillerDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+	if err := os.MkdirAll(fillerDir, configs.DirMode); err != nil {
+		return "", "", "", "", "", "", err
 	}
 
 	fileDir := filepath.Join(baseDir, configs.FileDir)
-	os.RemoveAll(fileDir)
-	if err := os.MkdirAll(fileDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+	if err := os.MkdirAll(fileDir, configs.DirMode); err != nil {
+		return "", "", "", "", "", "", err
 	}
 
 	tagDir := filepath.Join(baseDir, configs.TagDir)
 	os.RemoveAll(tagDir)
-	if err := os.MkdirAll(tagDir, os.ModeDir); err != nil {
-		return "", "", "", "", "", err
+	if err := os.MkdirAll(tagDir, configs.DirMode); err != nil {
+		return "", "", "", "", "", "", err
+	}
+	traceDir := filepath.Join(baseDir, configs.TraceDir)
+	if err := os.MkdirAll(traceDir, configs.DirMode); err != nil {
+		return "", "", "", "", "", "", err
 	}
 	log.Println(baseDir)
-	return logDir, cacheDir, fillerDir, fileDir, tagDir, nil
+	return logDir, cacheDir, fillerDir, fileDir, tagDir, traceDir, nil
 }
 
 func buildCache(cacheDir string) (db.Cacher, error) {

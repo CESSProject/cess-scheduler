@@ -21,6 +21,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/CESSProject/cess-scheduler/configs"
 	"github.com/CESSProject/cess-scheduler/pkg/utils"
 	"github.com/centrifuge/go-substrate-rpc-client/v4/signature"
 	"github.com/pkg/errors"
@@ -122,7 +123,7 @@ func (c *confile) Parse(fpath string) error {
 
 	fstat, err = os.Stat(c.DataDir)
 	if err != nil {
-		err = os.MkdirAll(c.DataDir, os.ModeDir)
+		err = os.MkdirAll(c.DataDir, configs.DirMode)
 		if err != nil {
 			return err
 		}

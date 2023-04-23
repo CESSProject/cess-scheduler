@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/CESSProject/cess-scheduler/configs"
@@ -121,12 +122,22 @@ func storagefiller(ch chan bool, n *Node) {
 			continue
 		}
 
-		// if minerinfo.Ip != "139.196.35.64:15001" {
-		// 	continue
-		// }
+		b, err := n.Cache.Get([]byte(fmt.Sprintf("%s%d", BlackPrefix, minerinfo.Peerid)))
+		if err == nil {
+			t, err := strconv.ParseInt(string(b), 10, 64)
+			if err != nil {
+				n.Cache.Delete([]byte(fmt.Sprintf("%s%d", BlackPrefix, minerinfo.Peerid)))
+			} else {
+				if time.Since(time.Unix(t, 0)).Hours() < 5 {
+					continue
+				}
+				n.Cache.Delete([]byte(fmt.Sprintf("%s%d", BlackPrefix, minerinfo.Peerid)))
+			}
+		}
 
 		tcpConn, err := dialTcpServer(minerinfo.Ip)
 		if err != nil {
+			n.Cache.Put([]byte(fmt.Sprintf("%s%d", BlackPrefix, minerinfo.Peerid)), []byte(fmt.Sprintf("%d", time.Now().Unix())))
 			n.Logs.Spc("err", err)
 			continue
 		}
